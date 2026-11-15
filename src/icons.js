@@ -13,6 +13,14 @@
     list: ["M3 12h.01", "M3 18h.01", "M3 6h.01", "M8 12h13", "M8 18h13", "M8 6h13"],
     search: ["c11 11 8", "m21 21-4.3-4.3"],
     sliders: ["M21 4h-7", "M10 4H3", "M21 12h-9", "M8 12H3", "M21 20h-5", "M12 20H3", "M14 2v4", "M8 10v4", "M16 18v4"],
+    layers: ["M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z", "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12", "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"],
+    globe: ["c12 12 10", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20", "M2 12h20"],
+    key: ["m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4", "m21 2-9.6 9.6", "c7.5 15.5 5.5"],
+    mountain: ["m8 3 4 8 5-5 5 15H2L8 3z"],
+    database: ["e12 5 9 3", "M3 5V19A9 3 0 0 0 21 19V5", "M3 12A9 3 0 0 0 21 12"],
+    palette: ["M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z", "c13.5 6.5 .5", "c17.5 10.5 .5", "c6.5 12.5 .5", "c8.5 7.5 .5"],
+    plug: ["M12 22v-5", "M9 8V2", "M15 8V2", "M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"],
+    info: ["c12 12 10", "M12 16v-4", "M12 8h.01"],
     calendar: ["M8 2v4", "M16 2v4", "r3 4 18 18 2", "M3 10h18"],
   };
   const NS = "http://www.w3.org/2000/svg";
@@ -23,6 +31,7 @@
     for (const d of P[name] || []) {
       let n;
       if (d[0] === "c") { const [cx, cy, r] = d.slice(1).split(" "); n = document.createElementNS(NS, "circle"); n.setAttribute("cx", cx); n.setAttribute("cy", cy); n.setAttribute("r", r); }
+      else if (d[0] === "e") { const [cx, cy, rx, ry] = d.slice(1).split(" "); n = document.createElementNS(NS, "ellipse"); for (const [k, v] of [["cx", cx], ["cy", cy], ["rx", rx], ["ry", ry]]) n.setAttribute(k, v); }
       else if (d[0] === "r") { const [x, y, w, h, rx] = d.slice(1).split(" "); n = document.createElementNS(NS, "rect"); for (const [k, v] of [["x", x], ["y", y], ["width", w], ["height", h], ["rx", rx]]) n.setAttribute(k, v); }
       else { n = document.createElementNS(NS, "path"); n.setAttribute("d", d); }
       s.appendChild(n);

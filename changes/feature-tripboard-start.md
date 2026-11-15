@@ -6,5 +6,6 @@
 - A map of each trip (the map button at the top): every place with a location is a pin, coloured by importance. Tap one to see it, edit it or move its pin; tap a place without a location, then the map, to pin it.
 - Find a place by name in its sheet (from OpenStreetMap), which fills in its location and address, and usually its category.
 - Sort by distance now works for places with a location.
-- Settings (the sliders at the top of Home): set up OpenFreeMap, OpenStreetMap, Google and MapTiler, and for the map and for Find by name pick which to use and which to fall back on. Google and MapTiler use your own key, with steps to get one and a Test button.
+- Services in Settings (the sliders at the top of Home): set up OpenFreeMap, OpenStreetMap, Google and MapTiler, and for the map and for Find by name pick which to use and which to fall back on. Google and MapTiler use your own key, with steps to get one and a Test button.
 - Open a place in Google Maps, Apple Maps or Waze, from its sheet or the map.
+- Settings is a list now, with a search bar: Storage (what's kept, space used, and asking the browser to keep it), Appearance (system, light or dark), Services (the map and Find by name, and each provider's setup) and About (version and credits).

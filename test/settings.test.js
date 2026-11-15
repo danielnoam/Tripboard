@@ -35,4 +35,12 @@ test("the chain is main then fallback; a fallback the same as main is dropped", 
   assert.strictEqual(S.ready("osm"), true);
 });
 
+test("the theme is system, light or dark, and system by default", () => {
+  assert.strictEqual(S.merge(null).appearance.theme, "system");
+  assert.strictEqual(S.merge({ appearance: { theme: "dark" } }).appearance.theme, "dark");
+  assert.strictEqual(S.merge({ appearance: { theme: "neon" } }).appearance.theme, "system");
+  S.setTheme("light");
+  assert.strictEqual(S.get().appearance.theme, "light");
+});
+
 console.log(passed + " passed");

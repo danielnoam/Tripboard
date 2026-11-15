@@ -1,6 +1,7 @@
 // Tripboard's settings, on this device only (localStorage). Two parts:
 //   providers  each map or search provider's own setup (a key, a style)
 //   map, search  which provider each service uses, and its fallback
+//   appearance  the theme: system, light or dark
 // A service tries its main provider; if that fails (no key, an error, a
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
@@ -20,6 +21,7 @@
     providers: { openfreemap: { style: "light" }, osm: {}, google: { key: "", mapType: "roadmap" }, maptiler: { key: "", style: "streets" } },
     map: { main: "openfreemap", fallback: "" },
     search: { main: "osm", fallback: "" },
+    appearance: { theme: "system" },
   };
   const merge = (saved) => {
     const out = JSON.parse(JSON.stringify(DEFAULTS));
@@ -31,6 +33,8 @@
       if (ok(s.main)) out[svc].main = s.main;
       if (s.fallback === "" || ok(s.fallback)) out[svc].fallback = s.fallback || "";
     }
+    const th = saved.appearance && saved.appearance.theme;
+    if (["system", "light", "dark"].includes(th)) out.appearance.theme = th;
     return out;
   };
   let cur;
@@ -41,6 +45,7 @@
     get: () => JSON.parse(JSON.stringify(cur)),
     provider: (id) => ({ ...cur.providers[id] }),
     setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
+    setTheme(theme) { cur.appearance = { theme }; S.save(); },
     setService(svc, patch) { cur[svc] = { ...cur[svc], ...patch }; if (cur[svc].fallback === cur[svc].main) cur[svc].fallback = ""; S.save(); },
     save() {
       try { localStorage.setItem(KEY, JSON.stringify(cur)); } catch (e) { /* kept for this visit */ }

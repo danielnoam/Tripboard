@@ -540,30 +540,164 @@
   };
   const SERVICES = [["map", "Map"], ["search", "Find by name"]];
 
-  function renderSettings(main) {
-    $("title").textContent = "Settings";
-    const cfg = SET.get();
-    const label = (id) => SET.PROVIDERS[id].name + (SET.ready(id) ? "" : " (needs a key)");
-    for (const [svc, title] of SERVICES) {
-      const ids = Object.keys(SET.PROVIDERS).filter((id) => SET.PROVIDERS[id].services.includes(svc));
-      const mainSel = el("select", { onchange: (e) => { SET.setService(svc, { main: e.target.value }); render(); } },
-        ids.map((id) => el("option", { value: id, text: label(id), selected: cfg[svc].main === id })));
-      const fbSel = el("select", { onchange: (e) => { SET.setService(svc, { fallback: e.target.value }); render(); } },
-        el("option", { value: "", text: "None", selected: !cfg[svc].fallback }),
-        ids.filter((id) => id !== cfg[svc].main).map((id) => el("option", { value: id, text: label(id), selected: cfg[svc].fallback === id })));
-      main.append(el("section.panel", {}, el("h2", { text: title }),
-        el("div.row", {}, el("label.field", {}, "Use", mainSel), el("label.field", {}, "If it fails, use", fbSel)),
-        !SET.ready(cfg[svc].main) ? el("p.hint.warn", { text: SET.PROVIDERS[cfg[svc].main].name + " has no key yet, so " + (cfg[svc].fallback ? SET.PROVIDERS[cfg[svc].fallback].name : "nothing") + " is used." }) : null));
-    }
-    main.append(el("h2.section", { text: "Providers" }));
-    for (const [id, P] of Object.entries(SET.PROVIDERS)) main.append(providerCard(id, P, cfg.providers[id]));
-    main.append(el("p.dim.hint", { text: "Keys are kept in this browser only, and sent only to their own provider when it's used." }));
+  const P_ICON = { openfreemap: "layers", osm: "globe", google: "key", maptiler: "mountain" };
+  const S_ICON = { map: "map", search: "search" };
+  const svcName = (svc) => SERVICES.find(([s]) => s === svc)[1];
+
+  // A line under each row: what it's set to, or what needs you.
+  function serviceStatus(svc, cfg) {
+    const main = cfg[svc].main, fb = cfg[svc].fallback, name = (id) => SET.PROVIDERS[id].name;
+    if (!SET.ready(main)) return { text: name(main) + " needs a key" + (fb ? ", so " + name(fb) + " is used" : ""), tone: "warn" };
+    return { text: name(main) + (fb ? ", then " + name(fb) : "") };
+  }
+  function providerStatus(id) {
+    const P = SET.PROVIDERS[id];
+    if (!P.key) return { text: "Free, no key" };
+    return SET.ready(id) ? { text: "Key set" } : { text: "Needs a key" };
   }
 
-  function providerCard(id, P, conf) {
+  function srow(href, ico, title, status) {
+    return el("a.srow", { href },
+      el("span.srow-ic", {}, icon(ico)),
+      el("span.srow-text", {}, el("span.srow-title", { text: title }), status ? el("span.srow-status", { text: status.text, "data-tone": status.tone || "" }) : null),
+      el("span.srow-chev", { "aria-hidden": "true", text: "›" }));
+  }
+  const sgroup = (label, rows) => el("section.sgroup", {}, el("h2.sgroup-label", { text: label }), el("div.sgroup-card", {}, rows));
+
+  // Everything search can find: each page, and what's on it.
+  function settingsIndex() {
+    const out = [
+      { ico: "database", title: "Storage", where: "Settings", href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
+      { ico: "palette", title: "Appearance", where: "Settings", href: "#/settings/appearance", words: "theme dark light system mode colours" },
+      { ico: "plug", title: "Services", where: "Settings", href: "#/settings/services", words: "connections providers map search keys google maptiler openstreetmap openfreemap" },
+      { ico: "map", title: "Map", where: "Services", href: "#/settings/map", words: "map tiles use fallback if it fails provider" },
+      { ico: "search", title: "Find by name", where: "Services", href: "#/settings/search", words: "search find places geocoding use fallback if it fails provider" },
+      { ico: "info", title: "About", where: "Settings", href: "#/settings/about", words: "version credits licences privacy" },
+    ];
+    for (const [id, P] of Object.entries(SET.PROVIDERS)) {
+      const href = "#/settings/p/" + id;
+      out.push({ ico: P_ICON[id], title: P.name, where: "Services", href, words: P.services.map(svcName).join(" ") });
+      if (P.key) out.push({ ico: P_ICON[id], title: "Key", where: P.name, href, words: "api key paste test remove how to get a key" });
+      for (const [opt, choices] of Object.entries(P.options || {})) {
+        out.push({ ico: P_ICON[id], title: opt === "mapType" ? "Map type" : "Style", where: P.name, href, words: choices.map((c) => c[1]).join(" ") });
+      }
+    }
+    return out;
+  }
+  function searchSettings(q) {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return settingsIndex().filter((e) => {
+      const hay = (e.title + " " + e.where + " " + e.words).toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }).sort((a, b) => (a.title.toLowerCase().startsWith(words[0]) ? 0 : 1) - (b.title.toLowerCase().startsWith(words[0]) ? 0 : 1));
+  }
+
+  // Settings' pages, and the page each one steps back to.
+  const SETTINGS_PARENT = { map: "services", search: "services", p: "services" };
+  const settingsParent = (page) => SETTINGS_PARENT[String(page).split("/")[0]] || "";
+
+  function renderSettings(main, page) {
+    if (page === "map" || page === "search") return renderService(main, page);
+    if (page === "services") return renderServices(main);
+    if (page === "storage") return renderStorage(main);
+    if (page === "appearance") return renderAppearance(main);
+    if (page === "about") return renderAbout(main);
+    const pm = /^p\/(\w+)$/.exec(page || "");
+    if (pm && SET.PROVIDERS[pm[1]]) return renderProvider(main, pm[1]);
+    $("title").textContent = "Settings";
+    const cfg = SET.get();
+    const input = el("input", { type: "search", placeholder: "Search settings", "aria-label": "Search settings", autocomplete: "off", spellcheck: false, value: view.settingsQ || "" });
+    const results = el("div.settings-results");
+    const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
+    const home = el("div", {},
+      sgroup("Your data", [srow("#/settings/storage", "database", "Storage", { text: "Trips, photos and space used" })]),
+      sgroup("This device", [srow("#/settings/appearance", "palette", "Appearance", { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] })]),
+      sgroup("Services", [srow("#/settings/services", "plug", "Services", needs || { text: "Map and Find by name: " + SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") })]),
+      sgroup("Tripboard", [srow("#/settings/about", "info", "About", { text: "Version " + window.Tripboard.version + " · credits" })]));
+    const paint = () => {
+      const q = input.value.trim();
+      view.settingsQ = input.value;
+      home.hidden = !!q;
+      results.hidden = !q;
+      if (!q) return;
+      const hits = searchSettings(q);
+      results.replaceChildren(sgroup(hits.length ? hits.length + (hits.length === 1 ? " result" : " results") : "No results",
+        hits.length ? hits.map((h) => srow(h.href, h.ico, h.title, { text: h.where }))
+          : [el("p.srow-empty", { text: "Nothing matches. Try “key”, “dark” or “fallback”." })]));
+    };
+    input.addEventListener("input", paint);
+    main.append(el("label.settings-search", {}, icon("search"), input), results, home);
+    paint();
+  }
+
+  // The map and search providers: which each service uses, then each one's setup.
+  function renderServices(main) {
+    $("title").textContent = "Services";
+    const cfg = SET.get();
+    main.append(el("p.dim.hint.page-hint", { text: "Where the map and place search come from. Pick one for each, and one to fall back on." }),
+      sgroup("Use", SERVICES.map(([svc, title]) => srow("#/settings/" + svc, S_ICON[svc], title, serviceStatus(svc, cfg)))),
+      sgroup("Providers", Object.entries(SET.PROVIDERS).map(([id, P]) => srow("#/settings/p/" + id, P_ICON[id], P.name, providerStatus(id)))));
+  }
+
+  const THEMES = [["system", "Same as this device"], ["light", "Light"], ["dark", "Dark"]];
+  function renderAppearance(main) {
+    $("title").textContent = "Appearance";
+    const cur = SET.get().appearance.theme;
+    main.append(el("section.panel", {}, el("fieldset.field", {}, el("legend", { text: "Theme" }),
+      el("div.seg", { role: "radiogroup" }, THEMES.map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String(cur === id), text: id === "system" ? "System" : label,
+        onclick: () => { SET.setTheme(id); render(); } }))))));
+  }
+
+  async function renderStorage(main) {
+    $("title").textContent = "Storage";
+    const trips = doc.trips.length, places = doc.places.length, covers = doc.trips.filter((t) => t.cover).length;
+    const used = el("p", { text: "Working it out…" });
+    const keep = el("p.hint.dim");
+    const keepBtn = el("button.btn", { type: "button", text: "Keep my trips safe", hidden: true });
+    main.append(el("section.panel", {}, el("h2", { text: "On this device" }),
+      el("p", { text: plural(trips, "trip", "trips") + ", " + plural(places, "place", "places") + ", " + plural(covers, "cover photo", "cover photos") + "." }), used),
+    el("section.panel", {}, el("h2", { text: "Kept safe" }), keep, el("div.loc-actions", {}, keepBtn)),
+    el("p.dim.hint.page-hint", { text: "Trips live in this browser only until sync is built. Clearing this site's data deletes them." }));
+    const S = navigator.storage;
+    if (S && S.estimate) {
+      try { const e = await S.estimate(); used.textContent = "About " + mb(e.usage) + " used" + (e.quota ? ", of " + mb(e.quota) + " this browser allows." : "."); }
+      catch (err) { used.textContent = ""; }
+    } else used.textContent = "";
+    const persisted = S && S.persisted ? await S.persisted().catch(() => false) : false;
+    keep.textContent = persisted ? "The browser won't clear Tripboard's data to free up space."
+      : "The browser may clear Tripboard's data when the device runs short of space. Asking it to keep the data stops that.";
+    keepBtn.hidden = persisted || !(S && S.persist);
+    keepBtn.onclick = async () => {
+      const ok = await S.persist().catch(() => false);
+      if (ok) render(); else keep.textContent = "The browser said no. Installing Tripboard (Add to Home screen) usually lets it keep the data.";
+    };
+  }
+  const mb = (bytes) => (bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : Math.max(0.1, bytes / 1e6).toFixed(1) + " MB");
+
+  function renderService(main, svc) {
+    $("title").textContent = svcName(svc);
+    const cfg = SET.get();
+    const ids = Object.keys(SET.PROVIDERS).filter((id) => SET.PROVIDERS[id].services.includes(svc));
+    const label = (id) => SET.PROVIDERS[id].name + (SET.ready(id) ? "" : " (needs a key)");
+    const mainSel = el("select", { onchange: (e) => { SET.setService(svc, { main: e.target.value }); render(); } },
+      ids.map((id) => el("option", { value: id, text: label(id), selected: cfg[svc].main === id })));
+    const fbSel = el("select", { onchange: (e) => { SET.setService(svc, { fallback: e.target.value }); render(); } },
+      el("option", { value: "", text: "None", selected: !cfg[svc].fallback }),
+      ids.filter((id) => id !== cfg[svc].main).map((id) => el("option", { value: id, text: label(id), selected: cfg[svc].fallback === id })));
+    const st = serviceStatus(svc, cfg);
+    main.append(el("section.panel", {},
+      el("label.field", {}, "Use", mainSel),
+      el("label.field", {}, "If it fails, use", fbSel),
+      st.tone === "warn" ? el("p.hint.warn", { text: st.text + "." }) : null,
+      el("p.hint.dim", { text: "If the first can't answer (no key, a refused key, a used-up quota), the second is used and " + (svc === "map" ? "the map" : "the search") + " says why." })),
+      sgroup("Set up", ids.map((id) => srow("#/settings/p/" + id, P_ICON[id], SET.PROVIDERS[id].name, providerStatus(id)))));
+  }
+
+  function renderProvider(main, id) {
+    const P = SET.PROVIDERS[id], conf = SET.get().providers[id];
+    $("title").textContent = P.name;
     const status = el("p.hint", { role: "status" });
-    const kids = [el("div.provider-head", {}, el("h3", { text: P.name }), el("span.dim", { text: P.services.map((x) => SERVICES.find(([s]) => s === x)[1]).join(" · ") })),
-      el("p.dim", { text: P.note })];
+    const kids = [el("p.dim", { text: P.note }), el("p.hint.dim", { text: "Used for: " + P.services.map(svcName).join(", ") + "." })];
     for (const [opt, choices] of Object.entries(P.options || {})) {
       kids.push(el("label.field", {}, opt === "mapType" ? "Map type" : "Style",
         el("select", { onchange: (e) => SET.setProvider(id, { [opt]: e.target.value }) },
@@ -576,14 +710,27 @@
         el("div.loc-actions", {},
           el("button.btn", { type: "button", text: "Test", onclick: () => testProvider(id, status) }),
           el("button.btn.quiet", { type: "button", text: "Show", onclick: (e) => { const show = input.type === "password"; input.type = show ? "text" : "password"; e.currentTarget.textContent = show ? "Hide" : "Show"; } }),
-          conf.key ? el("button.btn.danger", { type: "button", text: "Remove key", onclick: () => { SET.setProvider(id, { key: "" }); render(); } }) : null));
-      if (STEPS[id]) kids.push(el("details.steps", {}, el("summary", { text: "How to get a key" }),
-        el("ol", {}, STEPS[id].map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: "Open" })] : null)))));
+          conf.key ? el("button.btn.danger", { type: "button", text: "Remove key", onclick: () => { SET.setProvider(id, { key: "" }); render(); } }) : null),
+        status);
     } else {
-      kids.push(el("div.loc-actions", {}, el("button.btn", { type: "button", text: "Test", onclick: () => testProvider(id, status) })));
+      kids.push(el("div.loc-actions", {}, el("button.btn", { type: "button", text: "Test", onclick: () => testProvider(id, status) })), status);
     }
-    kids.push(status);
-    return el("section.panel.provider", {}, kids);
+    main.append(el("section.panel", {}, kids));
+    if (STEPS[id]) main.append(el("section.panel", {}, el("h2", { text: "How to get a key" }),
+      el("ol.steps", {}, STEPS[id].map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: "Open" })] : null)))));
+    if (P.key) main.append(el("p.dim.hint", { text: "The key is kept in this browser only, and sent only to " + P.name + " when it's used." }));
+  }
+
+  function renderAbout(main) {
+    $("title").textContent = "About";
+    const link = (text, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer", text });
+    main.append(el("section.panel", {}, el("h2", { text: "Tripboard " + window.Tripboard.version }),
+      el("p.dim", { text: "Your trips stay on this device. Keys you add are kept in this browser and sent only to their own provider." })),
+    sgroup("Credits", [el("ul.credits", {},
+      el("li", {}, "Icons: ", link("Lucide", "https://lucide.dev"), " (ISC)"),
+      el("li", {}, "Map: ", link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
+      el("li", {}, "Map data and Find by name: © ", link("OpenStreetMap", "https://www.openstreetmap.org/copyright"), " contributors, ", link("Nominatim", "https://nominatim.org")),
+      el("li", {}, "With your own key: ", link("Google Maps Platform", "https://developers.google.com/maps"), ", ", link("MapTiler", "https://www.maptiler.com")))]));
   }
 
   async function testProvider(id, status) {
@@ -605,7 +752,8 @@
 
   // ---------- Routing ----------
   function render() {
-    const settings = location.hash === "#/settings";
+    const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
+    const settings = !!sm;
     $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
     const m = /^#\/trip\/([\w-]+)(\/map)?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
@@ -620,7 +768,7 @@
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);
     if (onMap) {
-      document.body.classList.add("on-board");
+      document.body.classList.add("on-board"); document.body.classList.remove("on-home");
       $("title").textContent = trip.name;
       $("back").hidden = false;
       $("editTrip").hidden = false;
@@ -633,10 +781,11 @@
     main.dataset.trip = String(view.trip);
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
+    document.body.classList.toggle("on-home", !trip && !settings);
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip;
     $("fab").hidden = !trip;
-    if (settings) { $("back").hidden = false; renderSettings(main); }
+    if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
     else if (trip) renderBoard(main, trip); else renderHome(main);
     window.scrollTo(0, y);
   }
@@ -648,8 +797,9 @@
     $("editTrip").append(icon("pencil"));
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("sliders"));
-    $("settingsBtn").addEventListener("click", () => { location.hash = "#/settings"; });
-    $("back").addEventListener("click", () => { location.hash = "#/"; });
+    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
+    $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
+      location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"; });
     $("viewToggle").addEventListener("click", () => {
       view.pick = null;
       location.hash = "#/trip/" + view.trip + (view.mode === "map" ? "" : "/map");

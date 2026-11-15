@@ -18,7 +18,7 @@ src/places.js        finding a place by name: OpenStreetMap, Google Places or Ma
 src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's board and map, the trip and place sheets, Settings, the #/, #/settings and #/trip/<id>[/map] routing
+src/views.js         Home, a trip's board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/map] routing
 src/styles.css       the tokens per theme, then the styles
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)

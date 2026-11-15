@@ -7,13 +7,18 @@
   const APP_VERSION = "0.1.0";
   const K = window.Keel;
   const $ = (id) => document.getElementById(id);
+  const T = window.Tripboard;
 
 
-  // The theme follows the system's light or dark.
+  // The theme: Settings' choice, or the system's light or dark.
   const dark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-  const theme = () => { document.documentElement.dataset.theme = dark && dark.matches ? "dark" : "light"; };
+  const theme = () => {
+    const pick = T.settings.get().appearance.theme;
+    document.documentElement.dataset.theme = pick === "system" ? (dark && dark.matches ? "dark" : "light") : pick;
+  };
   theme();
   if (dark && dark.addEventListener) dark.addEventListener("change", theme);
+  T.settings.onChange(theme);
 
   // The web copy works offline through sw.js. A bundled app (phone,
   // desktop) has its files on the device and no service worker.
@@ -39,7 +44,6 @@
   // there is one) says which moves it uses.
   const motion = K.motion.create();
 
-  const T = window.Tripboard;
   Object.assign(T, { version: APP_VERSION, releases, motion });
 
   // Saves wait a moment, so a burst of changes is one write.
