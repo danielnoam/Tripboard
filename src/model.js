@@ -78,12 +78,40 @@
   }
 
   // The whole store. A place whose trip is gone is dropped: deleting a trip
-  // takes its places with it.
+  // takes its places with it. `deleted` remembers what was deleted, when,
+  // and in which trip, so a sync doesn't bring it back from another device:
+  // { id: { at, trip } }, kept 120 days.
+  const TOMBSTONE_DAYS = 120;
   function sanitizeDoc(d) {
     const trips = ((d && d.trips) || []).filter((t) => t && typeof t === "object").map(sanitizeTrip);
     const ids = new Set(trips.map((t) => t.id));
     const places = ((d && d.places) || []).filter((p) => p && typeof p === "object").map(sanitizePlace).filter((p) => ids.has(p.trip));
-    return { trips, places };
+    const deleted = {};
+    const cutoff = new Date(Date.now() - TOMBSTONE_DAYS * DAY_MS).toISOString();
+    for (const [id, t] of Object.entries((d && d.deleted) || {})) {
+      if (t && typeof t.at === "string" && t.at > cutoff && !ids.has(id) && !places.some((p) => p.id === id)) deleted[id] = { at: t.at, trip: text(t.trip) };
+    }
+    return keepUnknown(d, { trips, places, deleted }, new Set(["trips", "places", "deleted"]));
+  }
+
+  // What changed between two saves: a record that's new or different gets
+  // `updatedAt` now, and one that's gone is remembered in `deleted`. Done in
+  // one place so no edit can forget it, and a sync can trust both.
+  function stamp(prev, next, at) {
+    at = at || now();
+    const before = new Map();
+    for (const t of (prev && prev.trips) || []) before.set(t.id, { r: t, trip: t.id });
+    for (const p of (prev && prev.places) || []) before.set(p.id, { r: p, trip: p.trip });
+    const same = (a, b) => { const x = { ...a }, y = { ...b }; delete x.updatedAt; delete y.updatedAt; return JSON.stringify(x) === JSON.stringify(y); };
+    const seen = new Set();
+    for (const r of next.trips.concat(next.places)) {
+      seen.add(r.id);
+      const b = before.get(r.id);
+      if (!b || !same(b.r, r)) r.updatedAt = at;
+      delete next.deleted[r.id];
+    }
+    for (const [id, b] of before) if (!seen.has(id)) next.deleted[id] = { at, trip: b.trip };
+    return next;
   }
 
   const DAY_MS = 86400000;
@@ -196,7 +224,7 @@
     const ids = new Set(incoming.trips.map((t) => t.id));
     const replaced = doc.trips.filter((t) => ids.has(t.id)).length;
     return {
-      doc: { trips: doc.trips.filter((t) => !ids.has(t.id)).concat(incoming.trips), places: doc.places.filter((p) => !ids.has(p.trip)).concat(incoming.places) },
+      doc: { ...doc, trips: doc.trips.filter((t) => !ids.has(t.id)).concat(incoming.trips), places: doc.places.filter((p) => !ids.has(p.trip)).concat(incoming.places) },
       added: incoming.trips.length - replaced, replaced, ids: [...ids],
     };
   }
@@ -216,7 +244,7 @@
 
   const api = {
     CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
-    sanitizeTrip, sanitizePlace, sanitizeDoc, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
+    sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

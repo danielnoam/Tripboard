@@ -307,6 +307,7 @@ body.on-map .toast { bottom: auto; top: 108px; }
   background: var(--surface); color: var(--text); font-size: 11px; line-height: 18px;
 }
 .open-in { margin: 0; font-size: 14px; font-weight: 400; }
+.panel h2 a { color: inherit; text-underline-offset: 3px; }
 .open-in a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .open-in a:hover { text-decoration: underline; }
 
@@ -343,6 +344,7 @@ body.on-map .toast { bottom: auto; top: 108px; }
 .srow-title { font-weight: 600; }
 .srow-status { font-size: var(--fs-small); color: var(--text-dim); }
 .srow-status[data-tone="warn"] { color: var(--must); }
+p[data-tone="warn"] { color: var(--must); }
 .srow-chev { color: var(--text-dim); font-size: 22px; line-height: 1; }
 .page-hint { margin: var(--space-2) 6px var(--space-3); }
 .srow-empty { margin: 0; padding: var(--space-3); font-size: 14px; color: var(--text-dim); }

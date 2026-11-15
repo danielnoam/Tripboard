@@ -13,6 +13,8 @@ sw.js                the web copy's service worker: offline, test builds (keel's
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
 src/model.js         trips and places: cleaning, days, time slots, the board's sorts and filter (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc") and each trip's cover photo
+src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
+src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
 src/settings.js      Settings on this device: each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
 src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
@@ -20,6 +22,7 @@ src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its modul
 src/icons.js         the Lucide icons used, as SVG paths
 src/views.js         Home, a trip's board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/map] routing
 src/styles.css       the tokens per theme, then the styles
+src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
 src/keel/releases.js the update check and test builds (from keel)
@@ -28,6 +31,7 @@ src/keel/sw-preview.js  the service worker's half of a test build (from keel)
 test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
+test/merge.test.js   src/merge.js and the model's stamp()
 test/places.test.js  src/places.js
 test/settings.test.js  src/settings.js
 test/csp.test.js     the policy and the code under it (keel's check)
@@ -94,6 +98,21 @@ adds a line here.
   and location are kept like OpenStreetMap's.
 - When the main provider fails (no key, refused, quota), the fallback is
   used and the map or search says so; with no fallback set, it fails.
+
+- GitHub sync keeps its token in this browser's localStorage, in plain
+  text, like the map keys: anyone who can open this browser's Tripboard
+  (or run script in it) can use it. The setup asks for a fine-grained
+  token limited to one repo's contents, so that's all it can reach. The
+  app refuses a public repo, since anyone could read the trips there.
+- Synced trips are in the person's GitHub repo, so GitHub holds them, and
+  the repo's history keeps every version, deleted trips included.
+- Deletions travel as tombstones (`doc.deleted`), kept 120 days. A device
+  that hasn't synced for longer than that can bring a deleted place back.
+- Two devices changing the same field of the same record: the record with
+  the later `updatedAt` wins, by each device's clock. A device with a
+  wrong clock can win or lose when it shouldn't.
+- Cover photos sync whole (covers/<id>.jpg); the trip's `coverAt` says
+  which copy is newer.
 
 ## Traps
 
