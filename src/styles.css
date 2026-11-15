@@ -180,6 +180,16 @@ body.on-board main { max-width: 1200px; }
 .slot-empty { margin: var(--space-2) 0 0; font-size: 14px; }
 .cards { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-2); }
 .slot + .cards { margin-top: 0; }
+.slot-box { border-radius: var(--radius); }
+/* Dragging a card (mouse only): empty groups and slots open up as places to drop it. */
+.drop-only { display: none; }
+body.dragging .drop-only { display: block; }
+body.dragging .slot-empty { display: none; }
+body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed var(--line); border-radius: var(--radius); }
+.card[draggable="true"] { cursor: grab; }
+.card.lifted { opacity: 0.4; }
+.drop-over { outline: 2px dashed var(--accent); outline-offset: 4px; }
+.group.drop-over { outline-offset: -2px; }
 .card {
   display: flex; align-items: flex-start; gap: var(--space-1);
   border-left: 4px solid var(--want); border-radius: 10px; background: var(--bg);

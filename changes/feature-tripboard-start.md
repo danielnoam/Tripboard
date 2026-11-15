@@ -8,4 +8,5 @@
 - Sort by distance now works for places with a location.
 - Services in Settings (the sliders at the top of Home): set up OpenFreeMap, OpenStreetMap, Google and MapTiler, and for the map and for Find by name pick which to use and which to fall back on. Google and MapTiler use your own key, with steps to get one and a Test button.
 - Open a place in Google Maps, Apple Maps or Waze, from its sheet or the map.
-- Settings is a list now, with a search bar: Storage (what's kept, space used, and asking the browser to keep it), Appearance (system, light or dark), Services (the map and Find by name, and each provider's setup) and About (version and credits).
+- Settings is one list, with a search bar: Storage (what's kept, space used, and asking the browser to keep it), Appearance (system, light or dark), Services (the map and Find by name, and each provider's setup) and About (version and credits).
+- With a mouse, drag a place to another group on the board to change it: to another day or time of day (by time), category or importance. Empty days, times of day and categories open up as places to drop it while you drag. It works with the importance filter on.

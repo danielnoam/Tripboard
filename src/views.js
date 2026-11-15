@@ -132,7 +132,15 @@
         el("button.btn", { type: "button", onclick: locate }, icon("locate"), "Use my location")));
     }
     const groups = M.board(trip, places, view.sort, { only: view.only, from: view.from });
+    // Groups with nothing in them yet, to drop into while dragging.
+    const all = view.sort === "category" ? M.CATEGORIES : view.sort === "importance" ? M.IMPORTANCE : [];
+    for (const [id, title] of all) {
+      if (!groups.some((g) => g.id === id)) groups.push({ id, title, places: [], dropOnly: true });
+    }
+    const at = (id) => all.findIndex(([x]) => x === id);
+    if (all.length) groups.sort((a, b) => at(a.id) - at(b.id));
     const wrap = el("div.groups");
+    if (canDrag()) wireDrag(wrap);
     for (const g of groups) wrap.append(group(trip, g));
     main.append(wrap);
   }
@@ -145,16 +153,83 @@
       el("span.count", { text: String(g.places.length) }),
       view.sort === "time" ? el("button.icon-btn.small", { type: "button", "aria-label": "Add a place to " + title,
         onclick: (e) => openPlace(null, trip, { day: g.day || "" }, e.currentTarget) }, icon("plus")) : null);
-    const box = el("section.group", {}, head);
+    const box = el("section.group" + (g.dropOnly ? ".drop-only" : ""), {}, head);
+    if (view.sort !== "distance") box.dataset.drop = g.id;
     if (isDay) {
       if (!g.slots.length) box.append(el("p.dim.slot-empty", { text: "Free day" }));
-      for (const s of g.slots) box.append(el("h3.slot", { text: s.title }), cards(trip, s.places, g));
+      // Every slot is drawn, so a place can be dropped into an empty one;
+      // the empty ones show only while dragging.
+      const have = new Map(g.slots.map((s) => [s.id, s]));
+      for (const [id, t] of M.SLOTS.concat([["any", "Any time"]])) {
+        const s = have.get(id);
+        box.append(el("div.slot-box" + (s ? "" : ".drop-only"), { "data-slot": id }, el("h3.slot", { text: t }), cards(trip, s ? s.places : [], g)));
+      }
     } else if (g.places.length) {
       box.append(cards(trip, g.places, g));
     } else {
-      box.append(el("p.dim.slot-empty", { text: "Places without a day land here." }));
+      box.append(el("p.dim.slot-empty", { text: g.dropOnly ? "Drop here" : "Places without a day land here." }));
     }
     return box;
+  }
+
+  // ---------- Drag and drop (mouse) ----------
+  // Dropping a card on another group changes what that sort groups by: its
+  // day (and time slot), category or importance. Distance has nothing to change.
+  const canDrag = () => window.matchMedia("(pointer: fine)").matches && view.sort !== "distance";
+  const SLOT_TIME = { morning: "09:00", afternoon: "14:00", evening: "19:00" };
+  const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+  const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  function movePlace(p, groupId, slot) {
+    if (view.sort === "category") p.category = groupId;
+    else if (view.sort === "importance") p.importance = groupId;
+    else if (view.sort === "time") {
+      if (groupId === "nodate") { delete p.day; delete p.time; delete p.endTime; }
+      else {
+        p.day = groupId;
+        if (slot === "any") { delete p.time; delete p.endTime; }
+        else if (slot && (!p.time || M.slotOf(p) !== slot)) {
+          const len = p.time && p.endTime ? mins(p.endTime) - mins(p.time) : 0;
+          p.time = SLOT_TIME[slot];
+          if (len > 0 && mins(p.time) + len < 24 * 60) p.endTime = hhmm(mins(p.time) + len); else delete p.endTime;
+        }
+      }
+    }
+    p.updatedAt = new Date().toISOString();
+    save();
+  }
+  let dragging = null;
+  function wireDrag(main) {
+    main.addEventListener("dragstart", (e) => {
+      const card = e.target.closest && e.target.closest(".card[draggable=true]");
+      if (!card) return;
+      dragging = card.dataset.id;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", card.querySelector(".card-name").textContent);
+      requestAnimationFrame(() => { document.body.classList.add("dragging"); card.classList.add("lifted"); });
+    });
+    main.addEventListener("dragend", () => {
+      dragging = null;
+      document.body.classList.remove("dragging");
+      main.querySelectorAll(".lifted, .drop-over").forEach((n) => n.classList.remove("lifted", "drop-over"));
+    });
+    const target = (e) => e.target.closest && (e.target.closest(".slot-box") || e.target.closest("[data-drop]"));
+    main.addEventListener("dragover", (e) => {
+      if (!dragging) return;
+      const t = target(e);
+      main.querySelectorAll(".drop-over").forEach((n) => { if (n !== t) n.classList.remove("drop-over"); });
+      if (!t) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      t.classList.add("drop-over");
+    });
+    main.addEventListener("drop", (e) => {
+      const t = dragging && target(e);
+      if (!t) return;
+      e.preventDefault();
+      const p = doc.places.find((x) => x.id === dragging);
+      const grp = t.closest("[data-drop]");
+      if (p && grp) movePlace(p, grp.dataset.drop, t.dataset.slot || "");
+    });
   }
 
   function cards(trip, list, g) {
@@ -163,7 +238,7 @@
       if (view.sort !== "time" && p.day) meta.push(dayLabel(p.day));
       if (p.time) meta.push(timeLabel(p));
       if (g.km && g.km.has(p.id)) meta.push(g.km.get(p.id) < 1 ? Math.round(g.km.get(p.id) * 1000) + " m" : g.km.get(p.id).toFixed(1) + " km");
-      return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : ""), {},
+      return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
         el("button.tick", { type: "button", "aria-pressed": String(!!p.visited), "aria-label": (p.visited ? "Been to " : "Mark as been to ") + p.name,
           onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
@@ -609,11 +684,11 @@
     const input = el("input", { type: "search", placeholder: "Search settings", "aria-label": "Search settings", autocomplete: "off", spellcheck: false, value: view.settingsQ || "" });
     const results = el("div.settings-results");
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
-    const home = el("div", {},
-      sgroup("Your data", [srow("#/settings/storage", "database", "Storage", { text: "Trips, photos and space used" })]),
-      sgroup("This device", [srow("#/settings/appearance", "palette", "Appearance", { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] })]),
-      sgroup("Services", [srow("#/settings/services", "plug", "Services", needs || { text: "Map and Find by name: " + SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") })]),
-      sgroup("Tripboard", [srow("#/settings/about", "info", "About", { text: "Version " + window.Tripboard.version + " · credits" })]));
+    const home = el("div.sgroup", {}, el("div.sgroup-card", {},
+      srow("#/settings/storage", "database", "Storage", { text: "Trips, photos and space used" }),
+      srow("#/settings/appearance", "palette", "Appearance", { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] }),
+      srow("#/settings/services", "plug", "Services", needs || { text: "Map and Find by name: " + SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }),
+      srow("#/settings/about", "info", "About", { text: "Version " + window.Tripboard.version + " · credits" })));
     const paint = () => {
       const q = input.value.trim();
       view.settingsQ = input.value;
