@@ -248,6 +248,7 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 .sheet-body { display: grid; gap: var(--space-3); padding: var(--space-4) var(--space-3) calc(env(safe-area-inset-bottom) + var(--space-3)); }
 .sheet h2 { margin: 0; font-size: var(--fs-title); }
 .field { display: grid; gap: var(--space-1); min-width: 0; margin: 0; padding: 0; border: 0; font-size: 14px; font-weight: 600; color: var(--text-dim); }
+.field[hidden] { display: none; }
 .field legend { padding: 0; margin-bottom: var(--space-1); }
 .field input, .field select, .field textarea {
   width: 100%; min-height: 44px; padding: var(--space-2) 12px;

@@ -165,4 +165,33 @@ test("a file record is cleaned, and goes with its trip", () => {
   assert.ok(next.deleted.f && next.deleted.g);
 });
 
+test("members: cleaned, one owner who is always a member, and what each role may do", () => {
+  const t = M.sanitizeTrip({ id: "t", name: "K", owner: "ana", members: [
+    { id: "ana", name: "Ana", role: "editor" }, { id: "ben", name: " Ben ", role: "owner" }, { id: "ben", role: "viewer" },
+    { id: "cy", role: "boss" }, { id: "bad id!", role: "editor" }] });
+  assert.deepStrictEqual(t.members, [{ id: "ana", name: "Ana", role: "owner" }, { id: "ben", name: "Ben", role: "editor" }, { id: "cy", name: "", role: "viewer" }]);
+  assert.ok(M.can(t, "ana", "manage") && M.can(t, "ben", "edit") && !M.can(t, "ben", "manage"));
+  assert.ok(M.can(t, "cy", "read") && !M.can(t, "cy", "edit") && !M.can(t, "zed", "read"));
+  assert.ok(M.can(M.sanitizeTrip({ name: "Mine" }), "anyone", "manage"));
+  assert.strictEqual(M.sanitizeTrip({ name: "Plain" }).members, undefined);
+  const own = M.ownTrip({ name: "New" }, { id: "ana", name: "Ana" });
+  assert.deepStrictEqual([own.owner, own.members], ["ana", [{ id: "ana", name: "Ana", role: "owner" }]]);
+});
+
+test("stamp marks who changed a record and who deleted one", () => {
+  const prev = M.sanitizeDoc({ trips: [{ id: "t", name: "K", updatedAt: "2026-01-01" }],
+    places: [{ id: "a", trip: "t", name: "A", updatedAt: "2026-01-01" }, { id: "b", trip: "t", name: "B", updatedAt: "2026-01-01" }] });
+  const next = JSON.parse(JSON.stringify(prev));
+  next.places[0].note = "x";
+  next.places = next.places.slice(0, 1);
+  M.stamp(prev, next, "2026-11-15T00:00:00.000Z", "ana");
+  assert.strictEqual(next.places[0].by, "ana");
+  assert.strictEqual(next.trips[0].by, undefined);
+  assert.strictEqual(M.sanitizeDoc(next).deleted.b.by, "ana");
+  // a change of `by` alone isn't a change
+  const again = JSON.parse(JSON.stringify(next));
+  M.stamp(next, again, "2026-11-16T00:00:00.000Z", "ben");
+  assert.strictEqual(again.places[0].by, "ana");
+});
+
 console.log(passed + " passed");

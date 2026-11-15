@@ -125,6 +125,10 @@ adds a line here.
   MCP client's config file, in plain text there. A chat with the MCP
   server can change and delete trips. The tools tell it to ask before
   deleting, but nothing enforces that, and git history is the way back.
+- Your person id is made per device until sharing can link a person's
+  devices, so `by` on records names a device's id, not a person's. Trip
+  roles are recorded but not enforced: there's no shared store to
+  enforce them in (docs/SHARING.md).
 - Cover photos sync whole (covers/<id>.jpg); the trip's `coverAt` says
   which copy is newer.
 

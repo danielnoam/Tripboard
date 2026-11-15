@@ -58,7 +58,7 @@
   let lastSaved = "{}", version = 0;
   function save() {
     version++;
-    doc = M.stamp(JSON.parse(lastSaved), M.sanitizeDoc(doc));
+    doc = M.stamp(JSON.parse(lastSaved), M.sanitizeDoc(doc), undefined, SET.get().me.id);
     lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
@@ -345,6 +345,12 @@
     $("expensePlace").replaceChildren(el("option", { value: "", text: "None" }),
       ...placesOf(trip.id).slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => el("option", { value: p.id, text: p.name })));
     $("expensePlace").value = (x && x.place && placesOf(trip.id).some((p) => p.id === x.place)) ? x.place : "";
+    // Who paid, once the trip has more than one person on it.
+    const people = trip.members || [];
+    $("expensePaidRow").hidden = people.length < 2;
+    $("expensePaidBy").replaceChildren(el("option", { value: "", text: "Not set" }),
+      ...people.map((m) => el("option", { value: m.id, text: m.id === SET.get().me.id ? "You" : m.name || "Someone" })));
+    $("expensePaidBy").value = x ? x.paidBy || "" : people.length > 1 ? SET.get().me.id : "";
     f.amount.value = x ? String(x.amount) : "";
     f.title.value = x ? x.title : "";
     f.note.value = x ? x.note || "" : "";
@@ -373,6 +379,7 @@
     const x = editingExpense || { id: M.newId(), trip: expenseTrip.id, createdAt: stamp };
     Object.assign(x, { amount, currency: f.currency.value, title: f.title.value, category: f.category.value,
       day: expenseTrip.start ? $("expenseDay").value : $("expenseDayInput").value, place: f.place.value, note: f.note.value, updatedAt: stamp });
+    if (!$("expensePaidRow").hidden) x.paidBy = $("expensePaidBy").value;
     try { localStorage.setItem("tripboard.currency", x.currency); } catch (err) { /* private window */ }
     if (!editingExpense) { doc.expenses = doc.expenses || []; doc.expenses.push(x); }
     await closeSheet($("expenseSheet"));
@@ -590,7 +597,7 @@
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
     f.name.removeAttribute("aria-invalid");
     const stamp = new Date().toISOString();
-    const trip = editingTrip || { id: M.newId(), createdAt: stamp };
+    const trip = editingTrip || M.ownTrip({ id: M.newId(), createdAt: stamp }, SET.get().me);
     Object.assign(trip, { name: f.name.value, start: f.start.value, end: f.end.value, destinations: f.destinations.value, updatedAt: stamp });
     if (pendingCover !== undefined) {
       if (covers.get(trip.id)) URL.revokeObjectURL(covers.get(trip.id));
@@ -979,6 +986,7 @@
   function settingsIndex() {
     const out = [
       { ico: "refresh", title: "GitHub sync", where: "Settings", href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
+      { ico: "user", title: "You", where: "Settings", href: "#/settings/you", words: "name me profile person shared trips paid by who" },
       { ico: "database", title: "Storage", where: "Settings", href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
       { ico: "database", title: "Backup", where: "Storage", href: "#/settings/storage", words: "backup restore file export import save json" },
       { ico: "palette", title: "Appearance", where: "Settings", href: "#/settings/appearance", words: "theme dark light system mode colours" },
@@ -1013,6 +1021,7 @@
     if (page === "map" || page === "search") return renderService(main, page);
     if (page === "services") return renderServices(main);
     if (page === "sync") return renderSync(main);
+    if (page === "you") return renderYou(main);
     if (page === "storage") return renderStorage(main);
     if (page === "appearance") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
@@ -1025,6 +1034,7 @@
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
     const home = el("div.sgroup", {}, el("div.sgroup-card", {},
       srow("#/settings/sync", "refresh", "GitHub sync", syncSummary()),
+      srow("#/settings/you", "user", "You", { text: cfg.me.name || "Your name, for shared trips" }),
       srow("#/settings/storage", "database", "Storage", { text: "Space used, backup and restore" }),
       srow("#/settings/appearance", "palette", "Appearance", { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] }),
       srow("#/settings/services", "plug", "Services", needs || { text: "Map and Find by name: " + SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }),
@@ -1153,6 +1163,17 @@
       el("li", {}, "Map: ", link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
       el("li", {}, "Map data and Find by name: © ", link("OpenStreetMap", "https://www.openstreetmap.org/copyright"), " contributors, ", link("Nominatim", "https://nominatim.org")),
       el("li", {}, "With your own key: ", link("Google Maps Platform", "https://developers.google.com/maps"), ", ", link("MapTiler", "https://www.maptiler.com")))]));
+  }
+
+  // ---------- You ----------
+  function renderYou(main) {
+    $("title").textContent = "You";
+    const me = SET.get().me;
+    const name = el("input", { value: me.name, autocomplete: "name", maxlength: "60", placeholder: "Your name",
+      onchange: (e) => { SET.setMe({ name: e.target.value }); toast("Saved."); } });
+    main.append(el("section.panel", {}, el("label.field", {}, "Name", name),
+      el("p.hint.dim", { text: "Shown to people you share a trip with, next to what you add and what you paid. Sharing comes in a later version; trips you make now are already marked as yours." })),
+    el("p.dim.hint", { text: "Each device has its own id for you until sharing can link them." }));
   }
 
   // ---------- GitHub sync ----------

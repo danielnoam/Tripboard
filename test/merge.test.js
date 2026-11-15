@@ -127,4 +127,13 @@ test("file records travel in the bundle; one deleted on one side goes", () => {
   assert.ok(out.deleted.f);
 });
 
+test("who changed a record goes with the newer side", () => {
+  const base = G.bundleOf(start, "t");
+  const mine = clone(base), theirs = clone(base);
+  Object.assign(mine.places[0], { note: "Go early", updatedAt: at(2), by: "ana" });
+  Object.assign(theirs.places[0], { importance: "must", updatedAt: at(3), by: "ben" });
+  const out = G.mergeBundles(base, mine, theirs).places.find((p) => p.id === "a");
+  assert.deepStrictEqual([out.note, out.importance, out.by], ["Go early", "must", "ben"]);
+});
+
 console.log(passed + " passed");
