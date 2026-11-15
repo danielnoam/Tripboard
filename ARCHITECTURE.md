@@ -37,6 +37,8 @@ test/settings.test.js  src/settings.js
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
+cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo; core.js reuses model.js, merge.js and keel's github.js in Node
+test/cli.test.js     cli/, against a fake GitHub
 server.js            the local server: this computer only (from keel)
 tools/               release.js, keel-sync.js, keel-checks.js, android-version.js (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www/ (phones) or www-desktop/ (desktop), with app-build.json
@@ -119,6 +121,10 @@ adds a line here.
   by id (files/<trip>/<id>); their names are in the trip's bundle.
 - A backup file holds each file's bytes as base64, so it grows by about
   a third more than the files themselves.
+- The CLI and MCP server need a token in an environment variable or an
+  MCP client's config file, in plain text there. A chat with the MCP
+  server can change and delete trips. The tools tell it to ask before
+  deleting, but nothing enforces that, and git history is the way back.
 - Cover photos sync whole (covers/<id>.jpg); the trip's `coverAt` says
   which copy is newer.
 
