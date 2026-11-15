@@ -3,7 +3,8 @@
 // (test/merge.test.js).
 //
 // A trip travels as a bundle, one file per trip:
-//   { format, trip, places, expenses, deleted }
+//   { format, trip, places, expenses, files, deleted }
+// (a file here is its record; its bytes travel as files/<trip>/<id>).
 // `deleted` is the trip's tombstones ({ id: { at, trip } }). A deleted trip
 // travels as { format, trip: { id, deletedAt } } so other devices drop it.
 //
@@ -23,7 +24,8 @@
     }
     const deleted = {};
     for (const [id, t] of Object.entries(doc.deleted || {})) if (t.trip === tripId && id !== tripId) deleted[id] = t;
-    return { format: FORMAT, trip, places: doc.places.filter((p) => p.trip === tripId), expenses: (doc.expenses || []).filter((x) => x.trip === tripId), deleted };
+    return { format: FORMAT, trip, places: doc.places.filter((p) => p.trip === tripId), expenses: (doc.expenses || []).filter((x) => x.trip === tripId),
+      files: (doc.files || []).filter((x) => x.trip === tripId), deleted };
   }
 
   // The doc with one trip's records swapped for the bundle's.
@@ -34,6 +36,7 @@
       trips: doc.trips.filter((t) => t.id !== id),
       places: doc.places.filter((p) => p.trip !== id),
       expenses: (doc.expenses || []).filter((x) => x.trip !== id),
+      files: (doc.files || []).filter((x) => x.trip !== id),
       deleted: Object.fromEntries(Object.entries(doc.deleted || {}).filter(([k, t]) => t.trip !== id || k === id)),
     };
     if (b.trip.deletedAt) { out.deleted[id] = { at: b.trip.deletedAt, trip: id }; return out; }
@@ -41,6 +44,7 @@
     out.trips.push(b.trip);
     out.places = out.places.concat(b.places || []);
     out.expenses = out.expenses.concat(b.expenses || []);
+    out.files = out.files.concat(b.files || []);
     Object.assign(out.deleted, b.deleted || {});
     return out;
   }
@@ -106,9 +110,10 @@
     }
     const places = mergeList(b && b.places, mine.places, theirs.places, gone);
     const expenses = mergeList(b && b.expenses, mine.expenses, theirs.expenses, gone);
-    const kept = new Set(places.concat(expenses).map((p) => p.id));
+    const files = mergeList(b && b.files, mine.files, theirs.files, gone);
+    const kept = new Set(places.concat(expenses, files).map((p) => p.id));
     for (const id of Object.keys(gone)) if (kept.has(id)) delete gone[id];
-    return { format: FORMAT, trip: mergeRecord(b && b.trip, mine.trip, theirs.trip), places, expenses, deleted: gone };
+    return { format: FORMAT, trip: mergeRecord(b && b.trip, mine.trip, theirs.trip), places, expenses, files, deleted: gone };
   }
 
   // The trips a doc has, alive or deleted (so a deletion is sent too).

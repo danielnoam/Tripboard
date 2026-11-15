@@ -151,4 +151,18 @@ test("stamp covers expenses: changed ones get updatedAt, removed ones a tombston
   assert.deepStrictEqual(next.deleted.b, { at: "2026-11-15T00:00:00.000Z", trip: "t" });
 });
 
+test("a file record is cleaned, and goes with its trip", () => {
+  const d = M.sanitizeDoc({ trips: [{ id: "t", name: "K" }], files: [
+    { id: "f", trip: "t", name: " ticket.pdf ", type: "application/pdf", size: "2048.4" },
+    { id: "g", trip: "t", type: "<script>", size: -1 },
+    { id: "h", trip: "gone", name: "x" },
+  ] });
+  assert.deepStrictEqual(d.files.map((f) => [f.id, f.name, f.type, f.size]), [
+    ["f", "ticket.pdf", "application/pdf", 2048], ["g", "Untitled file", "application/octet-stream", 0]]);
+  const next = JSON.parse(JSON.stringify(d));
+  next.files = [];
+  M.stamp(d, next, "2026-11-15T00:00:00.000Z");
+  assert.ok(next.deleted.f && next.deleted.g);
+});
+
 console.log(passed + " passed");

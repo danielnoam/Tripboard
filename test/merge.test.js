@@ -114,4 +114,17 @@ test("a bundle from before expenses merges with one that has them", () => {
   assert.strictEqual(G.mergeBundles(base, mine, clone(base)).expenses.length, 1);
 });
 
+test("file records travel in the bundle; one deleted on one side goes", () => {
+  const d = clone(start);
+  d.files = [{ id: "f", trip: "t", name: "ticket.pdf", type: "application/pdf", size: 10, createdAt: at(0), updatedAt: at(0) }];
+  const base = G.bundleOf(M.sanitizeDoc(d), "t");
+  const mine = clone(base), theirs = clone(base);
+  theirs.files = [];
+  theirs.deleted.f = { at: at(3), trip: "t" };
+  mine.files.push({ id: "g", trip: "t", name: "hotel.pdf", type: "application/pdf", size: 5, updatedAt: at(2) });
+  const out = G.mergeBundles(base, mine, theirs);
+  assert.deepStrictEqual(out.files.map((f) => f.id), ["g"]);
+  assert.ok(out.deleted.f);
+});
+
 console.log(passed + " passed");

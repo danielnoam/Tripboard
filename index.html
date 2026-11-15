@@ -67,6 +67,31 @@
     </form>
   </dialog>
 
+  <input id="fileAdd" type="file" multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
+  <dialog class="sheet" id="fileSheet" aria-labelledby="fileSheetTitle">
+    <form class="sheet-body" id="fileForm" novalidate>
+      <h2 id="fileSheetTitle">File</h2>
+      <p class="hint dim" id="fileInfo"></p>
+      <div class="loc-actions">
+        <button class="btn" id="fileOpen" type="button">Open</button>
+        <button class="btn quiet" id="fileSaveCopy" type="button">Save a copy</button>
+      </div>
+      <label class="field">Name
+        <input name="name" type="text" autocomplete="off" maxlength="200" required>
+      </label>
+      <label class="field">Place <select name="place" id="filePlace"></select></label>
+      <label class="field">Note
+        <textarea name="note" rows="2" maxlength="2000" placeholder="Booking number 4417"></textarea>
+      </label>
+      <div class="sheet-actions">
+        <button class="btn danger" id="fileDelete" type="button">Delete</button>
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="sheet" id="expenseSheet" aria-labelledby="expenseSheetTitle">
     <form class="sheet-body" id="expenseForm" novalidate>
       <h2 id="expenseSheetTitle">Add an expense</h2>

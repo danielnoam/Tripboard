@@ -11,8 +11,6 @@ moves to DROPPED.md with his reason.
 
 ## Trips
 
-- **A files section.** Tickets, bookings, PDFs kept with the trip,
-  offline.
 
 ## With other people
 

@@ -175,9 +175,9 @@
     main.append(wrap);
   }
 
-  // Plan and Expenses: a trip's two lists (the map is the button at the top).
+  // Plan, Expenses and Files: a trip's lists (the map is the button at the top).
   function tripTabs(trip) {
-    const tabs = [["board", "Plan", ""], ["expenses", "Expenses", "/expenses"]];
+    const tabs = [["board", "Plan", ""], ["expenses", "Expenses", "/expenses"], ["files", "Files", "/files"]];
     return el("div.seg.trip-tabs", { role: "tablist", "aria-label": "Show" }, tabs.map(([mode, label, path]) =>
       el("button", { type: "button", role: "tab", "aria-selected": String(view.mode === mode), text: label,
         onclick: () => { location.hash = "#/trip/" + trip.id + path; } })));
@@ -219,6 +219,103 @@
         }))));
     }
     main.append(wrap);
+  }
+
+  // ---------- Files ----------
+  const filesOf = (id) => (doc.files || []).filter((x) => x.trip === id);
+  const sizeLabel = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB");
+  const kindOf = (f) => {
+    const ext = (/\.(\w{1,5})$/.exec(f.name) || [])[1];
+    return f.type === "application/pdf" ? "PDF" : f.type.startsWith("image/") ? "Image" : ext ? ext.toUpperCase() : "File";
+  };
+  let haveFiles = new Set();
+  async function addFiles(list, trip) {
+    const big = [], added = [];
+    for (const file of list) {
+      if (file.size > M.MAX_FILE_MB * 1e6) { big.push(file.name); continue; }
+      const stamp = new Date().toISOString();
+      const f = M.sanitizeFile({ id: M.newId(), trip: trip.id, name: file.name, type: file.type, size: file.size, createdAt: stamp, updatedAt: stamp });
+      await store.setFile(f.id, file);
+      haveFiles.add(f.id);
+      added.push(f);
+    }
+    if (added.length) { doc.files = (doc.files || []).concat(added); save(); }
+    if (big.length) toast(big.join(", ") + (big.length === 1 ? " is" : " are") + " over " + M.MAX_FILE_MB + " MB, too big to keep here.");
+    else if (added.length) toast("Added " + plural(added.length, "file", "files") + ".");
+  }
+  $("fileAdd").addEventListener("change", (e) => {
+    const trip = findTrip(view.trip);
+    if (trip && e.target.files.length) addFiles([...e.target.files], trip);
+    e.target.value = "";
+  });
+
+  function renderFiles(main, trip) {
+    $("title").textContent = trip.name;
+    main.append(tripTabs(trip));
+    const list = filesOf(trip.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    // A file dropped anywhere on the page joins the trip (with a mouse).
+    main.ondragover = (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); main.classList.add("file-over"); } };
+    main.ondragleave = (e) => { if (e.target === main) main.classList.remove("file-over"); };
+    main.ondrop = (e) => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); main.classList.remove("file-over"); addFiles([...e.dataTransfer.files], trip); };
+    if (!list.length) {
+      main.append(el("div.empty", {}, el("p", { text: "No files yet." }),
+        el("p.dim", { text: "Keep tickets, bookings and PDFs with the trip, to open without a connection. Add one with +" + (window.matchMedia("(pointer: fine)").matches ? ", or drop it here." : ".") })));
+      return;
+    }
+    main.append(el("section.group", {}, el("div.xrows", {}, list.map((f) => {
+      const place = f.place && doc.places.find((p) => p.id === f.place);
+      const here = haveFiles.has(f.id);
+      return el("button.xrow", { type: "button", onclick: (e) => openFile(f, trip, e.currentTarget) },
+        el("span.xrow-ic", {}, icon(f.type.startsWith("image/") ? "image" : "file")),
+        el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }),
+          el("span.xrow-meta", { text: [kindOf(f), sizeLabel(f.size), place ? place.name : "", here ? "" : "not on this device yet"].filter(Boolean).join(" · ") })));
+    }))));
+    if (window.matchMedia("(pointer: fine)").matches) main.append(el("p.dim.hint.page-hint", { text: "Drop files here to add them." }));
+  }
+
+  let editingFile = null;
+  async function openFile(f, trip, from) {
+    editingFile = f;
+    const form = $("fileForm");
+    form.reset();
+    form.name.value = f.name;
+    form.note.value = f.note || "";
+    $("filePlace").replaceChildren(el("option", { value: "", text: "None" }),
+      ...placesOf(trip.id).slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => el("option", { value: p.id, text: p.name })));
+    $("filePlace").value = f.place && placesOf(trip.id).some((p) => p.id === f.place) ? f.place : "";
+    const blob = await store.file(f.id);
+    $("fileInfo").textContent = kindOf(f) + " · " + sizeLabel(f.size) + " · added " + new Date(f.createdAt).toLocaleDateString()
+      + (blob ? "" : ". It isn't on this device yet; it comes with the next sync.");
+    $("fileOpen").disabled = $("fileSaveCopy").disabled = !blob;
+    const url = () => URL.createObjectURL(blob.type ? blob : new Blob([blob], { type: f.type }));
+    $("fileOpen").onclick = () => { const u = url(); window.open(u, "_blank", "noopener"); setTimeout(() => URL.revokeObjectURL(u), 60000); };
+    $("fileSaveCopy").onclick = () => {
+      const a = el("a", { href: url(), download: f.name });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    };
+    armDelete($("fileDelete"), "Delete", () => {
+      closeSheet($("fileSheet"));
+      undoable("Deleted " + f.name + ".", () => { doc.files = doc.files.filter((x) => x !== f); });
+    });
+    openSheet($("fileSheet"), from);
+  }
+  $("fileForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.name.value.trim()) { form.name.setAttribute("aria-invalid", "true"); form.name.focus(); return; }
+    form.name.removeAttribute("aria-invalid");
+    Object.assign(editingFile, { name: form.name.value, place: form.place.value, note: form.note.value });
+    await closeSheet($("fileSheet"));
+    save();
+  });
+  // Bytes whose record is gone (deleted, past its Undo) are let go at start.
+  async function sweepFiles() {
+    const ids = await store.fileIds().catch(() => []);
+    const live = new Set((doc.files || []).map((f) => f.id));
+    for (const id of ids) if (!live.has(id)) await store.dropFile(id);
+    haveFiles = new Set(ids.filter((id) => live.has(id)));
+    if (view.mode === "files") render();
   }
 
   let editingExpense = null, expenseTrip = null;
@@ -806,6 +903,10 @@
       const blob = t.cover ? await store.cover(t.id) : null;
       if (blob) data.covers[t.id] = await toDataUrl(blob);
     }
+    for (const f of data.files) {
+      const blob = await store.file(f.id);
+      if (blob) data.blobs[f.id] = await toDataUrl(blob.type ? blob : new Blob([blob], { type: f.type }));
+    }
     const name = (data.trips.length === 1 ? fileName(data.trips[0].name) : "tripboard") + "-" + today() + ".json";
     const a = el("a", { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" })), download: name });
     document.body.append(a);
@@ -823,6 +924,10 @@
       if (url) { await store.setCover(id, fromDataUrl(url)); if (covers.get(id)) URL.revokeObjectURL(covers.get(id)); covers.delete(id); }
       const t = r.doc.trips.find((x) => x.id === id);
       if (t && t.cover) t.coverAt = new Date().toISOString();
+    }
+    for (const f of r.doc.files || []) {
+      const url = data.blobs && data.blobs[f.id];
+      if (url && r.ids.includes(f.trip)) { await store.setFile(f.id, fromDataUrl(url)); haveFiles.add(f.id); }
     }
     const n = r.added + r.replaced;
     undoable("Restored " + plural(n, "trip", "trips") + (r.replaced ? " (" + r.replaced + " replaced)" : "") + ".", () => { doc = r.doc; });
@@ -960,15 +1065,15 @@
 
   async function renderStorage(main) {
     $("title").textContent = "Storage";
-    const trips = doc.trips.length, places = doc.places.length, covers = doc.trips.filter((t) => t.cover).length;
+    const trips = doc.trips.length, places = doc.places.length, covers = doc.trips.filter((t) => t.cover).length, files = (doc.files || []).length;
     const used = el("p", { text: "Working it out…" });
     const keep = el("p.hint.dim");
     const keepBtn = el("button.btn", { type: "button", text: "Keep my trips safe", hidden: true });
     main.append(el("section.panel", {}, el("h2", { text: "On this device" }),
-      el("p", { text: plural(trips, "trip", "trips") + ", " + plural(places, "place", "places") + ", " + plural(covers, "cover photo", "cover photos") + "." }), used),
+      el("p", { text: plural(trips, "trip", "trips") + ", " + plural(places, "place", "places") + ", " + plural(covers, "cover photo", "cover photos") + ", " + plural(files, "file", "files") + "." }), used),
     el("section.panel", {}, el("h2", { text: "Kept safe" }), keep, el("div.loc-actions", {}, keepBtn)),
     el("section.panel", {}, el("h2", { text: "Backup" }),
-      el("p.hint.dim", { text: "A file with your trips, places and cover photos. Restoring it adds its trips here, and replaces a trip that's already here." }),
+      el("p.hint.dim", { text: "A file with your trips, places, expenses, cover photos and files. Restoring it adds its trips here, and replaces a trip that's already here." }),
       el("div.loc-actions", {},
         el("button.btn", { type: "button", text: "Save a backup", disabled: !trips, onclick: () => saveBackup() }),
         el("label.btn.quiet", {}, "Restore from a file", el("input.visually-hidden", { type: "file", accept: ".json,application/json",
@@ -1090,7 +1195,7 @@
           const info = await SYNC.check(v);
           if (!info.private) { status.textContent = "That repo is public, so anyone could read your trips. Make it private on GitHub (Settings, Danger zone), then connect."; return; }
           SET.setSync({ ...v, branch: info.branch });
-          SYNC.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged });
+          SYNC.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
           SYNC.now();
           render();
         } catch (e) { status.textContent = SYNC.explain(e); }
@@ -1152,7 +1257,7 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
-    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses))?/.exec(location.hash);
+    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
     if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
@@ -1184,8 +1289,10 @@
     $("fab").hidden = !trip;
     if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
     else if (trip && view.mode === "expenses") renderExpenses(main, trip);
+    else if (trip && view.mode === "files") renderFiles(main, trip);
     else if (trip) renderBoard(main, trip); else renderHome(main);
-    $("fab").setAttribute("aria-label", view.mode === "expenses" ? "Add an expense" : "Add a place");
+    $("fab").setAttribute("aria-label", view.mode === "expenses" ? "Add an expense" : view.mode === "files" ? "Add files" : "Add a place");
+    if (view.mode !== "files") { main.ondragover = main.ondragleave = main.ondrop = null; main.classList.remove("file-over"); }
     window.scrollTo(0, y);
   }
 
@@ -1205,15 +1312,17 @@
       location.hash = "#/trip/" + view.trip + (view.mode === "map" ? "" : "/map");
     });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
-    $("fab").addEventListener("click", (e) => view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
+    $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
+      : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
       : openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);
     render();
     setTimeout(refreshGoogle, 2000);
+    sweepFiles();
     const T = window.Tripboard;
     if (T.sync) {
       T.sync.onStatus = () => { if (syncPaint) syncPaint(); };
-      T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged });
+      T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
     }
   }
 

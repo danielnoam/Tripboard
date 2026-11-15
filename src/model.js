@@ -11,6 +11,8 @@
 // An expense: id, trip, title, amount (a number, in `currency`, an ISO
 // 4217 code), category, and optionally day, place (a place's id), note and
 // paidBy (who paid, for when a trip is shared).
+// A file: id, trip, name, type (its MIME type), size in bytes, and
+// optionally place and note. Its bytes are kept apart (store.js), never in the doc.
 (function () {
   const CATEGORIES = [
     ["sight", "Sights"], ["food", "Food & drink"], ["nature", "Nature"], ["museum", "Museums"],
@@ -35,6 +37,8 @@
     "IDR", "MYR", "PHP", "INR", "AED", "TRY", "EGP", "MAD", "ZAR", "MXN", "BRL", "ARS", "CLP", "PEN", "COP",
     "SEK", "NOK", "DKK", "ISK", "PLN", "CZK", "HUF", "RON", "GEL"];
   const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "createdAt", "updatedAt"]);
+  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "createdAt", "updatedAt"]);
+  const MAX_FILE_MB = 25;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
     "lat", "lng", "address", "placeId", "geoAt", "visited", "createdAt", "updatedAt"]);
@@ -106,6 +110,19 @@
     return keepUnknown(e, out, KNOWN_EXPENSE);
   }
 
+  function sanitizeFile(f) {
+    f = f || {};
+    const size = num(f.size);
+    const out = {
+      id: text(f.id) || newId(), trip: text(f.trip), name: text(f.name).slice(0, 200) || "Untitled file",
+      type: /^[\w.+-]+\/[\w.+-]+$/.test(text(f.type)) ? text(f.type) : "application/octet-stream",
+      size: size != null && size >= 0 ? Math.round(size) : 0,
+      createdAt: f.createdAt || now(), updatedAt: f.updatedAt || f.createdAt || now(),
+    };
+    for (const k of ["place", "note"]) { const v = text(f[k]); if (v) out[k] = v; }
+    return keepUnknown(f, out, KNOWN_FILE);
+  }
+
   // The whole store. A place whose trip is gone is dropped: deleting a trip
   // takes its places with it. `deleted` remembers what was deleted, when,
   // and in which trip, so a sync doesn't bring it back from another device:
@@ -116,13 +133,14 @@
     const ids = new Set(trips.map((t) => t.id));
     const places = ((d && d.places) || []).filter((p) => p && typeof p === "object").map(sanitizePlace).filter((p) => ids.has(p.trip));
     const expenses = ((d && d.expenses) || []).filter((x) => x && typeof x === "object").map(sanitizeExpense).filter((x) => ids.has(x.trip));
-    const live = new Set(places.concat(expenses).map((r) => r.id));
+    const files = ((d && d.files) || []).filter((x) => x && typeof x === "object").map(sanitizeFile).filter((x) => ids.has(x.trip));
+    const live = new Set(places.concat(expenses, files).map((r) => r.id));
     const deleted = {};
     const cutoff = new Date(Date.now() - TOMBSTONE_DAYS * DAY_MS).toISOString();
     for (const [id, t] of Object.entries((d && d.deleted) || {})) {
       if (t && typeof t.at === "string" && t.at > cutoff && !ids.has(id) && !live.has(id)) deleted[id] = { at: t.at, trip: text(t.trip) };
     }
-    return keepUnknown(d, { trips, places, expenses, deleted }, new Set(["trips", "places", "expenses", "deleted"]));
+    return keepUnknown(d, { trips, places, expenses, files, deleted }, new Set(["trips", "places", "expenses", "files", "deleted"]));
   }
 
   // What changed between two saves: a record that's new or different gets
@@ -132,10 +150,10 @@
     at = at || now();
     const before = new Map();
     for (const t of (prev && prev.trips) || []) before.set(t.id, { r: t, trip: t.id });
-    for (const p of ((prev && prev.places) || []).concat((prev && prev.expenses) || [])) before.set(p.id, { r: p, trip: p.trip });
+    for (const p of ((prev && prev.places) || []).concat((prev && prev.expenses) || [], (prev && prev.files) || [])) before.set(p.id, { r: p, trip: p.trip });
     const same = (a, b) => { const x = { ...a }, y = { ...b }; delete x.updatedAt; delete y.updatedAt; return JSON.stringify(x) === JSON.stringify(y); };
     const seen = new Set();
-    for (const r of next.trips.concat(next.places, next.expenses || [])) {
+    for (const r of next.trips.concat(next.places, next.expenses || [], next.files || [])) {
       seen.add(r.id);
       const b = before.get(r.id);
       if (!b || !same(b.r, r)) r.updatedAt = at;
@@ -245,19 +263,21 @@
     const ids = new Set(tripIds && tripIds.length ? tripIds : doc.trips.map((t) => t.id));
     return { app: "tripboard", format: BACKUP_FORMAT, exportedAt: now(),
       trips: doc.trips.filter((t) => ids.has(t.id)), places: doc.places.filter((p) => ids.has(p.trip)),
-      expenses: (doc.expenses || []).filter((x) => ids.has(x.trip)), covers: {} };
+      expenses: (doc.expenses || []).filter((x) => ids.has(x.trip)), files: (doc.files || []).filter((x) => ids.has(x.trip)),
+      covers: {}, blobs: {} };
   }
   // A backup's trips join the doc. A trip already here (same id) is
   // replaced by the file's copy, places and all. → { doc, added, replaced }
   function mergeBackup(doc, data) {
     if (!data || data.app !== "tripboard" || !Array.isArray(data.trips)) throw new Error("That file isn't a Tripboard backup.");
     if (data.format > BACKUP_FORMAT) throw new Error("That backup is from a newer Tripboard. Update this one first.");
-    const incoming = sanitizeDoc({ trips: data.trips, places: data.places || [], expenses: data.expenses || [] });
+    const incoming = sanitizeDoc({ trips: data.trips, places: data.places || [], expenses: data.expenses || [], files: data.files || [] });
     const ids = new Set(incoming.trips.map((t) => t.id));
     const replaced = doc.trips.filter((t) => ids.has(t.id)).length;
     return {
       doc: { ...doc, trips: doc.trips.filter((t) => !ids.has(t.id)).concat(incoming.trips), places: doc.places.filter((p) => !ids.has(p.trip)).concat(incoming.places),
-        expenses: (doc.expenses || []).filter((x) => !ids.has(x.trip)).concat(incoming.expenses) },
+        expenses: (doc.expenses || []).filter((x) => !ids.has(x.trip)).concat(incoming.expenses),
+        files: (doc.files || []).filter((x) => !ids.has(x.trip)).concat(incoming.files) },
       added: incoming.trips.length - replaced, replaced, ids: [...ids],
     };
   }
@@ -298,7 +318,7 @@
   }
 
   const api = {
-    EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
+    sanitizeFile, MAX_FILE_MB, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,
