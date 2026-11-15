@@ -4,10 +4,12 @@
 # and a bad deploy can't break the installed app.
 name: Android app
 
+# Web only for now (Daniel, 2026-11-15): this builds only when run by
+# hand. To turn it back on, put this under `on:` again:
+#   push:
+#     branches: ["**"]
+#     paths-ignore: ["**.md", "test/**", ".claude/**", "docs/**"]
 on:
-  push:
-    branches: ["**"]
-    paths-ignore: ["**.md", "test/**", ".claude/**", "docs/**"]
   workflow_dispatch:
 
 permissions:
