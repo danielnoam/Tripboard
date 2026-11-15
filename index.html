@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.github.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.github.com https://tiles.openfreemap.org https://nominatim.openstreetmap.org; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F6F5F2">
   <title>Tripboard</title>
@@ -15,10 +15,15 @@
   <header class="bar">
     <button class="icon-btn" id="back" type="button" aria-label="All trips" hidden></button>
     <h1 class="bar-title" id="title">Tripboard</h1>
+    <button class="icon-btn" id="viewToggle" type="button" aria-label="Map" hidden></button>
     <button class="icon-btn" id="editTrip" type="button" aria-label="Edit trip" hidden></button>
   </header>
   <p id="update" class="update" hidden></p>
   <main id="app" tabindex="-1"></main>
+  <section class="map-view" id="mapView" aria-label="Map" hidden>
+    <div class="map" id="map"></div>
+    <div class="map-panel" id="mapPanel" hidden></div>
+  </section>
   <button class="fab" id="fab" type="button" aria-label="Add a place" hidden></button>
 
   <dialog class="sheet" id="tripSheet" aria-labelledby="tripSheetTitle">
@@ -60,6 +65,17 @@
       <label class="field">Name
         <input name="name" type="text" autocomplete="off" maxlength="160" placeholder="Fushimi Inari" required>
       </label>
+      <div class="field">
+        <span>Location</span>
+        <p class="where" id="placeWhere"></p>
+        <div class="loc-actions">
+          <button class="btn" id="placeFind" type="button">Find by name</button>
+          <button class="btn quiet" id="placePin" type="button">Pin on map</button>
+          <button class="btn quiet" id="placeClear" type="button" hidden>Clear</button>
+        </div>
+        <p class="hint" id="placeFindNote" role="status"></p>
+        <ul class="results" id="placeResults"></ul>
+      </div>
       <fieldset class="field">
         <legend>Importance</legend>
         <div class="seg" id="importanceSeg" role="radiogroup"></div>
@@ -89,6 +105,8 @@
   <script src="src/keel/motion.js?v=0.1.0"></script>
   <script src="src/model.js?v=0.1.0"></script>
   <script src="src/store.js?v=0.1.0"></script>
+  <script src="src/places.js?v=0.1.0"></script>
+  <script src="src/map.js?v=0.1.0"></script>
   <script src="src/icons.js?v=0.1.0"></script>
   <script src="src/views.js?v=0.1.0"></script>
   <script src="src/app.js?v=0.1.0"></script>

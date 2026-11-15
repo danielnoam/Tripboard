@@ -13,8 +13,11 @@ sw.js                the web copy's service worker: offline, test builds (keel's
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
 src/model.js         trips and places: cleaning, days, time slots, the board's sorts and filter (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc") and each trip's cover photo
+src/places.js        finding a place by name, one provider per source: OpenStreetMap's Nominatim now, Google later (Node-tested)
+src/map.js           the trip's map: MapLibre on OpenFreeMap, loaded on first use; pins, fit, taps
+src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's board, the trip and place sheets, the #/trip/<id> routing
+src/views.js         Home, a trip's board and map, the trip and place sheets, the #/trip/<id>[/map] routing
 src/styles.css       the tokens per theme, then the styles
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
@@ -24,6 +27,7 @@ src/keel/sw-preview.js  the service worker's half of a test build (from keel)
 test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
+test/places.test.js  src/places.js
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
@@ -54,9 +58,21 @@ adds a line here.
 
 - Trips live on this device only (IndexedDB) until sync is built: a
   cleared browser or a new phone starts empty.
-- Distance sorting needs places with a location, which only search and the
-  map will give them; typed-in places sort under "No location".
+- Distance sorting needs places with a location (Find by name, or a pin);
+  places without one sort under "No location".
+- The map is MapLibre, about 1.7 MB in src/vendor/, cached with the app.
+  The policy's connect-src allows tiles.openfreemap.org (the map's tiles,
+  style and fonts) and nominatim.openstreetmap.org (Find by name). Opening
+  the map tells OpenFreeMap which area is shown; a search sends the typed
+  name (and the trip's area) to OpenStreetMap. Nothing else leaves.
+- MapLibre's worker holds an eval for a right-to-left text plugin that
+  Tripboard never loads; test/csp.test.js names it, and the policy has no
+  unsafe-eval, so it couldn't run anyway.
 
 ## Traps
 
 Things that broke once and would again.
+
+- maplibre-gl.css gives the map's container `position: relative`, which
+  beat `.map`'s absolute fill and left the map 0 px high: the rule is
+  `.map-view .map`, one class stronger.

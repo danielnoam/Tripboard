@@ -47,7 +47,7 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], from: null };
+  const view = { trip: null, sort: "time", only: [], from: null, mode: "board", pick: null, sel: null };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
   const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only })); } catch (e) { /* private window */ } };
 
@@ -128,7 +128,7 @@
     if (view.sort === "distance" && !view.from) {
       main.append(el("div.locate", {},
         el("p.dim", { text: places.some((p) => p.lat != null) ? "Nearest to you first, once you allow your location."
-          : "No place has a location yet. Places picked from search or the map will have one." }),
+          : "No place has a location yet. Give one with Find by name or Pin on map in its sheet, or on the Map." }),
         el("button.btn", { type: "button", onclick: locate }, icon("locate"), "Use my location")));
     }
     const groups = M.board(trip, places, view.sort, { only: view.only, from: view.from });
@@ -297,7 +297,59 @@
   }
 
   // Place sheet
-  let editingPlace = null, placeTrip = null, importance = "want";
+  let editingPlace = null, placeTrip = null, importance = "want", loc, categoryTouched = false;
+  // The place's location in the sheet: undefined unchanged, null cleared,
+  // or { lat, lng, address } found by name.
+  function paintWhere() {
+    const p = loc === undefined ? editingPlace : loc;
+    const has = p && p.lat != null;
+    $("placeWhere").textContent = !has ? "Not set" : p.address || p.lat.toFixed(5) + ", " + p.lng.toFixed(5);
+    $("placeWhere").classList.toggle("dim", !has);
+    $("placeClear").hidden = !has;
+    $("placePin").textContent = has ? "Move on map" : "Pin on map";
+  }
+  $("categorySelect").addEventListener("change", () => { categoryTouched = true; });
+  $("placeClear").addEventListener("click", () => { loc = null; $("placeResults").replaceChildren(); $("placeFindNote").textContent = ""; paintWhere(); });
+  let searching = 0;
+  $("placeFind").addEventListener("click", async () => {
+    const f = $("placeForm");
+    const q = f.name.value.trim();
+    const note = $("placeFindNote"), out = $("placeResults");
+    if (!q) { note.textContent = "Type the place's name first."; f.name.focus(); return; }
+    const me = ++searching;
+    note.textContent = "Searching…";
+    out.replaceChildren();
+    const near = placesOf(placeTrip.id).filter((p) => p.lat != null);
+    const dest = placeTrip.destinations[0];
+    try {
+      const osm = window.Tripboard.places.providers.osm;
+      let list = await osm.search(q, { near });
+      // Nothing for the bare name: try it with the trip's first destination.
+      if (!list.length && dest && !q.toLowerCase().includes(dest.toLowerCase())) list = await osm.search(q + ", " + dest, { near });
+      if (me !== searching) return;
+      note.textContent = list.length ? "Pick the right one:" : "Nothing found. Try another spelling, or pin it on the map.";
+      out.replaceChildren(...list.map((r) => el("li", {}, el("button", { type: "button", onclick: () => {
+        loc = { lat: r.lat, lng: r.lng, address: r.address };
+        if (r.category && !categoryTouched && !editingPlace) f.category.value = r.category;
+        out.replaceChildren();
+        note.textContent = "From OpenStreetMap.";
+        paintWhere();
+      } }, el("strong", { text: r.name }), el("span.dim", { text: r.address })))));
+    } catch (e) {
+      if (me !== searching) return;
+      window.Keel.errlog.note("search", String(e));
+      note.textContent = navigator.onLine === false ? "Searching needs a connection." : (e.message && /^(Too many|The search)/.test(e.message) ? e.message : "The search didn't work. Try again in a moment.");
+    }
+  });
+  $("placePin").addEventListener("click", async () => {
+    const f = $("placeForm");
+    if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
+    const p = await commitPlace();
+    view.pick = p.id;
+    view.sel = null;
+    location.hash = "#/trip/" + placeTrip.id + "/map";
+    render();
+  });
   function paintImportance() {
     $("importanceSeg").replaceChildren(...M.IMPORTANCE.map(([id, label]) =>
       el("button.imp-" + id, { type: "button", role: "radio", "aria-checked": String(importance === id), text: label,
@@ -328,6 +380,12 @@
     f.time.value = p.time || "";
     f.endTime.value = p.endTime || "";
     f.note.value = p.note || "";
+    loc = undefined;
+    categoryTouched = false;
+    searching++;
+    $("placeResults").replaceChildren();
+    $("placeFindNote").textContent = "";
+    paintWhere();
     $("placeDelete").hidden = !place;
     if (place) armDelete($("placeDelete"), "Delete", () => {
       doc.places = doc.places.filter((x) => x !== place);
@@ -336,26 +394,124 @@
     });
     openSheet($("placeSheet"), from);
   }
-  $("placeForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
+  async function commitPlace() {
+    const f = $("placeForm");
     f.name.removeAttribute("aria-invalid");
     const stamp = new Date().toISOString();
     const day = placeTrip.start ? $("daySelect").value : $("dayInput").value;
     const p = editingPlace || { id: M.newId(), trip: placeTrip.id, createdAt: stamp };
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
+    if (loc === null) { delete p.lat; delete p.lng; delete p.address; }
+    else if (loc) { Object.assign(p, loc); if (!loc.address) delete p.address; }
     if (!editingPlace) doc.places.push(p);
     await closeSheet($("placeSheet"));
     save();
+    return p;
+  }
+  $("placeForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
+    await commitPlace();
   });
+
+  // ---------- The map ----------
+  const TM = window.Tripboard.map;
+  let mapFailed = null;
+  function shownPlaces(trip) {
+    const all = placesOf(trip.id);
+    return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
+  }
+  async function showMap(trip) {
+    const panel = $("mapPanel");
+    if (mapFailed) { mapMessage(mapFailed); return; }
+    const first = !TM.ready;
+    try { await TM.open($("map")); }
+    catch (e) {
+      window.Keel.errlog.note("map", String(e));
+      mapFailed = navigator.onLine === false ? "The map needs a connection the first time it opens." : "The map couldn't load. Check the connection and try again.";
+      mapMessage(mapFailed);
+      return;
+    }
+    if (view.mode !== "map" || view.trip !== trip.id) return;
+    const list = shownPlaces(trip);
+    TM.places(list, view.sel);
+    if (first || $("map").dataset.trip !== trip.id) { TM.fit(list); $("map").dataset.trip = trip.id; }
+    paintPanel(trip);
+    panel.hidden = !panel.childNodes.length;
+  }
+  function mapMessage(text) {
+    $("mapPanel").replaceChildren(el("p", { text }), el("button.btn", { type: "button", text: "Try again", onclick: () => { mapFailed = null; render(); } }));
+    $("mapPanel").hidden = false;
+  }
+  TM.onPin = (id) => {
+    if (view.pick) return;
+    view.sel = view.sel === id ? null : id;
+    render();
+  };
+  TM.onTap = ({ lat, lng }) => {
+    if (view.pick) {
+      const p = doc.places.find((x) => x.id === view.pick);
+      view.pick = null;
+      if (p) { Object.assign(p, { lat, lng, updatedAt: new Date().toISOString() }); delete p.address; view.sel = p.id; }
+      save();
+      return;
+    }
+    if (view.sel) { view.sel = null; render(); }
+  };
+  function paintPanel(trip) {
+    const panel = $("mapPanel");
+    const all = placesOf(trip.id);
+    if (view.pick) {
+      const p = all.find((x) => x.id === view.pick);
+      panel.replaceChildren(el("p.pick", {}, "Tap the map where ", el("strong", { text: p ? p.name : "it" }), " is."),
+        el("button.btn", { type: "button", text: "Cancel", onclick: () => { view.pick = null; render(); } }));
+      return;
+    }
+    const sel = view.sel && all.find((x) => x.id === view.sel);
+    if (sel) {
+      const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.CATEGORY.get(sel.category)];
+      if (sel.day) meta.push(dayLabel(sel.day));
+      if (sel.time) meta.push(timeLabel(sel));
+      panel.replaceChildren(el("div.sel", {},
+        el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
+        sel.address ? el("span.dim.addr", { text: sel.address }) : null),
+        el("div.loc-actions", {},
+          el("button.btn", { type: "button", text: "Edit", onclick: (e) => openPlace(sel, trip, null, e.currentTarget) }),
+          el("button.btn.quiet", { type: "button", text: "Move pin", onclick: () => { view.pick = sel.id; view.sel = null; render(); } })));
+      return;
+    }
+    const nowhere = all.filter((p) => p.lat == null);
+    if (!nowhere.length) { panel.replaceChildren(); return; }
+    panel.replaceChildren(
+      el("p.dim", { text: plural(nowhere.length, "place has", "places have") + " no location yet. Pick one, then tap the map." }),
+      el("ul.unplaced", {}, nowhere.map((p) => el("li", {}, el("button.chip.imp-" + p.importance, { type: "button", "aria-pressed": "true", text: p.name,
+        onclick: () => { view.pick = p.id; render(); } })))));
+  }
 
   // ---------- Routing ----------
   function render() {
-    const m = /^#\/trip\/([\w-]+)/.exec(location.hash);
+    const m = /^#\/trip\/([\w-]+)(\/map)?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
-    if ((trip && trip.id) !== view.trip) { view.from = null; view.trip = trip ? trip.id : null; }
+    if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.trip = trip ? trip.id : null; }
+    view.mode = trip && m[2] ? "map" : "board";
+    const onMap = view.mode === "map";
+    $("viewToggle").hidden = !trip;
+    $("viewToggle").replaceChildren(icon(onMap ? "list" : "map"));
+    $("viewToggle").setAttribute("aria-label", onMap ? "Board" : "Map");
+    $("mapView").hidden = !onMap;
+    $("app").hidden = onMap;
+    document.body.classList.toggle("on-map", onMap);
+    if (onMap) {
+      document.body.classList.add("on-board");
+      $("title").textContent = trip.name;
+      $("back").hidden = false;
+      $("editTrip").hidden = false;
+      $("fab").hidden = !!view.pick;
+      showMap(trip);
+      return;
+    }
     const main = $("app");
     const y = main.dataset.trip === String(view.trip) ? window.scrollY : 0;
     main.dataset.trip = String(view.trip);
@@ -375,6 +531,10 @@
     $("editTrip").append(icon("pencil"));
     $("fab").append(icon("plus"));
     $("back").addEventListener("click", () => { location.hash = "#/"; });
+    $("viewToggle").addEventListener("click", () => {
+      view.pick = null;
+      location.hash = "#/trip/" + view.trip + (view.mode === "map" ? "" : "/map");
+    });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     $("fab").addEventListener("click", (e) => openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);

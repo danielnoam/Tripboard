@@ -5,12 +5,14 @@
 // Other sites' requests are never touched.
 //
 // CACHE goes up with every release (tools/release.js). A file added to or
-// removed from the app goes in or out of ASSETS (test/app.test.js checks).
+// removed from the app goes in or out of ASSETS (test/app.test.js checks);
+// src/vendor/maplibre-gl.* is the map, loaded when a map first opens.
 const CACHE = "tripboard-v1";
 const ASSETS = [
   "./", "./index.html", "./manifest.json", "./icon.svg",
-  "./src/styles.css", "./src/model.js", "./src/store.js", "./src/icons.js", "./src/views.js", "./src/app.js",
+  "./src/styles.css", "./src/model.js", "./src/store.js", "./src/places.js", "./src/map.js", "./src/icons.js", "./src/views.js", "./src/app.js",
   "./src/keel/errlog.js", "./src/keel/platform.js", "./src/keel/releases.js", "./src/keel/motion.js", "./src/keel/sw-preview.js",
+  "./src/vendor/maplibre-gl.mjs", "./src/vendor/maplibre-gl-worker.mjs", "./src/vendor/maplibre-gl.css",
 ];
 
 self.addEventListener("install", (e) => {

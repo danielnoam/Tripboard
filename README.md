@@ -54,3 +54,5 @@ One short line per feature, under its own heading, as they ship.
 ## Credits
 
 - Icons: [Lucide](https://lucide.dev) (ISC licence).
+- Map: [MapLibre GL JS](https://maplibre.org) (BSD-3), tiles from [OpenFreeMap](https://openfreemap.org), © [OpenMapTiles](https://www.openmaptiles.org), data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+- Find by name: OpenStreetMap's [Nominatim](https://nominatim.org).

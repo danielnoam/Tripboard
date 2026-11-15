@@ -238,11 +238,49 @@ body.on-board main { max-width: 1200px; }
 .sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .grow { flex: 1; }
 
+/* The map */
+body.on-map { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+body.on-map .bar { width: 100%; max-width: none; }
+.map-view { position: relative; flex: 1; min-height: 0; }
+.map-view[hidden] { display: none; }
+.map-view .map { position: absolute; inset: 0; background: var(--surface-2); }
+.map-panel {
+  position: absolute; left: var(--space-3); right: calc(var(--space-3) + 72px); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+  display: grid; gap: var(--space-2); max-height: 45%; overflow-y: auto;
+  padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+}
+.map-panel[hidden] { display: none; }
+.map-panel p { margin: 0; }
+.map-panel .sel { display: grid; }
+.map-panel .addr { font-size: 14px; }
+.unplaced { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; }
+.pin {
+  width: 22px; height: 22px; padding: 0; border: 3px solid var(--surface); border-radius: 50%;
+  background: var(--want); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); cursor: pointer;
+}
+.pin.imp-must { background: var(--must); width: 26px; height: 26px; }
+.pin.imp-maybe { background: var(--maybe); }
+.pin.visited { opacity: 0.55; }
+.pin.selected { outline: 3px solid var(--text); outline-offset: 2px; z-index: 2; }
+
+/* A place's location in its sheet */
+.where { margin: 0; color: var(--text); font-weight: 400; }
+.where.dim { color: var(--text-dim); }
+.loc-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.results { list-style: none; display: grid; gap: var(--space-1); margin: 0; padding: 0; }
+.results button {
+  display: grid; width: 100%; min-height: 44px; padding: var(--space-2) 12px; text-align: left;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-weight: 400;
+}
+.results .dim { font-size: 14px; }
+.hint:empty { display: none; }
+
 @media (min-width: 720px) {
   .sheet { width: 520px; margin: auto; border-radius: 20px; }
   .sheet-body { padding: var(--space-4); }
   .trips { grid-template-columns: repeat(2, 1fr); }
   .new-trip { width: auto; }
+  .map-panel { right: auto; width: 380px; }
 }
 /* On a wide screen the board is a board: its groups side by side. */
 @media (min-width: 960px) {
