@@ -10,7 +10,11 @@ index.html           the page: its Content-Security-Policy first, then the scrip
 manifest.json        the web app manifest
 icon.svg             the app icon
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js)
-src/app.js           the app; APP_VERSION
+src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
+src/model.js         trips and places: cleaning, days, time slots, the board's sorts and filter (Node-tested)
+src/store.js         IndexedDB on this device: the data ("doc") and each trip's cover photo
+src/icons.js         the Lucide icons used, as SVG paths
+src/views.js         Home, a trip's board, the trip and place sheets, the #/trip/<id> routing
 src/styles.css       the tokens per theme, then the styles
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
@@ -19,6 +23,7 @@ src/keel/motion.js   springs and moves, made in app.js (from keel)
 src/keel/sw-preview.js  the service worker's half of a test build (from keel)
 test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
+test/model.test.js   src/model.js
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
@@ -46,6 +51,11 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 
 What the app gives up on purpose, said plainly. A change that adds one
 adds a line here.
+
+- Trips live on this device only (IndexedDB) until sync is built: a
+  cleared browser or a new phone starts empty.
+- Distance sorting needs places with a location, which only search and the
+  map will give them; typed-in places sort under "No location".
 
 ## Traps
 

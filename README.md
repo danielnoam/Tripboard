@@ -50,3 +50,7 @@ two GitHub addresses and the fallback in `tools/desktop-files.js`.
 ## Features
 
 One short line per feature, under its own heading, as they ship.
+
+## Credits
+
+- Icons: [Lucide](https://lucide.dev) (ISC licence).

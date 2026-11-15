@@ -1,12 +1,13 @@
-// Tripboard: the app. keel's files (src/keel/) load before it: errlog.js
-// first, then platform.js (where it runs), releases.js (updates) and
-// motion.js (springs and moves).
+// Tripboard: the app's start. keel's files (src/keel/) load before it:
+// errlog.js first, then platform.js (where it runs), releases.js (updates)
+// and motion.js (springs and moves); then Tripboard's own model.js (the
+// data and the board's sorts), store.js (IndexedDB), icons.js and
+// views.js (the screens and sheets).
 (function () {
   const APP_VERSION = "0.1.0";
   const K = window.Keel;
   const $ = (id) => document.getElementById(id);
 
-  $("version").textContent = APP_VERSION;
 
   // The theme follows the system's light or dark.
   const dark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -38,5 +39,20 @@
   // there is one) says which moves it uses.
   const motion = K.motion.create();
 
-  window.Tripboard = { version: APP_VERSION, releases, motion };
+  const T = window.Tripboard;
+  Object.assign(T, { version: APP_VERSION, releases, motion });
+
+  // Saves wait a moment, so a burst of changes is one write.
+  let timer = null, latest = null;
+  const save = (doc) => {
+    latest = doc;
+    clearTimeout(timer);
+    timer = setTimeout(() => T.store.save(latest), 250);
+  };
+  addEventListener("pagehide", () => { if (timer) { clearTimeout(timer); T.store.save(latest); } });
+
+  T.store.init()
+    .then(() => T.store.load())
+    .catch((e) => { K.errlog.note("load", String(e)); return null; })
+    .then((doc) => T.views.start({ doc: doc || { trips: [], places: [] }, store: T.store, motion, save }));
 })();
