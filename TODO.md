@@ -20,11 +20,6 @@ moves to DROPPED.md with his reason.
 - **Publishing a trip.** A read-only copy others can open (and later
   copy, which is where community trips start).
 
-## Tools
-
-- **MCP / CLI tools.** Let an AI chat or a script read and change trips
-  and places, like LifeLog's `bridge/` (which Telemachus runs). It needs
-  the data somewhere reachable off the device: the GitHub sync repo.
 
 ## From the scope (docs/SCOPE.md)
 
