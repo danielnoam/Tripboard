@@ -9,60 +9,62 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <script src="src/keel/errlog.js?v=0.1.0" data-key="tripboard.log" data-keep="50" data-console></script>
+  <script src="src/keel/i18n.js?v=0.1.0"></script>
+  <script src="src/language.js?v=0.1.0"></script>
   <link rel="stylesheet" href="src/styles.css?v=0.1.0">
 </head>
 <body>
   <header class="bar">
-    <button class="icon-btn" id="back" type="button" aria-label="All trips" hidden></button>
+    <button class="icon-btn" id="back" type="button" aria-label="All trips" hidden data-t-attr="aria-label"></button>
     <h1 class="bar-title" id="title">Tripboard</h1>
-    <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings"></button>
-    <button class="icon-btn" id="viewToggle" type="button" aria-label="Map" hidden></button>
-    <button class="icon-btn" id="editTrip" type="button" aria-label="Edit trip" hidden></button>
+    <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-t-attr="aria-label"></button>
+    <button class="icon-btn" id="viewToggle" type="button" aria-label="Map" hidden data-t-attr="aria-label"></button>
+    <button class="icon-btn" id="editTrip" type="button" aria-label="Edit trip" hidden data-t-attr="aria-label"></button>
   </header>
   <p id="update" class="update" hidden></p>
   <main id="app" tabindex="-1"></main>
-  <section class="map-view" id="mapView" aria-label="Map" hidden>
+  <section class="map-view" id="mapView" aria-label="Map" hidden data-t-attr="aria-label">
     <div class="map" id="map"></div>
     <p class="map-note" id="mapNote" role="status" hidden></p>
     <p class="map-attrib" id="mapAttrib" hidden>Google</p>
-    <div class="map-days" id="mapDays" role="group" aria-label="Show a day" hidden></div>
+    <div class="map-days" id="mapDays" role="group" aria-label="Show a day" hidden data-t-attr="aria-label"></div>
     <div class="map-panel" id="mapPanel" hidden></div>
   </section>
-  <button class="fab" id="fab" type="button" aria-label="Add a place" hidden></button>
+  <button class="fab" id="fab" type="button" aria-label="Add a place" hidden data-t-attr="aria-label"></button>
 
   <dialog class="sheet" id="tripSheet" aria-labelledby="tripSheetTitle">
     <form class="sheet-body" id="tripForm" novalidate>
-      <h2 id="tripSheetTitle">New trip</h2>
-      <label class="field">Name
-        <input name="name" type="text" autocomplete="off" maxlength="120" placeholder="Japan in autumn" required>
+      <h2 id="tripSheetTitle" data-t>New trip</h2>
+      <label class="field"><span data-t>Name</span>
+        <input name="name" type="text" autocomplete="off" maxlength="120" placeholder="Japan in autumn" required data-t-attr="placeholder">
       </label>
       <div class="row">
-        <label class="field">From <input name="start" type="date"></label>
-        <label class="field">To <input name="end" type="date"></label>
+        <label class="field"><span data-t>From</span>  <input name="start" type="date"></label>
+        <label class="field"><span data-t>To</span>  <input name="end" type="date"></label>
       </div>
-      <label class="field">Destinations
-        <input name="destinations" type="text" autocomplete="off" placeholder="Tokyo, Kyoto, Osaka">
-        <span class="hint">Separate them with commas.</span>
+      <label class="field"><span data-t>Destinations</span>
+        <input name="destinations" type="text" autocomplete="off" placeholder="Tokyo, Kyoto, Osaka" data-t-attr="placeholder">
+        <span class="hint" data-t>Separate them with commas.</span>
       </label>
       <div class="field">
-        <span>Cover</span>
+        <span data-t>Cover</span>
         <div class="cover-pick">
           <div class="cover-preview" id="coverPreview"></div>
           <div class="cover-actions">
-            <label class="btn">Choose a photo<input id="coverFile" type="file" accept="image/*" class="visually-hidden"></label>
-            <button class="btn quiet" id="coverRemove" type="button" hidden>Remove</button>
+            <label class="btn"><span data-t>Choose a photo</span><input id="coverFile" type="file" accept="image/*" class="visually-hidden"></label>
+            <button class="btn quiet" id="coverRemove" type="button" hidden data-t>Remove</button>
           </div>
         </div>
       </div>
       <div class="field" id="tripFileRow" hidden>
-        <span>Backup</span>
-        <div><button class="btn" id="tripExport" type="button">Save this trip as a file</button></div>
+        <span data-t>Backup</span>
+        <div><button class="btn" id="tripExport" type="button" data-t>Save this trip as a file</button></div>
       </div>
       <div class="sheet-actions">
-        <button class="btn danger" id="tripDelete" type="button" hidden>Delete trip</button>
+        <button class="btn danger" id="tripDelete" type="button" hidden data-t>Delete trip</button>
         <span class="grow"></span>
-        <button class="btn quiet" type="button" data-close>Cancel</button>
-        <button class="btn primary" type="submit" id="tripSave">Create trip</button>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn primary" type="submit" id="tripSave" data-t>Create trip</button>
       </div>
     </form>
   </dialog>
@@ -70,92 +72,92 @@
   <input id="fileAdd" type="file" multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
   <dialog class="sheet" id="fileSheet" aria-labelledby="fileSheetTitle">
     <form class="sheet-body" id="fileForm" novalidate>
-      <h2 id="fileSheetTitle">File</h2>
+      <h2 id="fileSheetTitle" data-t>File</h2>
       <p class="hint dim" id="fileInfo"></p>
       <div class="loc-actions">
-        <button class="btn" id="fileOpen" type="button">Open</button>
-        <button class="btn quiet" id="fileSaveCopy" type="button">Save a copy</button>
+        <button class="btn" id="fileOpen" type="button" data-t>Open</button>
+        <button class="btn quiet" id="fileSaveCopy" type="button" data-t>Save a copy</button>
       </div>
-      <label class="field">Name
+      <label class="field"><span data-t>Name</span>
         <input name="name" type="text" autocomplete="off" maxlength="200" required>
       </label>
-      <label class="field">Place <select name="place" id="filePlace"></select></label>
-      <label class="field">Note
-        <textarea name="note" rows="2" maxlength="2000" placeholder="Booking number 4417"></textarea>
+      <label class="field"><span data-t>Place</span>  <select name="place" id="filePlace"></select></label>
+      <label class="field"><span data-t>Note</span>
+        <textarea name="note" rows="2" maxlength="2000" placeholder="Booking number 4417" data-t-attr="placeholder"></textarea>
       </label>
       <div class="sheet-actions">
-        <button class="btn danger" id="fileDelete" type="button">Delete</button>
+        <button class="btn danger" id="fileDelete" type="button" data-t>Delete</button>
         <span class="grow"></span>
-        <button class="btn quiet" type="button" data-close>Cancel</button>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn primary" type="submit" data-t>Save</button>
       </div>
     </form>
   </dialog>
 
   <dialog class="sheet" id="expenseSheet" aria-labelledby="expenseSheetTitle">
     <form class="sheet-body" id="expenseForm" novalidate>
-      <h2 id="expenseSheetTitle">Add an expense</h2>
+      <h2 id="expenseSheetTitle" data-t>Add an expense</h2>
       <div class="row">
-        <label class="field">Amount <input name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" required></label>
-        <label class="field">Currency <select name="currency" id="expenseCurrency"></select></label>
+        <label class="field"><span data-t>Amount</span>  <input name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" required></label>
+        <label class="field"><span data-t>Currency</span>  <select name="currency" id="expenseCurrency"></select></label>
       </div>
-      <label class="field">What
-        <input name="title" type="text" autocomplete="off" maxlength="160" placeholder="Ryokan, two nights">
+      <label class="field"><span data-t>What</span>
+        <input name="title" type="text" autocomplete="off" maxlength="160" placeholder="Ryokan, two nights" data-t-attr="placeholder">
       </label>
-      <label class="field">Category <select name="category" id="expenseCategory"></select></label>
-      <label class="field">Day <select id="expenseDay"></select><input id="expenseDayInput" type="date" hidden></label>
-      <label class="field">Place <select name="place" id="expensePlace"></select></label>
-      <label class="field" id="expensePaidRow" hidden>Paid by <select id="expensePaidBy"></select></label>
-      <label class="field">Note
+      <label class="field"><span data-t>Category</span>  <select name="category" id="expenseCategory"></select></label>
+      <label class="field"><span data-t>Day</span>  <select id="expenseDay"></select><input id="expenseDayInput" type="date" hidden></label>
+      <label class="field"><span data-t>Place</span>  <select name="place" id="expensePlace"></select></label>
+      <label class="field" id="expensePaidRow" hidden><span data-t>Paid by</span>  <select id="expensePaidBy"></select></label>
+      <label class="field"><span data-t>Note</span>
         <textarea name="note" rows="2" maxlength="2000"></textarea>
       </label>
       <div class="sheet-actions">
-        <button class="btn danger" id="expenseDelete" type="button" hidden>Delete</button>
+        <button class="btn danger" id="expenseDelete" type="button" hidden data-t>Delete</button>
         <span class="grow"></span>
-        <button class="btn quiet" type="button" data-close>Cancel</button>
-        <button class="btn primary" type="submit" id="expenseSave">Add expense</button>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn primary" type="submit" id="expenseSave" data-t>Add expense</button>
       </div>
     </form>
   </dialog>
 
   <dialog class="sheet" id="placeSheet" aria-labelledby="placeSheetTitle">
     <form class="sheet-body" id="placeForm" novalidate>
-      <h2 id="placeSheetTitle">Add a place</h2>
-      <label class="field">Name
+      <h2 id="placeSheetTitle" data-t>Add a place</h2>
+      <label class="field"><span data-t>Name</span>
         <input name="name" type="text" autocomplete="off" maxlength="160" placeholder="Fushimi Inari" required>
       </label>
       <div class="field">
-        <span>Location</span>
+        <span data-t>Location</span>
         <p class="where" id="placeWhere"></p>
         <div class="loc-actions">
-          <button class="btn" id="placeFind" type="button">Find by name</button>
-          <button class="btn quiet" id="placePin" type="button">Pin on map</button>
-          <button class="btn quiet" id="placeClear" type="button" hidden>Clear</button>
+          <button class="btn" id="placeFind" type="button" data-t>Find by name</button>
+          <button class="btn quiet" id="placePin" type="button" data-t>Pin on map</button>
+          <button class="btn quiet" id="placeClear" type="button" hidden data-t>Clear</button>
         </div>
         <p class="hint" id="placeFindNote" role="status"></p>
         <ul class="results" id="placeResults"></ul>
         <div id="placeOpenIn"></div>
       </div>
       <fieldset class="field">
-        <legend>Importance</legend>
+        <legend data-t>Importance</legend>
         <div class="seg" id="importanceSeg" role="radiogroup"></div>
       </fieldset>
-      <label class="field">Category
+      <label class="field"><span data-t>Category</span>
         <select name="category" id="categorySelect"></select>
       </label>
-      <label class="field">Day <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
+      <label class="field"><span data-t>Day</span>  <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
       <div class="row">
-        <label class="field">From <input name="time" type="time"></label>
-        <label class="field">To <input name="endTime" type="time"></label>
+        <label class="field"><span data-t>From</span>  <input name="time" type="time"></label>
+        <label class="field"><span data-t>To</span>  <input name="endTime" type="time"></label>
       </div>
-      <label class="field">Description
-        <textarea name="note" rows="3" maxlength="2000" placeholder="Go early, before the crowds."></textarea>
+      <label class="field"><span data-t>Description</span>
+        <textarea name="note" rows="3" maxlength="2000" placeholder="Go early, before the crowds." data-t-attr="placeholder"></textarea>
       </label>
       <div class="sheet-actions">
-        <button class="btn danger" id="placeDelete" type="button" hidden>Delete</button>
+        <button class="btn danger" id="placeDelete" type="button" hidden data-t>Delete</button>
         <span class="grow"></span>
-        <button class="btn quiet" type="button" data-close>Cancel</button>
-        <button class="btn primary" type="submit" id="placeSave">Add place</button>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn primary" type="submit" id="placeSave" data-t>Add place</button>
       </div>
     </form>
   </dialog>

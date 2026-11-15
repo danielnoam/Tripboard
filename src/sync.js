@@ -15,6 +15,8 @@
 //   .status   { state: "off"|"idle"|"syncing"|"error", at, error }
 //   .onStatus = (status) => …
 (function () {
+  // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
+  const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
   const K = window.Keel;
   const T = window.Tripboard;
   const G = T.merge;
@@ -30,12 +32,12 @@
     if (S.onStatus) S.onStatus(S.status);
   }
   // What a failure means, in words for Settings.
-  S.explain = (e) => !e ? "" : e.kind === "offline" ? "No connection. It syncs when you're back online."
-    : e.kind === "auth" ? "GitHub refused the token. Check it can read and write the repo's contents."
-    : e.kind === "ratelimit" ? "GitHub asks to wait a little. It tries again soon."
-    : e.empty ? "The repo is empty. On GitHub, add a README to it, then sync again."
-    : e.status === 404 ? "GitHub can't find that repo with this token."
-    : "Sync didn't finish: " + (e.detail || e.message);
+  S.explain = (e) => !e ? "" : e.kind === "offline" ? i18n.t("No connection. It syncs when you're back online.")
+    : e.kind === "auth" ? i18n.t("GitHub refused the token. Check it can read and write the repo's contents.")
+    : e.kind === "ratelimit" ? i18n.t("GitHub asks to wait a little. It tries again soon.")
+    : e.empty ? i18n.t("The repo is empty. On GitHub, add a README to it, then sync again.")
+    : e.status === 404 ? i18n.t("GitHub can't find that repo with this token.")
+    : i18n.t("Sync didn't finish: {why}", { why: e.detail || e.message });
 
   const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
   const text = (b) => JSON.stringify(b, null, 1);
