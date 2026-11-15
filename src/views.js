@@ -53,10 +53,16 @@
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
+  // Every change goes through here: cleaned, stamped against the last save
+  // (updatedAt, and what was deleted), kept, drawn, and sent to sync.
+  let lastSaved = "{}", version = 0;
   function save() {
-    doc = M.sanitizeDoc(doc);
+    version++;
+    doc = M.stamp(JSON.parse(lastSaved), M.sanitizeDoc(doc));
+    lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
+    if (window.Tripboard.sync) window.Tripboard.sync.soon();
   }
 
   // A short note at the bottom, with Undo when the change can be taken back.
@@ -387,6 +393,7 @@
       covers.delete(trip.id);
       if (pendingCover) { await store.setCover(trip.id, pendingCover); trip.cover = true; }
       else { await store.dropCover(trip.id); trip.cover = false; }
+      trip.coverAt = stamp;
     }
     if (!editingTrip) doc.trips.push(trip);
     await closeSheet($("tripSheet"));
@@ -707,6 +714,8 @@
     for (const id of r.ids) {
       const url = data.covers && data.covers[id];
       if (url) { await store.setCover(id, fromDataUrl(url)); if (covers.get(id)) URL.revokeObjectURL(covers.get(id)); covers.delete(id); }
+      const t = r.doc.trips.find((x) => x.id === id);
+      if (t && t.cover) t.coverAt = new Date().toISOString();
     }
     const n = r.added + r.replaced;
     undoable("Restored " + plural(n, "trip", "trips") + (r.replaced ? " (" + r.replaced + " replaced)" : "") + ".", () => { doc = r.doc; });
@@ -757,6 +766,7 @@
   // Everything search can find: each page, and what's on it.
   function settingsIndex() {
     const out = [
+      { ico: "refresh", title: "GitHub sync", where: "Settings", href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
       { ico: "database", title: "Storage", where: "Settings", href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
       { ico: "database", title: "Backup", where: "Storage", href: "#/settings/storage", words: "backup restore file export import save json" },
       { ico: "palette", title: "Appearance", where: "Settings", href: "#/settings/appearance", words: "theme dark light system mode colours" },
@@ -790,6 +800,7 @@
   function renderSettings(main, page) {
     if (page === "map" || page === "search") return renderService(main, page);
     if (page === "services") return renderServices(main);
+    if (page === "sync") return renderSync(main);
     if (page === "storage") return renderStorage(main);
     if (page === "appearance") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
@@ -801,6 +812,7 @@
     const results = el("div.settings-results");
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
     const home = el("div.sgroup", {}, el("div.sgroup-card", {},
+      srow("#/settings/sync", "refresh", "GitHub sync", syncSummary()),
       srow("#/settings/storage", "database", "Storage", { text: "Space used, backup and restore" }),
       srow("#/settings/appearance", "palette", "Appearance", { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] }),
       srow("#/settings/services", "plug", "Services", needs || { text: "Map and Find by name: " + SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }),
@@ -854,7 +866,8 @@
         el("button.btn", { type: "button", text: "Save a backup", disabled: !trips, onclick: () => saveBackup() }),
         el("label.btn.quiet", {}, "Restore from a file", el("input.visually-hidden", { type: "file", accept: ".json,application/json",
           onchange: (e) => { const f = e.target.files && e.target.files[0]; if (f) restoreBackup(f); e.target.value = ""; } })))),
-    el("p.dim.hint.page-hint", { text: "Trips live in this browser only until sync is built. Clearing this site's data deletes them." }));
+    el("p.dim.hint.page-hint", { text: SYNC && SYNC.connected() ? "Your trips are also in your GitHub repo, so clearing this site's data loses only what hasn't synced yet."
+      : "Without GitHub sync, trips live in this browser only. Clearing this site's data deletes them." }));
     const S = navigator.storage;
     if (S && S.estimate) {
       try { const e = await S.estimate(); used.textContent = "About " + mb(e.usage) + " used" + (e.quota ? ", of " + mb(e.quota) + " this browser allows." : "."); }
@@ -922,12 +935,92 @@
     $("title").textContent = "About";
     const link = (text, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer", text });
     main.append(el("section.panel", {}, el("h2", { text: "Tripboard " + window.Tripboard.version }),
-      el("p.dim", { text: "Your trips stay on this device. Keys you add are kept in this browser and sent only to their own provider." })),
+      el("p.dim", { text: "Your trips stay on this device, and in your own private GitHub repo if you turn on sync. Keys and tokens you add are kept in this browser and sent only to their own service." })),
     sgroup("Credits", [el("ul.credits", {},
       el("li", {}, "Icons: ", link("Lucide", "https://lucide.dev"), " (ISC)"),
       el("li", {}, "Map: ", link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
       el("li", {}, "Map data and Find by name: © ", link("OpenStreetMap", "https://www.openstreetmap.org/copyright"), " contributors, ", link("Nominatim", "https://nominatim.org")),
       el("li", {}, "With your own key: ", link("Google Maps Platform", "https://developers.google.com/maps"), ", ", link("MapTiler", "https://www.maptiler.com")))]));
+  }
+
+  // ---------- GitHub sync ----------
+  const SYNC = window.Tripboard.sync;
+  let syncPaint = null;
+  function ago(iso) {
+    const s = Math.round((Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    return new Date(iso).toLocaleDateString();
+  }
+  function syncSummary() {
+    if (!SYNC || !SYNC.connected()) return { text: "Off. Keep your trips on every device" };
+    const st = SYNC.status, c = SET.get().sync;
+    if (st.state === "error") return { text: "Didn't finish. Open for why", tone: "warn" };
+    if (st.state === "syncing") return { text: "Syncing…" };
+    return { text: c.owner + "/" + c.repo + (st.at ? ", synced " + ago(st.at) : "") };
+  }
+  const SYNC_STEPS = [
+    ["On GitHub, make a private repo for your trips (tripboard-data is a good name). Tick Add a README, so it isn't empty.", "https://github.com/new?name=tripboard-data&visibility=private"],
+    ["Make a fine-grained token. Under Repository access pick Only select repositories and choose that repo. Under Permissions give Contents Read and write. Nothing else.", "https://github.com/settings/personal-access-tokens/new"],
+    ["Copy the token and paste it below, with your GitHub user name and the repo's name.", null],
+  ];
+  function renderSync(main) {
+    $("title").textContent = "GitHub sync";
+    const c = SET.get().sync;
+    const status = el("p.hint", { role: "status" });
+    if (!SYNC.connected()) {
+      const owner = el("input", { value: c.owner, autocomplete: "off", spellcheck: false, autocapitalize: "off", placeholder: "your-user-name" });
+      const repo = el("input", { value: c.repo, autocomplete: "off", spellcheck: false, autocapitalize: "off" });
+      const token = el("input", { type: "password", autocomplete: "off", spellcheck: false, placeholder: "github_pat_…" });
+      const go = el("button.btn", { type: "button", text: "Connect" });
+      go.onclick = async () => {
+        const v = { owner: owner.value.trim(), repo: repo.value.trim(), token: token.value.trim() };
+        if (!v.owner || !v.repo || !v.token) { status.textContent = "All three are needed."; return; }
+        go.disabled = true;
+        status.textContent = "Checking with GitHub…";
+        try {
+          const info = await SYNC.check(v);
+          if (!info.private) { status.textContent = "That repo is public, so anyone could read your trips. Make it private on GitHub (Settings, Danger zone), then connect."; return; }
+          SET.setSync({ ...v, branch: info.branch });
+          SYNC.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged });
+          SYNC.now();
+          render();
+        } catch (e) { status.textContent = SYNC.explain(e); }
+        finally { go.disabled = false; }
+      };
+      main.append(el("p.dim.hint.page-hint", { text: "Sync keeps your trips in a private GitHub repo of yours, so your phone and computer see the same trips. Tripboard has no server: your trips go only to GitHub." }),
+        el("section.panel", {}, el("h2", { text: "Set it up" }),
+          el("ol.steps", {}, SYNC_STEPS.map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: "Open" })] : null)))),
+        el("section.panel", {},
+          el("label.field", {}, "GitHub user name", owner),
+          el("label.field", {}, "Repo", repo),
+          el("label.field", {}, "Token", token),
+          el("div.loc-actions", {}, go), status),
+        el("p.dim.hint", { text: "The token is kept in this browser and sent only to GitHub. Anyone who can open this browser's Tripboard can use it, so give it only that one repo." }));
+      return;
+    }
+    const line = el("p");
+    const now = el("button.btn", { type: "button", text: "Sync now", onclick: () => SYNC.now() });
+    syncPaint = () => {
+      if (!line.isConnected) { syncPaint = null; return; }
+      const st = SYNC.status;
+      now.disabled = st.state === "syncing";
+      line.textContent = st.state === "syncing" ? "Syncing…" : st.state === "error" ? SYNC.explain(st.error) : st.at ? "Synced " + ago(st.at) + "." : "Not synced yet on this device.";
+      line.dataset.tone = st.state === "error" ? "warn" : "";
+    };
+    const repoUrl = "https://github.com/" + encodeURIComponent(c.owner) + "/" + encodeURIComponent(c.repo);
+    main.append(el("section.panel", {}, el("h2", {}, el("a", { href: repoUrl, target: "_blank", rel: "noopener noreferrer", text: c.owner + "/" + c.repo })),
+      line, el("p.hint.dim", { text: "It syncs a few seconds after each change, when Tripboard opens, and every few minutes while it's open." }),
+      el("div.loc-actions", {}, now,
+        el("button.btn.danger", { type: "button", text: "Disconnect", onclick: async () => {
+          SET.setSync({ token: "" });
+          await SYNC.forget();
+          render();
+          toast("Disconnected. Your trips stay on this device and in the repo.");
+        } }))),
+    el("p.dim.hint", { text: "Each trip is a file in the repo (trips/), with its cover photo (covers/). Changes made on two devices at once are merged; when both changed the same thing, the later change wins." }));
+    syncPaint();
   }
 
   async function testProvider(id, status) {
@@ -990,6 +1083,7 @@
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
     doc = M.sanitizeDoc(doc);
+    lastSaved = JSON.stringify(doc);
     $("back").append(icon("back"));
     $("editTrip").append(icon("pencil"));
     $("fab").append(icon("plus"));
@@ -1006,7 +1100,28 @@
     window.addEventListener("hashchange", render);
     render();
     setTimeout(refreshGoogle, 2000);
+    const T = window.Tripboard;
+    if (T.sync) {
+      T.sync.onStatus = () => { if (syncPaint) syncPaint(); };
+      T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged });
+    }
   }
 
-  window.Tripboard.views = { start, el, render: () => render(), get doc() { return doc; } };
+  // Sync's side: a doc it merged comes in as it is (already stamped by
+  // whichever device made each change), and a cover it fetched is redrawn.
+  function adopt(next) {
+    next = M.sanitizeDoc(next);
+    if (JSON.stringify(next) === JSON.stringify(doc)) return;
+    doc = next;
+    lastSaved = JSON.stringify(doc);
+    saveDoc(doc);
+    render();
+  }
+  function coverChanged(id) {
+    if (covers.get(id)) URL.revokeObjectURL(covers.get(id));
+    covers.delete(id);
+    render();
+  }
+
+  window.Tripboard.views = { start, el, render: () => render(), adopt, coverChanged, version: () => version, get doc() { return doc; } };
 })();

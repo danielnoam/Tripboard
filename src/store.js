@@ -41,6 +41,9 @@
     cover: (id) => get("cover:" + id),
     setCover: (id, blob) => put("cover:" + id, blob),
     dropCover: (id) => del("cover:" + id),
+    // Sync's own notes ("sync": what was last sent and agreed on).
+    meta: (k) => get("meta:" + k),
+    setMeta: (k, v) => put("meta:" + k, v),
   };
   window.Tripboard = window.Tripboard || {};
   window.Tripboard.store = store;

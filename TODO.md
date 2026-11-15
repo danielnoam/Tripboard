@@ -6,12 +6,6 @@ moves to DROPPED.md with his reason.
 
 ## Data
 
-- **GitHub sync.** keel's GitHub sync transport, as in Waypage and LifeLog.
-- **Google Drive backups.** keel's Drive backups. Needs Tripboard's own
-  OAuth client IDs.
-- **Storage control.** See what takes space (mostly cover images and,
-  later, files), ask the browser for persistent storage, clear what's not
-  needed.
 - **Export to LifeLog / sync.** Send a trip's places (and later expenses)
   to LifeLog. The format is to be decided with LifeLog's side.
 
@@ -33,7 +27,7 @@ moves to DROPPED.md with his reason.
 
 - **MCP / CLI tools.** Let an AI chat or a script read and change trips
   and places, like LifeLog's `bridge/` (which Telemachus runs). It needs
-  the data somewhere reachable off the device, so it follows GitHub sync.
+  the data somewhere reachable off the device: the GitHub sync repo.
 
 ## From the scope (docs/SCOPE.md)
 

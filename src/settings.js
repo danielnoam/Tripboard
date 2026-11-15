@@ -2,6 +2,7 @@
 //   providers  each map or search provider's own setup (a key, a style)
 //   map, search  which provider each service uses, and its fallback
 //   appearance  the theme: system, light or dark
+//   sync        GitHub sync's token and repo
 // A service tries its main provider; if that fails (no key, an error, a
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
@@ -22,6 +23,8 @@
     map: { main: "openfreemap", fallback: "" },
     search: { main: "osm", fallback: "" },
     appearance: { theme: "system" },
+    // GitHub sync: a fine-grained token for one private repo of yours.
+    sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
   };
   const merge = (saved) => {
     const out = JSON.parse(JSON.stringify(DEFAULTS));
@@ -35,6 +38,7 @@
     }
     const th = saved.appearance && saved.appearance.theme;
     if (["system", "light", "dark"].includes(th)) out.appearance.theme = th;
+    for (const k of Object.keys(out.sync)) if (saved.sync && typeof saved.sync[k] === "string") out.sync[k] = saved.sync[k];
     return out;
   };
   let cur;
@@ -46,6 +50,7 @@
     provider: (id) => ({ ...cur.providers[id] }),
     setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
     setTheme(theme) { cur.appearance = { theme }; S.save(); },
+    setSync(patch) { cur.sync = { ...cur.sync, ...patch }; S.save(); },
     setService(svc, patch) { cur[svc] = { ...cur[svc], ...patch }; if (cur[svc].fallback === cur[svc].main) cur[svc].fallback = ""; S.save(); },
     save() {
       try { localStorage.setItem(KEY, JSON.stringify(cur)); } catch (e) { /* kept for this visit */ }

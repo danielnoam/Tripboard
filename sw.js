@@ -10,8 +10,8 @@
 const CACHE = "tripboard-v1";
 const ASSETS = [
   "./", "./index.html", "./manifest.json", "./icon.svg",
-  "./src/styles.css", "./src/model.js", "./src/store.js", "./src/settings.js", "./src/places.js", "./src/map.js", "./src/icons.js", "./src/views.js", "./src/app.js",
-  "./src/keel/errlog.js", "./src/keel/platform.js", "./src/keel/releases.js", "./src/keel/motion.js", "./src/keel/sw-preview.js",
+  "./src/styles.css", "./src/model.js", "./src/store.js", "./src/settings.js", "./src/merge.js", "./src/sync.js", "./src/places.js", "./src/map.js", "./src/icons.js", "./src/views.js", "./src/app.js",
+  "./src/keel/errlog.js", "./src/keel/github.js", "./src/keel/platform.js", "./src/keel/releases.js", "./src/keel/motion.js", "./src/keel/sw-preview.js",
   "./src/vendor/maplibre-gl.mjs", "./src/vendor/maplibre-gl-worker.mjs", "./src/vendor/maplibre-gl.css",
 ];
 
