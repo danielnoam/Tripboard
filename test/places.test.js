@@ -31,7 +31,28 @@ async function test(name, fn) {
   });
 
   await test("too many searches says so", async () => {
-    await assert.rejects(P.providers.osm.search("x", { fetchFn: async () => ({ ok: false, status: 429 }) }), /Too many searches/);
+    await assert.rejects(P.providers.osm.search("x", { fetchFn: async () => ({ ok: false, status: 429 }) }), /too many searches/);
+  });
+
+  await test("Google: a key is needed, the field mask and key go in headers, the id comes back", async () => {
+    await assert.rejects(P.providers.google.search("x", {}), /needs a key/);
+    let init;
+    const fetchFn = async (u, i) => { init = i; return { ok: true, json: async () => ({ places: [{ id: "ChIJ1", displayName: { text: "Louvre" }, formattedAddress: "Paris", location: { latitude: 48.86, longitude: 2.33 }, types: ["museum"] }] }) }; };
+    const r = await P.providers.google.search("louvre", { key: "K", fetchFn });
+    assert.strictEqual(init.headers["X-Goog-Api-Key"], "K");
+    assert.ok(/places\.id/.test(init.headers["X-Goog-FieldMask"]));
+    assert.deepStrictEqual(r[0], { name: "Louvre", address: "Paris", lat: 48.86, lng: 2.33, category: "museum", placeId: "ChIJ1", source: "google" });
+  });
+
+  await test("the chain falls back when the main provider fails, and says why", async () => {
+    const fetchFn = async (u) => (/googleapis/.test(u) ? { ok: false, status: 403, json: async () => ({ error: { message: "API not enabled" } }) }
+      : { ok: true, json: async () => [{ name: "A", display_name: "A", lat: "1", lon: "2" }] });
+    const got = await P.search("a", { chain: ["google", "osm"], keys: { google: "K" }, fetchFn });
+    assert.strictEqual(got.by, "osm");
+    assert.deepStrictEqual(got.skipped, [{ id: "google", reason: "Google refused the key: API not enabled" }]);
+    const none = await P.search("a", { chain: ["maptiler", "osm"], keys: {}, fetchFn });
+    assert.ok(/MapTiler needs a key/.test(none.skipped[0].reason));
+    await assert.rejects(P.search("a", { chain: ["google"], keys: {}, fetchFn }), /needs a key/);
   });
 
   console.log(passed + " passed");

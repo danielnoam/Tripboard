@@ -1,17 +1,81 @@
-// The trip's map: MapLibre GL (src/vendor/, BSD-3) on OpenFreeMap's free
-// tiles, loaded the first time a map is opened. One map, kept for the
-// visit; views.js gives it the places to show and hears taps.
-//   TripMap.open(container) → resolves once the map is there (or throws)
+// The trip's map: MapLibre GL (src/vendor/, BSD-3), loaded the first time
+// a map is opened, on the map provider Settings picks (OpenFreeMap,
+// Google's 2D tiles or MapTiler), or its fallback when that one fails.
+// One map, kept for the visit; views.js gives it the places and hears taps.
+//   TripMap.open(container, { chain, providers }) → { by, skipped }
 //   TripMap.places(list, selectedId)   pins, by importance
 //   TripMap.fit(list)                  frames them
 //   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …
 (function () {
-  const STYLES = { light: "https://tiles.openfreemap.org/styles/positron", dark: "https://tiles.openfreemap.org/styles/dark" };
-  let lib = null, map = null, styleOf = null;
+  const OFM = "https://tiles.openfreemap.org/styles/";
+  const MAPTILER = { streets: ["streets-v2", "streets-v2-dark"], outdoor: ["outdoor-v2", "outdoor-v2-dark"], satellite: ["hybrid", "hybrid"] };
+  // Google's dark map, in its own styling rules (Map Tiles API `styles`).
+  const NIGHT = [
+    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#9a9184" }] },
+    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+    { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
+  ];
+  let lib = null, map = null, applied = "", google = null;
   const pins = new Map();
-  const T = {
-    onPin: null, onTap: null,
-    get ready() { return !!map; },
+  const T = { onPin: null, onTap: null, get ready() { return !!map; } };
+
+  async function getJson(url, who, init) {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      let msg = "";
+      try { const j = await res.json(); msg = (j.error && j.error.message) || j.message || ""; } catch (e) { /* no body */ }
+      throw new Error(res.status === 401 || res.status === 403 || res.status === 400 ? who + " refused the key" + (msg ? ": " + msg : ".")
+        : res.status === 429 ? who + "'s quota is used up for now." : who + "'s map didn't load (" + res.status + ").");
+    }
+    return res.json();
+  }
+
+  // Google's 2D tiles need a session, good for about two weeks; it's kept
+  // on the device per key, map type, theme and language.
+  async function googleSession(key, mapType, dark) {
+    const lang = navigator.language || "en-US";
+    const id = [key.slice(-6), mapType, dark && mapType === "roadmap" ? "dark" : "", lang].join("|");
+    try {
+      const c = JSON.parse(localStorage.getItem("tripboard.gsession") || "null");
+      if (c && c.id === id && Number(c.expiry) * 1000 > Date.now() + 3600000) return c.session;
+    } catch (e) { /* none kept */ }
+    const hi = (window.devicePixelRatio || 1) > 1;
+    const body = { mapType, language: lang, region: (lang.split("-")[1] || "US").toUpperCase(), scale: hi ? "scaleFactor2x" : "scaleFactor1x", highDpi: hi };
+    if (mapType === "satellite") body.layerTypes = ["layerRoadmap"];
+    if (dark && mapType === "roadmap") body.styles = NIGHT;
+    const j = await getJson("https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(key), "Google",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    try { localStorage.setItem("tripboard.gsession", JSON.stringify({ id, session: j.session, expiry: j.expiry })); } catch (e) { /* asks again next time */ }
+    return j.session;
+  }
+
+  // Each provider's map as a MapLibre style object.
+  const SOURCES = {
+    async openfreemap(o, dark) {
+      const name = o.style === "liberty" || o.style === "bright" ? o.style : dark ? "dark" : "positron";
+      return getJson(OFM + name, "OpenFreeMap");
+    },
+    async maptiler(o, dark) {
+      if (!o.key) throw new Error("MapTiler needs a key (Settings).");
+      const pair = MAPTILER[o.style] || MAPTILER.streets;
+      return getJson("https://api.maptiler.com/maps/" + pair[dark ? 1 : 0] + "/style.json?key=" + encodeURIComponent(o.key), "MapTiler");
+    },
+    async google(o, dark) {
+      if (!o.key) throw new Error("Google needs a key (Settings).");
+      const type = o.mapType === "satellite" ? "satellite" : "roadmap";
+      const session = await googleSession(o.key, type, dark);
+      return {
+        version: 8,
+        sources: { google: { type: "raster", tileSize: 256, maxzoom: 22,
+          tiles: ["https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=" + session + "&key=" + encodeURIComponent(o.key)] } },
+        layers: [{ id: "google", type: "raster", source: "google" }],
+        __google: { session, key: o.key },
+      };
+    },
   };
 
   function css() {
@@ -22,32 +86,70 @@
     l.href = "src/vendor/maplibre-gl.css";
     document.head.append(l);
   }
-  const theme = () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  const dark = () => document.documentElement.dataset.theme === "dark";
 
-  T.open = async function (container) {
-    if (map) { map.resize(); syncTheme(); return; }
+  // The first provider in the chain whose map loads. → { by, skipped }
+  async function resolve(cfg) {
+    const skipped = [];
+    for (const id of cfg.chain) {
+      if (!SOURCES[id]) continue;
+      try { return { style: await SOURCES[id](cfg.providers[id] || {}, dark()), by: id, skipped }; }
+      catch (e) { skipped.push({ id, reason: e.message }); }
+    }
+    const err = new Error(skipped.map((x) => x.reason).join(" ") || "No map is set up.");
+    err.skipped = skipped;
+    throw err;
+  }
+
+  // Google asks that its map shows its name and the copyright for the area
+  // in view, which its viewport call gives.
+  let attribTimer = null;
+  function googleAttribution() {
+    const box = document.getElementById("mapAttrib");
+    if (!box) return;
+    box.hidden = !google;
+    if (!google) return;
+    clearTimeout(attribTimer);
+    attribTimer = setTimeout(async () => {
+      const b = map.getBounds();
+      const u = new URL("https://tile.googleapis.com/tile/v1/viewport");
+      for (const [k, v] of Object.entries({ session: google.session, key: google.key, zoom: Math.round(map.getZoom()),
+        north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() })) u.searchParams.set(k, v);
+      try { const j = await getJson(u.href, "Google"); box.textContent = "Google" + (j.copyright ? " · " + j.copyright : ""); }
+      catch (e) { box.textContent = "Google"; }
+    }, 400);
+  }
+
+  // Opens the map, or brings it up to date with Settings and the theme.
+  // One at a time, so quick re-renders don't make two maps.
+  let queue = Promise.resolve();
+  T.open = (container, cfg) => (queue = queue.catch(() => {}).then(() => open(container, cfg)));
+  async function open(container, cfg) {
+    const want = JSON.stringify([cfg, dark()]);
+    if (map && want === applied) { map.resize(); return T.last; }
     css();
     lib = lib || await import("./vendor/maplibre-gl.mjs");
-    styleOf = theme();
+    const r = await resolve(cfg);
+    google = r.style.__google || null;
+    delete r.style.__google;
+    applied = want;
+    T.last = { by: r.by, skipped: r.skipped };
+    if (map) { map.setStyle(r.style); googleAttribution(); return T.last; }
     map = new lib.Map({
-      container, style: STYLES[styleOf], center: [10, 25], zoom: 1.2,
+      container, style: r.style, center: [10, 25], zoom: 1.2,
       attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false,
     });
     map.touchZoomRotate.disableRotation();
     map.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new lib.GeolocateControl({ positionOptions: { enableHighAccuracy: false } }), "top-right");
-    // OpenFreeMap's dark style, if it's ever missing, falls back to the light one.
-    map.on("error", (e) => {
-      if (styleOf === "dark" && /style/i.test(String(e && e.error && e.error.message))) { styleOf = "light"; map.setStyle(STYLES.light); }
-    });
     map.on("click", (e) => { if (T.onTap) T.onTap({ lat: e.lngLat.lat, lng: e.lngLat.lng }); });
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("The map took too long to load.")), 20000);
-      map.once("load", () => { clearTimeout(t); resolve(); });
+    map.on("moveend", googleAttribution);
+    await new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error("The map took too long to load.")), 20000);
+      map.once("load", () => { clearTimeout(t); res(); });
     });
-  };
-  function syncTheme() {
-    if (styleOf !== theme()) { styleOf = theme(); map.setStyle(STYLES[styleOf]); }
+    googleAttribution();
+    return T.last;
   }
 
   T.places = function (list, selected) {
@@ -86,5 +188,6 @@
   T.resize = () => map && map.resize();
 
   window.Tripboard = window.Tripboard || {};
+  T.SOURCES = SOURCES;
   window.Tripboard.map = T;
 })();

@@ -10,7 +10,7 @@ node server.js          # http://localhost:5173
 node test/run-all.js    # the whole test suite
 ```
 
-Read ARCHITECTURE.md (the map), DROPPED.md (what was turned down) and
+Read ARCHITECTURE.md (the map), TODO.md (what's planned), DROPPED.md (what was turned down) and
 CHANGELOG.md before proposing anything, so nothing shipped or turned down
 comes back.
 

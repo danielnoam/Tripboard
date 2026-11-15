@@ -24,7 +24,7 @@
 
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "visited", "createdAt", "updatedAt"]);
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
   // additions survive an older one saving.
   function keepUnknown(src, out, known) {
@@ -71,6 +71,8 @@
     const lat = num(p.lat), lng = num(p.lng);
     if (lat != null && lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { out.lat = lat; out.lng = lng; }
     for (const k of ["note", "address", "placeId"]) { const v = text(p[k]); if (v) out[k] = v; }
+    // When a Google location was fetched: Google allows keeping it 30 days.
+    if (out.lat != null && isDay(p.geoAt)) out.geoAt = p.geoAt;
     if (p.visited) out.visited = true;
     return keepUnknown(p, out, KNOWN_PLACE);
   }

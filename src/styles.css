@@ -263,6 +263,31 @@ body.on-map .bar { width: 100%; max-width: none; }
 .pin.visited { opacity: 0.55; }
 .pin.selected { outline: 3px solid var(--text); outline-offset: 2px; z-index: 2; }
 
+.map-note {
+  position: absolute; top: var(--space-2); left: var(--space-3); right: 64px; margin: 0;
+  padding: var(--space-2) 12px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); font-size: 14px;
+}
+.map-note[hidden], .map-attrib[hidden] { display: none; }
+.map-attrib {
+  position: absolute; left: var(--space-2); bottom: 2px; margin: 0; padding: 0 6px; border-radius: 4px;
+  background: var(--surface); color: var(--text); font-size: 11px; line-height: 18px;
+}
+.open-in { margin: 0; font-size: 14px; font-weight: 400; }
+.open-in a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.open-in a:hover { text-decoration: underline; }
+
+/* Settings */
+.panel { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
+.panel h2 { margin: 0; font-size: 17px; }
+.panel p { margin: 0; }
+.provider-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.provider-head h3 { margin: 0; font-size: 17px; }
+.provider-head .dim { font-size: 14px; }
+.warn { color: var(--must); }
+.steps summary { min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; cursor: pointer; }
+.steps ol { margin: 0; padding-left: 20px; display: grid; gap: var(--space-1); font-size: 14px; }
+.steps a { color: var(--accent); font-weight: 600; }
+
 /* A place's location in its sheet */
 .where { margin: 0; color: var(--text); font-weight: 400; }
 .where.dim { color: var(--text-dim); }

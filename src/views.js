@@ -18,7 +18,7 @@
       else if (k in n && k !== "list") n[k] = v;
       else n.setAttribute(k, v === true ? "" : v);
     }
-    for (const kid of kids.flat()) if (kid != null && kid !== false) n.append(kid);
+    for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) n.append(kid);
     return n;
   }
 
@@ -303,7 +303,8 @@
   function paintWhere() {
     const p = loc === undefined ? editingPlace : loc;
     const has = p && p.lat != null;
-    $("placeWhere").textContent = !has ? "Not set" : p.address || p.lat.toFixed(5) + ", " + p.lng.toFixed(5);
+    $("placeWhere").textContent = !has ? "Not set" : p.address || (p.placeId || p.source === "google" ? "On Google Maps · " : "") + p.lat.toFixed(5) + ", " + p.lng.toFixed(5);
+    $("placeOpenIn").replaceChildren(...(has || (editingPlace && editingPlace.name) ? [openIn({ name: $("placeForm").name.value || (editingPlace && editingPlace.name), ...(has ? p : {}) })] : []));
     $("placeWhere").classList.toggle("dim", !has);
     $("placeClear").hidden = !has;
     $("placePin").textContent = has ? "Move on map" : "Pin on map";
@@ -321,24 +322,28 @@
     out.replaceChildren();
     const near = placesOf(placeTrip.id).filter((p) => p.lat != null);
     const dest = placeTrip.destinations[0];
+    const prov = SET.get().providers;
+    const opts = { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key }, near };
     try {
-      const osm = window.Tripboard.places.providers.osm;
-      let list = await osm.search(q, { near });
+      let got = await PL.search(q, opts);
       // Nothing for the bare name: try it with the trip's first destination.
-      if (!list.length && dest && !q.toLowerCase().includes(dest.toLowerCase())) list = await osm.search(q + ", " + dest, { near });
+      if (!got.results.length && dest && !q.toLowerCase().includes(dest.toLowerCase())) got = await PL.search(q + ", " + dest, opts);
       if (me !== searching) return;
-      note.textContent = list.length ? "Pick the right one:" : "Nothing found. Try another spelling, or pin it on the map.";
+      const list = got.results;
+      const via = SET.PROVIDERS[got.by] ? SET.PROVIDERS[got.by].name : got.by;
+      const fell = got.skipped.length ? " (" + got.skipped.map((x) => x.reason).join(" ") + " Used " + via + ".)" : "";
+      note.textContent = (list.length ? "Pick the right one, from " + via + ":" : "Nothing found on " + via + ". Try another spelling, or pin it on the map.") + fell;
       out.replaceChildren(...list.map((r) => el("li", {}, el("button", { type: "button", onclick: () => {
-        loc = { lat: r.lat, lng: r.lng, address: r.address };
+        loc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
         if (r.category && !categoryTouched && !editingPlace) f.category.value = r.category;
         out.replaceChildren();
-        note.textContent = "From OpenStreetMap.";
+        note.textContent = "From " + via + ".";
         paintWhere();
       } }, el("strong", { text: r.name }), el("span.dim", { text: r.address })))));
     } catch (e) {
       if (me !== searching) return;
       window.Keel.errlog.note("search", String(e));
-      note.textContent = navigator.onLine === false ? "Searching needs a connection." : (e.message && /^(Too many|The search)/.test(e.message) ? e.message : "The search didn't work. Try again in a moment.");
+      note.textContent = navigator.onLine === false ? "Searching needs a connection." : e.message || "The search didn't work. Try again in a moment.";
     }
   });
   $("placePin").addEventListener("click", async () => {
@@ -401,8 +406,15 @@
     const day = placeTrip.start ? $("daySelect").value : $("dayInput").value;
     const p = editingPlace || { id: M.newId(), trip: placeTrip.id, createdAt: stamp };
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
-    if (loc === null) { delete p.lat; delete p.lng; delete p.address; }
-    else if (loc) { Object.assign(p, loc); if (!loc.address) delete p.address; }
+    if (loc === null) { for (const k of ["lat", "lng", "address", "placeId", "geoAt"]) delete p[k]; }
+    else if (loc) {
+      for (const k of ["address", "placeId", "geoAt"]) delete p[k];
+      Object.assign(p, { lat: loc.lat, lng: loc.lng });
+      // Google's terms: its place id kept for good, its location for 30 days
+      // (geoAt says when), its address not at all.
+      if (loc.source === "google") Object.assign(p, { placeId: loc.placeId, geoAt: new Date().toISOString().slice(0, 10) });
+      else if (loc.address) p.address = loc.address;
+    }
     if (!editingPlace) doc.places.push(p);
     await closeSheet($("placeSheet"));
     save();
@@ -417,6 +429,8 @@
 
   // ---------- The map ----------
   const TM = window.Tripboard.map;
+  const SET = window.Tripboard.settings;
+  const PL = window.Tripboard.places;
   let mapFailed = null;
   function shownPlaces(trip) {
     const all = placesOf(trip.id);
@@ -426,13 +440,18 @@
     const panel = $("mapPanel");
     if (mapFailed) { mapMessage(mapFailed); return; }
     const first = !TM.ready;
-    try { await TM.open($("map")); }
+    let got;
+    try { got = await TM.open($("map"), { chain: SET.chain("map"), providers: SET.get().providers }); }
     catch (e) {
       window.Keel.errlog.note("map", String(e));
-      mapFailed = navigator.onLine === false ? "The map needs a connection the first time it opens." : "The map couldn't load. Check the connection and try again.";
+      mapFailed = navigator.onLine === false ? "The map needs a connection the first time it opens."
+        : "The map couldn't load. " + (e.skipped && e.skipped.length ? e.message : "Check the connection and try again.");
       mapMessage(mapFailed);
       return;
     }
+    const note = $("mapNote");
+    note.hidden = !(got && got.skipped.length);
+    if (got && got.skipped.length) note.textContent = "Showing " + SET.PROVIDERS[got.by].name + ": " + got.skipped.map((x) => x.reason).join(" ");
     if (view.mode !== "map" || view.trip !== trip.id) return;
     const list = shownPlaces(trip);
     TM.places(list, view.sel);
@@ -478,7 +497,8 @@
         sel.address ? el("span.dim.addr", { text: sel.address }) : null),
         el("div.loc-actions", {},
           el("button.btn", { type: "button", text: "Edit", onclick: (e) => openPlace(sel, trip, null, e.currentTarget) }),
-          el("button.btn.quiet", { type: "button", text: "Move pin", onclick: () => { view.pick = sel.id; view.sel = null; render(); } })));
+          el("button.btn.quiet", { type: "button", text: "Move pin", onclick: () => { view.pick = sel.id; view.sel = null; render(); } })),
+        openIn(sel));
       return;
     }
     const nowhere = all.filter((p) => p.lat == null);
@@ -489,8 +509,104 @@
         onclick: () => { view.pick = p.id; render(); } })))));
   }
 
+  // Links that open a place in another maps app: Google Maps by its id or
+  // location, Apple Maps, and Waze (which needs a location).
+  function openIn(p) {
+    const at = p.lat != null ? p.lat.toFixed(6) + "," + p.lng.toFixed(6) : "";
+    const name = encodeURIComponent(p.name || "");
+    const g = "https://www.google.com/maps/search/?api=1&query=" + (at && !p.placeId ? at : name) + (p.placeId ? "&query_place_id=" + encodeURIComponent(p.placeId) : "");
+    const a = "https://maps.apple.com/?q=" + name + (at ? "&ll=" + at : "");
+    const links = [["Google Maps", g], ["Apple Maps", a]];
+    if (at) links.push(["Waze", "https://waze.com/ul?ll=" + at + "&navigate=yes"]);
+    return el("p.open-in", {}, el("span.dim", { text: "Open in " }),
+      links.map(([label, href], i) => [i ? el("span.dim", { text: " · " }) : null, el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label })]));
+  }
+
+  // ---------- Settings ----------
+  const STEPS = {
+    google: [
+      ["Make a project in Google Cloud and turn on billing. Google asks for it even inside the free monthly allowance.", "https://console.cloud.google.com/projectcreate"],
+      ["Turn on Places API (New), for Find by name.", "https://console.cloud.google.com/apis/library/places.googleapis.com"],
+      ["Turn on Map Tiles API, for Google's map.", "https://console.cloud.google.com/apis/library/tile.googleapis.com"],
+      ["Create an API key. Restrict it to those two APIs, and to this site: " + location.origin + "/*", "https://console.cloud.google.com/apis/credentials"],
+      ["Set a budget alert, and a daily cap under each API's Quotas, so a leaked key can't run up a bill.", "https://console.cloud.google.com/billing/budgets"],
+      ["Paste the key into Key, above, and press Test."],
+    ],
+    maptiler: [
+      ["Sign up for a free MapTiler account.", "https://cloud.maptiler.com/auth/widget?mode=register"],
+      ["Copy a key from API keys, and restrict it to this site: " + location.origin, "https://cloud.maptiler.com/account/keys/"],
+      ["Paste the key into Key, above, and press Test."],
+    ],
+  };
+  const SERVICES = [["map", "Map"], ["search", "Find by name"]];
+
+  function renderSettings(main) {
+    $("title").textContent = "Settings";
+    const cfg = SET.get();
+    const label = (id) => SET.PROVIDERS[id].name + (SET.ready(id) ? "" : " (needs a key)");
+    for (const [svc, title] of SERVICES) {
+      const ids = Object.keys(SET.PROVIDERS).filter((id) => SET.PROVIDERS[id].services.includes(svc));
+      const mainSel = el("select", { onchange: (e) => { SET.setService(svc, { main: e.target.value }); render(); } },
+        ids.map((id) => el("option", { value: id, text: label(id), selected: cfg[svc].main === id })));
+      const fbSel = el("select", { onchange: (e) => { SET.setService(svc, { fallback: e.target.value }); render(); } },
+        el("option", { value: "", text: "None", selected: !cfg[svc].fallback }),
+        ids.filter((id) => id !== cfg[svc].main).map((id) => el("option", { value: id, text: label(id), selected: cfg[svc].fallback === id })));
+      main.append(el("section.panel", {}, el("h2", { text: title }),
+        el("div.row", {}, el("label.field", {}, "Use", mainSel), el("label.field", {}, "If it fails, use", fbSel)),
+        !SET.ready(cfg[svc].main) ? el("p.hint.warn", { text: SET.PROVIDERS[cfg[svc].main].name + " has no key yet, so " + (cfg[svc].fallback ? SET.PROVIDERS[cfg[svc].fallback].name : "nothing") + " is used." }) : null));
+    }
+    main.append(el("h2.section", { text: "Providers" }));
+    for (const [id, P] of Object.entries(SET.PROVIDERS)) main.append(providerCard(id, P, cfg.providers[id]));
+    main.append(el("p.dim.hint", { text: "Keys are kept in this browser only, and sent only to their own provider when it's used." }));
+  }
+
+  function providerCard(id, P, conf) {
+    const status = el("p.hint", { role: "status" });
+    const kids = [el("div.provider-head", {}, el("h3", { text: P.name }), el("span.dim", { text: P.services.map((x) => SERVICES.find(([s]) => s === x)[1]).join(" · ") })),
+      el("p.dim", { text: P.note })];
+    for (const [opt, choices] of Object.entries(P.options || {})) {
+      kids.push(el("label.field", {}, opt === "mapType" ? "Map type" : "Style",
+        el("select", { onchange: (e) => SET.setProvider(id, { [opt]: e.target.value }) },
+          choices.map(([v, t]) => el("option", { value: v, text: t, selected: conf[opt] === v })))));
+    }
+    if (P.key) {
+      const input = el("input", { type: "password", value: conf.key || "", autocomplete: "off", spellcheck: false, placeholder: "Paste your key",
+        onchange: (e) => { SET.setProvider(id, { key: e.target.value.trim() }); render(); } });
+      kids.push(el("label.field", {}, "Key", input),
+        el("div.loc-actions", {},
+          el("button.btn", { type: "button", text: "Test", onclick: () => testProvider(id, status) }),
+          el("button.btn.quiet", { type: "button", text: "Show", onclick: (e) => { const show = input.type === "password"; input.type = show ? "text" : "password"; e.currentTarget.textContent = show ? "Hide" : "Show"; } }),
+          conf.key ? el("button.btn.danger", { type: "button", text: "Remove key", onclick: () => { SET.setProvider(id, { key: "" }); render(); } }) : null));
+      if (STEPS[id]) kids.push(el("details.steps", {}, el("summary", { text: "How to get a key" }),
+        el("ol", {}, STEPS[id].map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: "Open" })] : null)))));
+    } else {
+      kids.push(el("div.loc-actions", {}, el("button.btn", { type: "button", text: "Test", onclick: () => testProvider(id, status) })));
+    }
+    kids.push(status);
+    return el("section.panel.provider", {}, kids);
+  }
+
+  async function testProvider(id, status) {
+    status.textContent = "Testing…";
+    const conf = SET.get().providers[id];
+    const P = SET.PROVIDERS[id];
+    const lines = [];
+    if (P.services.includes("search")) {
+      try { const r = await PL.providers[id].search("Eiffel Tower", { key: conf.key }); lines.push("Find by name works" + (r.length ? "." : ", though it found nothing for a test search.")); }
+      catch (e) { lines.push("Find by name: " + e.message); }
+    }
+    if (P.services.includes("map")) {
+      try { await TM.SOURCES[id](conf, false); lines.push("The map works."); }
+      catch (e) { lines.push("Map: " + e.message); }
+    }
+    status.textContent = navigator.onLine === false ? "Testing needs a connection." : lines.join(" ");
+  }
+  SET.onChange(() => { mapFailed = null; });
+
   // ---------- Routing ----------
   function render() {
+    const settings = location.hash === "#/settings";
+    $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
     const m = /^#\/trip\/([\w-]+)(\/map)?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
@@ -520,7 +636,8 @@
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip;
     $("fab").hidden = !trip;
-    if (trip) renderBoard(main, trip); else renderHome(main);
+    if (settings) { $("back").hidden = false; renderSettings(main); }
+    else if (trip) renderBoard(main, trip); else renderHome(main);
     window.scrollTo(0, y);
   }
 
@@ -530,6 +647,8 @@
     $("back").append(icon("back"));
     $("editTrip").append(icon("pencil"));
     $("fab").append(icon("plus"));
+    $("settingsBtn").append(icon("sliders"));
+    $("settingsBtn").addEventListener("click", () => { location.hash = "#/settings"; });
     $("back").addEventListener("click", () => { location.hash = "#/"; });
     $("viewToggle").addEventListener("click", () => {
       view.pick = null;

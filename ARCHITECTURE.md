@@ -13,11 +13,12 @@ sw.js                the web copy's service worker: offline, test builds (keel's
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
 src/model.js         trips and places: cleaning, days, time slots, the board's sorts and filter (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc") and each trip's cover photo
-src/places.js        finding a place by name, one provider per source: OpenStreetMap's Nominatim now, Google later (Node-tested)
-src/map.js           the trip's map: MapLibre on OpenFreeMap, loaded on first use; pins, fit, taps
+src/settings.js      Settings on this device: each provider's setup (key, style) and each service's main and fallback (Node-tested)
+src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
+src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's board and map, the trip and place sheets, the #/trip/<id>[/map] routing
+src/views.js         Home, a trip's board and map, the trip and place sheets, Settings, the #/, #/settings and #/trip/<id>[/map] routing
 src/styles.css       the tokens per theme, then the styles
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
@@ -28,6 +29,7 @@ test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
 test/places.test.js  src/places.js
+test/settings.test.js  src/settings.js
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
@@ -68,6 +70,22 @@ adds a line here.
 - MapLibre's worker holds an eval for a right-to-left text plugin that
   Tripboard never loads; test/csp.test.js names it, and the policy has no
   unsafe-eval, so it couldn't run anyway.
+- Google and MapTiler need the person's own key. It's kept in
+  localStorage on this device, in plain text like everything else there,
+  and sent only to its own provider. Google's tile URLs carry the key, so
+  it shows in the browser's network log; restrict it to the site and to
+  Places API (New) and Map Tiles API, and cap its daily quota (the How to
+  get a key steps say so). connect-src also allows places.googleapis.com,
+  tile.googleapis.com and api.maptiler.com, used only when picked.
+- Google's terms: only the place id is kept for good; a place's location
+  from Google is kept with the day it came (geoAt), and its address isn't
+  kept. Refreshing locations older than 30 days isn't built yet (TODO.md).
+  Google's map shows "Google" and the area's copyright as text, not
+  Google's logo image.
+- MapTiler's terms on keeping search results weren't checked; its address
+  and location are kept like OpenStreetMap's.
+- When the main provider fails (no key, refused, quota), the fallback is
+  used and the map or search says so; with no fallback set, it fails.
 
 ## Traps
 
