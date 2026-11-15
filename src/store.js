@@ -1,6 +1,7 @@
 // Where Tripboard keeps trips, places and covers: IndexedDB on this device,
 // nothing sent anywhere. One store, "kv": "doc" holds { trips, places },
-// "cover:<trip id>" a trip's cover image as a Blob. Without IndexedDB (a
+// "cover:<trip id>" a trip's cover image as a Blob, "file:<file id>" a
+// file kept with a trip. Without IndexedDB (a
 // private window in some browsers) it keeps them in memory for the visit
 // and says so through `persistent`.
 (function () {
@@ -41,6 +42,14 @@
     cover: (id) => get("cover:" + id),
     setCover: (id, blob) => put("cover:" + id, blob),
     dropCover: (id) => del("cover:" + id),
+    file: (id) => get("file:" + id),
+    setFile: (id, blob) => put("file:" + id, blob),
+    dropFile: (id) => del("file:" + id),
+    // The ids of every file kept here, to clear out ones whose record is gone.
+    async fileIds() {
+      const keys = db ? await tx("readonly", (s) => s.getAllKeys()) : [...mem.keys()];
+      return keys.filter((k) => String(k).startsWith("file:")).map((k) => String(k).slice(5));
+    },
     // Sync's own notes ("sync": what was last sent and agreed on).
     meta: (k) => get("meta:" + k),
     setMeta: (k, v) => put("meta:" + k, v),

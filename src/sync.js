@@ -3,7 +3,8 @@
 // in the repo and how two copies merge are Tripboard's (src/merge.js).
 //
 // The repo holds one file per trip, trips/<id>.json (a bundle), and its
-// cover photo, covers/<id>.jpg. A sync reads the repo's tree in one call,
+// cover photo, covers/<id>.jpg, and each file kept with a trip,
+// files/<trip id>/<file id> (named by id only; its name is in the bundle). A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
 // IndexedDB as "meta:sync"), and writes everything that differs in one
@@ -43,7 +44,8 @@
     const store = ctx.store;
     const branch = cfg().branch || "main";
     const state = (await store.meta("sync")) || { shas: {}, base: {}, cover: {} };
-    if (state.repo !== cfg().owner + "/" + cfg().repo) Object.assign(state, { repo: cfg().owner + "/" + cfg().repo, shas: {}, base: {}, cover: {} });
+    if (state.repo !== cfg().owner + "/" + cfg().repo) Object.assign(state, { repo: cfg().owner + "/" + cfg().repo, shas: {}, base: {}, cover: {}, files: {} });
+    state.files = state.files || {};
     const startVersion = ctx.version();
     const startText = JSON.stringify(ctx.getDoc());
     const startDoc = JSON.parse(startText);
@@ -107,6 +109,27 @@
       if (doc.deleted[id].trip === id && remote.has("covers/" + id + ".jpg")) writes.push({ path: "covers/" + id + ".jpg", sha: null });
     }
 
+    // Files: their bytes never change (a new version is a new file), so
+    // each goes up once, comes down once, and goes when its record does.
+    const filePulls = [];
+    const fileIds = new Set((doc.files || []).map((f) => f.id));
+    for (const f of doc.files || []) {
+      const path = "files/" + f.trip + "/" + f.id;
+      if (state.files[f.id] && remote.has(path)) continue;
+      const blob = await store.file(f.id);
+      if (blob && !remote.has(path)) {
+        writes.push({ path, sha: await gh.createBlob(await bytesOf(blob)) });
+        state.files[f.id] = true;
+      } else if (!blob && remote.has(path)) filePulls.push(f);
+      else if (blob) state.files[f.id] = true;
+    }
+    for (const path of remote.keys()) {
+      const m = /^files\/([\w-]+)\/([\w-]+)$/.exec(path);
+      if (!m || fileIds.has(m[2])) continue;
+      const gone = doc.deleted || {};
+      if (gone[m[2]] || gone[m[1]]) { writes.push({ path, sha: null }); delete state.files[m[2]]; }
+    }
+
     if (ctx.version() !== startVersion) return "again";
 
     if (writes.length) {
@@ -122,6 +145,10 @@
     for (const t of coverPulls) {
       const bytes = await gh.getRaw("covers/" + t.id + ".jpg", { as: "bytes" });
       if (bytes) { await store.setCover(t.id, new Blob([bytes], { type: "image/jpeg" })); state.cover[t.id] = t.coverAt; ctx.coverChanged(t.id); }
+    }
+    for (const f of filePulls) {
+      const bytes = await gh.getRaw("files/" + f.trip + "/" + f.id, { as: "bytes" });
+      if (bytes) { await store.setFile(f.id, new Blob([bytes], { type: f.type })); state.files[f.id] = true; }
     }
     for (const t of coverDrops) { await store.dropCover(t.id); delete state.cover[t.id]; ctx.coverChanged(t.id); }
 
@@ -142,6 +169,7 @@
       again = true;
     }
     if (JSON.stringify(final) !== startText) ctx.adopt(final);
+    if (filePulls.length && ctx.filesChanged) ctx.filesChanged();
     return "done";
   }
 
