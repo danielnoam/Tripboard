@@ -97,6 +97,19 @@
     }));
   }
 
+  // A Google place's location again, by its id (Place Details, location
+  // only), for the 30-day refresh. → { lat, lng }
+  async function googleLocation(placeId, { key, fetchFn = fetch } = {}) {
+    if (!key) throw new Error("Google needs a key (Settings).");
+    const res = await fetchFn("https://places.googleapis.com/v1/places/" + encodeURIComponent(placeId), {
+      headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": "location" },
+    });
+    if (!res.ok) throw await failure(res, "Google");
+    const j = await res.json();
+    if (!j.location) throw new Error("Google has no location for that place now.");
+    return { lat: j.location.latitude, lng: j.location.longitude };
+  }
+
   async function maptilerSearch(query, { near = [], key, fetchFn = fetch } = {}) {
     const q = String(query || "").trim();
     if (!q) return [];
@@ -135,7 +148,7 @@
     throw last || new Error("No search is set up.");
   }
 
-  const api = { providers, search, categoryOf, googleCategory, fromNominatim };
+  const api = { providers, search, googleLocation, categoryOf, googleCategory, fromNominatim };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.places = api; }
 })();

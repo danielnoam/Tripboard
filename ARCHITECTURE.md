@@ -79,9 +79,17 @@ adds a line here.
   tile.googleapis.com and api.maptiler.com, used only when picked.
 - Google's terms: only the place id is kept for good; a place's location
   from Google is kept with the day it came (geoAt), and its address isn't
-  kept. Refreshing locations older than 30 days isn't built yet (TODO.md).
+  kept.
   Google's map shows "Google" and the area's copyright as text, not
   Google's logo image.
+- Google's 30-day limit is kept by refreshing: on start, and when Settings
+  change or the device comes back online, a Google location older than 30
+  days is fetched again by its place id. If Google can't answer (no key, a
+  refused key), the location is removed and comes back when Google can.
+  Offline, nothing is removed. A trip planned with Google search and no key
+  loses those pins after 30 days.
+- A backup file holds the trips, places and cover photos as plain JSON:
+  anyone with the file can read them. Keys and Settings aren't in it.
 - MapTiler's terms on keeping search results weren't checked; its address
   and location are kept like OpenStreetMap's.
 - When the main provider fails (no key, refused, quota), the fallback is

@@ -25,6 +25,7 @@
     <div class="map" id="map"></div>
     <p class="map-note" id="mapNote" role="status" hidden></p>
     <p class="map-attrib" id="mapAttrib" hidden>Google</p>
+    <div class="map-days" id="mapDays" role="group" aria-label="Show a day" hidden></div>
     <div class="map-panel" id="mapPanel" hidden></div>
   </section>
   <button class="fab" id="fab" type="button" aria-label="Add a place" hidden></button>
@@ -52,6 +53,10 @@
             <button class="btn quiet" id="coverRemove" type="button" hidden>Remove</button>
           </div>
         </div>
+      </div>
+      <div class="field" id="tripFileRow" hidden>
+        <span>Backup</span>
+        <div><button class="btn" id="tripExport" type="button">Save this trip as a file</button></div>
       </div>
       <div class="sheet-actions">
         <button class="btn danger" id="tripDelete" type="button" hidden>Delete trip</button>

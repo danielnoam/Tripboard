@@ -39,4 +39,3 @@ moves to DROPPED.md with his reason.
 
 - Community trips.
 - Ratings pulled in for places (likely Google).
-- Refresh Google locations older than 30 days (Google's caching terms).

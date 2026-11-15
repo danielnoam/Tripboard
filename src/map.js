@@ -5,6 +5,7 @@
 //   TripMap.open(container, { chain, providers }) → { by, skipped }
 //   TripMap.places(list, selectedId)   pins, by importance
 //   TripMap.fit(list)                  frames them
+//   TripMap.route(list)                a line through them in order (a day's plan)
 //   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …
 (function () {
   const OFM = "https://tiles.openfreemap.org/styles/";
@@ -134,7 +135,7 @@
     delete r.style.__google;
     applied = want;
     T.last = { by: r.by, skipped: r.skipped };
-    if (map) { map.setStyle(r.style); googleAttribution(); return T.last; }
+    if (map) { map.setStyle(r.style); map.once("style.load", drawRoute); googleAttribution(); return T.last; }
     map = new lib.Map({
       container, style: r.style, center: [10, 25], zoom: 1.2,
       attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false,
@@ -144,15 +145,35 @@
     map.addControl(new lib.GeolocateControl({ positionOptions: { enableHighAccuracy: false } }), "top-right");
     map.on("click", (e) => { if (T.onTap) T.onTap({ lat: e.lngLat.lat, lng: e.lngLat.lng }); });
     map.on("moveend", googleAttribution);
+    map.on("style.load", () => { if (map.getLayer && !map.getLayer("tb-route")) drawRoute(); });
     await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error("The map took too long to load.")), 20000);
       map.once("load", () => { clearTimeout(t); res(); });
     });
     googleAttribution();
+    drawRoute();
     return T.last;
   }
 
-  T.places = function (list, selected) {
+  // A day's route: a dashed line through its places in planned order. Kept
+  // here, since a new map style (Settings, the theme) clears the map's layers.
+  let route = [];
+  function drawRoute() {
+    if (!map || !map.isStyleLoaded()) return;
+    const data = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route.length > 1 ? route : [] } };
+    const src = map.getSource("tb-route");
+    if (src) { src.setData(data); return; }
+    const color = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2F5D50";
+    map.addSource("tb-route", { type: "geojson", data });
+    map.addLayer({ id: "tb-route", type: "line", source: "tb-route", layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": color, "line-width": 3, "line-dasharray": [1.5, 1.5] } });
+  }
+  T.route = function (list) {
+    route = list.filter((p) => p.lat != null).map((p) => [p.lng, p.lat]);
+    drawRoute();
+  };
+
+  T.places = function (list, selected, order) {
     if (!map) return;
     const keep = new Set();
     for (const p of list) {
@@ -168,7 +189,14 @@
       }
       const el = m.getElement();
       el.dataset.id = p.id;
-      el.className = "pin imp-" + p.importance + (p.visited ? " visited" : "") + (p.id === selected ? " selected" : "");
+      const n = order && order.get(p.id);
+      // MapLibre's own classes on the element place it; only ours change.
+      for (const c of [...el.classList]) if (c === "pin" || c.startsWith("imp-") || ["visited", "selected", "numbered"].includes(c)) el.classList.remove(c);
+      el.classList.add("pin", "imp-" + p.importance);
+      if (p.visited) el.classList.add("visited");
+      if (p.id === selected) el.classList.add("selected");
+      if (n) el.classList.add("numbered");
+      el.textContent = n ? String(n) : "";
       el.setAttribute("aria-label", p.name);
       m.setLngLat([p.lng, p.lat]);
     }
@@ -182,7 +210,7 @@
     if (at.length === 1) { map.jumpTo({ center: [at[0].lng, at[0].lat], zoom: 14 }); return; }
     const b = new lib.LngLatBounds();
     for (const p of at) b.extend([p.lng, p.lat]);
-    map.fitBounds(b, { padding: { top: 60, bottom: 160, left: 40, right: 40 }, maxZoom: 15, duration: 0 });
+    map.fitBounds(b, { padding: { top: 110, bottom: 160, left: 40, right: 40 }, maxZoom: 15, duration: 0 });
   };
   T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13) });
   T.resize = () => map && map.resize();

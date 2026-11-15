@@ -55,5 +55,14 @@ async function test(name, fn) {
     await assert.rejects(P.search("a", { chain: ["google"], keys: {}, fetchFn }), /needs a key/);
   });
 
+  await test("a Google location is fetched again by its place id", async () => {
+    let seen;
+    const fetchFn = async (url, init) => { seen = { url, init }; return { ok: true, json: async () => ({ location: { latitude: 35.1, longitude: 135.7 } }) }; };
+    assert.deepStrictEqual(await P.googleLocation("ChIJ x", { key: "K", fetchFn }), { lat: 35.1, lng: 135.7 });
+    assert.strictEqual(seen.url, "https://places.googleapis.com/v1/places/ChIJ%20x");
+    assert.strictEqual(seen.init.headers["X-Goog-FieldMask"], "location");
+    await assert.rejects(P.googleLocation("x", {}), /needs a key/);
+  });
+
   console.log(passed + " passed");
 })();

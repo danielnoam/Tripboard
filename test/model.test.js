@@ -77,4 +77,41 @@ test("Home's order: under way, upcoming soonest, undated, then past", () => {
   assert.deepStrictEqual(out.map((x) => x.id), ["now", "soon", "later", "none", "past"]);
 });
 
+test("a backup holds the asked-for trips and their places, and merges back in", () => {
+  const doc = M.sanitizeDoc({ trips: [{ id: "t", name: "Kyoto" }, { id: "u", name: "Lisbon" }],
+    places: [{ id: "a", trip: "t", name: "Fushimi" }, { id: "b", trip: "u", name: "Belém" }] });
+  const one = M.backupOf(doc, ["u"]);
+  assert.deepStrictEqual(one.trips.map((t) => t.id), ["u"]);
+  assert.deepStrictEqual(one.places.map((p) => p.id), ["b"]);
+  const edited = JSON.parse(JSON.stringify(M.backupOf(doc)));
+  edited.trips[0].name = "Kyoto again";
+  edited.trips.push({ id: "v", name: "Iceland" });
+  const r = M.mergeBackup(doc, edited);
+  assert.strictEqual(r.added, 1);
+  assert.strictEqual(r.replaced, 2);
+  assert.strictEqual(r.doc.trips.find((t) => t.id === "t").name, "Kyoto again");
+  assert.strictEqual(r.doc.places.length, 2);
+  assert.throws(() => M.mergeBackup(doc, { trips: [] }), /isn't a Tripboard backup/);
+  assert.throws(() => M.mergeBackup(doc, { app: "tripboard", format: 99, trips: [] }), /newer/);
+});
+
+test("Google locations older than 30 days, or dropped for it, are due a refresh", () => {
+  const list = [
+    P({ id: "old", day: "", placeId: "g1", lat: 1, lng: 1, geoAt: "2026-10-01" }),
+    P({ id: "new", placeId: "g2", lat: 1, lng: 1, geoAt: "2026-11-10" }),
+    P({ id: "gone", placeId: "g3" }),
+    P({ id: "osm", lat: 1, lng: 1, address: "Somewhere" }),
+  ];
+  assert.deepStrictEqual(M.staleGoogle(list, "2026-11-15").map((p) => p.id), ["old", "gone"]);
+});
+
+test("a day's route: its located places in planned order", () => {
+  assert.deepStrictEqual(M.dayRoute([
+    P({ id: "late", day: "2026-11-17", time: "18:00", lat: 1, lng: 1 }),
+    P({ id: "early", day: "2026-11-17", time: "08:00", lat: 1, lng: 1 }),
+    P({ id: "nowhere", day: "2026-11-17", time: "09:00" }),
+    P({ id: "other", day: "2026-11-18", lat: 1, lng: 1 }),
+  ], "2026-11-17").map((p) => p.id), ["early", "late"]);
+});
+
 console.log(passed + " passed");

@@ -179,10 +179,45 @@
     return groups;
   }
 
+  // A backup file: the trips asked for (all when none), their places, and
+  // their covers as data URLs (added by views.js, which can read blobs).
+  const BACKUP_FORMAT = 1;
+  function backupOf(doc, tripIds) {
+    const ids = new Set(tripIds && tripIds.length ? tripIds : doc.trips.map((t) => t.id));
+    return { app: "tripboard", format: BACKUP_FORMAT, exportedAt: now(),
+      trips: doc.trips.filter((t) => ids.has(t.id)), places: doc.places.filter((p) => ids.has(p.trip)), covers: {} };
+  }
+  // A backup's trips join the doc. A trip already here (same id) is
+  // replaced by the file's copy, places and all. → { doc, added, replaced }
+  function mergeBackup(doc, data) {
+    if (!data || data.app !== "tripboard" || !Array.isArray(data.trips)) throw new Error("That file isn't a Tripboard backup.");
+    if (data.format > BACKUP_FORMAT) throw new Error("That backup is from a newer Tripboard. Update this one first.");
+    const incoming = sanitizeDoc({ trips: data.trips, places: data.places || [] });
+    const ids = new Set(incoming.trips.map((t) => t.id));
+    const replaced = doc.trips.filter((t) => ids.has(t.id)).length;
+    return {
+      doc: { trips: doc.trips.filter((t) => !ids.has(t.id)).concat(incoming.trips), places: doc.places.filter((p) => !ids.has(p.trip)).concat(incoming.places) },
+      added: incoming.trips.length - replaced, replaced, ids: [...ids],
+    };
+  }
+
+  // Google's terms allow keeping a location from Google for 30 days. These
+  // are the places whose Google location is older than that, or was dropped
+  // for it and can be fetched again by its place id.
+  const GOOGLE_DAYS = 30;
+  function staleGoogle(places, today) {
+    return places.filter((p) => p.placeId && (p.lat == null ? !p.address : !p.geoAt || daysUntil(p.geoAt, today) <= -GOOGLE_DAYS));
+  }
+
+  // One day's located places in the order they're planned, for the map's route.
+  function dayRoute(places, day) {
+    return places.filter((p) => p.day === day && p.lat != null).sort(byTime);
+  }
+
   const api = {
     CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, distanceKm, board,
+    slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.model = api; }

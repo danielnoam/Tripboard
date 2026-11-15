@@ -59,6 +59,30 @@
     render();
   }
 
+  // A short note at the bottom, with Undo when the change can be taken back.
+  let toastTimer = null;
+  function toast(text, undo) {
+    let box = $("toast");
+    if (!box) { box = el("div.toast", { role: "status" }); box.id = "toast"; document.body.append(box); }
+    clearTimeout(toastTimer);
+    box.replaceChildren(el("span", { text }), ...(undo ? [el("button.btn.quiet", { type: "button", text: "Undo",
+      onclick: () => { box.hidden = true; undo(); } })] : []));
+    box.hidden = false;
+    toastTimer = setTimeout(() => { box.hidden = true; }, undo ? 8000 : 3000);
+  }
+  // Makes a change that Undo can take back: the whole doc as it was before.
+  function undoable(text, change, after) {
+    const before = JSON.stringify(doc);
+    change();
+    save();
+    toast(text, async () => {
+      doc = JSON.parse(before);
+      if (after) await after();
+      save();
+      toast("Undone.");
+    });
+  }
+
   async function coverUrl(trip) {
     if (!trip.cover) return null;
     if (covers.has(trip.id)) return covers.get(trip.id);
@@ -180,6 +204,11 @@
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
   function movePlace(p, groupId, slot) {
+    const before = JSON.stringify([p.day, p.time, p.endTime, p.category, p.importance]);
+    undoable("Moved " + p.name + ".", () => shift(p, groupId, slot));
+    if (JSON.stringify([p.day, p.time, p.endTime, p.category, p.importance]) === before) $("toast").hidden = true;
+  }
+  function shift(p, groupId, slot) {
     if (view.sort === "category") p.category = groupId;
     else if (view.sort === "importance") p.importance = groupId;
     else if (view.sort === "time") {
@@ -195,7 +224,6 @@
       }
     }
     p.updatedAt = new Date().toISOString();
-    save();
   }
   let dragging = null;
   function wireDrag(main) {
@@ -318,6 +346,8 @@
     }
     showCoverPreview(trip ? await coverUrl(trip) : null);
     $("tripDelete").hidden = !trip;
+    $("tripFileRow").hidden = !trip;
+    $("tripExport").onclick = () => trip && saveBackup([trip.id]);
     if (trip) armDelete($("tripDelete"), "Delete trip", () => deleteTrip(trip));
     openSheet($("tripSheet"), from);
   }
@@ -363,12 +393,13 @@
     save();
     if (!editingTrip) location.hash = "#/trip/" + trip.id;
   });
-  function deleteTrip(trip) {
-    doc.trips = doc.trips.filter((t) => t !== trip);
-    if (trip.cover) store.dropCover(trip.id);
+  async function deleteTrip(trip) {
+    const blob = trip.cover ? await store.cover(trip.id) : null;
+    if (blob) store.dropCover(trip.id);
     closeSheet($("tripSheet"));
     location.hash = "#/";
-    save();
+    undoable("Deleted " + trip.name + ".", () => { doc.trips = doc.trips.filter((t) => t !== trip); },
+      async () => { if (blob) await store.setCover(trip.id, blob); });
   }
 
   // Place sheet
@@ -378,7 +409,8 @@
   function paintWhere() {
     const p = loc === undefined ? editingPlace : loc;
     const has = p && p.lat != null;
-    $("placeWhere").textContent = !has ? "Not set" : p.address || (p.placeId || p.source === "google" ? "On Google Maps · " : "") + p.lat.toFixed(5) + ", " + p.lng.toFixed(5);
+    const expired = !has && loc === undefined && editingPlace && editingPlace.placeId;
+    $("placeWhere").textContent = expired ? "Google's location expired after 30 days. It comes back when Google answers again (Settings → Services)." : !has ? "Not set" : p.address || (p.placeId || p.source === "google" ? "On Google Maps · " : "") + p.lat.toFixed(5) + ", " + p.lng.toFixed(5);
     $("placeOpenIn").replaceChildren(...(has || (editingPlace && editingPlace.name) ? [openIn({ name: $("placeForm").name.value || (editingPlace && editingPlace.name), ...(has ? p : {}) })] : []));
     $("placeWhere").classList.toggle("dim", !has);
     $("placeClear").hidden = !has;
@@ -468,9 +500,8 @@
     paintWhere();
     $("placeDelete").hidden = !place;
     if (place) armDelete($("placeDelete"), "Delete", () => {
-      doc.places = doc.places.filter((x) => x !== place);
       closeSheet($("placeSheet"));
-      save();
+      undoable("Deleted " + place.name + ".", () => { doc.places = doc.places.filter((x) => x !== place); });
     });
     openSheet($("placeSheet"), from);
   }
@@ -507,9 +538,24 @@
   const SET = window.Tripboard.settings;
   const PL = window.Tripboard.places;
   let mapFailed = null;
+  // The map's places: the importance filter, and the day picked on the map.
   function shownPlaces(trip) {
-    const all = placesOf(trip.id);
+    let all = placesOf(trip.id);
+    if (view.mapDay) all = all.filter((p) => p.day === view.mapDay);
     return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
+  }
+  function paintDays(trip) {
+    const days = M.tripDays(trip, placesOf(trip.id));
+    if (view.mapDay && !days.includes(view.mapDay)) view.mapDay = null;
+    const bar = $("mapDays");
+    bar.hidden = !days.length;
+    const pick = (day) => { view.mapDay = day; view.sel = null; view.fitDay = true; render(); };
+    bar.replaceChildren(
+      el("button.chip", { type: "button", "aria-pressed": String(!view.mapDay), text: "All", onclick: () => pick(null) }),
+      ...days.map((d) => el("button.chip", { type: "button", "aria-pressed": String(view.mapDay === d),
+        text: trip.start ? "Day " + M.dayIndex(trip, d) : dayLabel(d), title: dayLabel(d), onclick: () => pick(d) })));
+    const on = bar.querySelector('[aria-pressed="true"]');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   async function showMap(trip) {
     const panel = $("mapPanel");
@@ -528,9 +574,12 @@
     note.hidden = !(got && got.skipped.length);
     if (got && got.skipped.length) note.textContent = "Showing " + SET.PROVIDERS[got.by].name + ": " + got.skipped.map((x) => x.reason).join(" ");
     if (view.mode !== "map" || view.trip !== trip.id) return;
+    paintDays(trip);
     const list = shownPlaces(trip);
-    TM.places(list, view.sel);
-    if (first || $("map").dataset.trip !== trip.id) { TM.fit(list); $("map").dataset.trip = trip.id; }
+    const route = view.mapDay ? M.dayRoute(list, view.mapDay) : [];
+    TM.places(list, view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
+    TM.route(route);
+    if (first || view.fitDay || $("map").dataset.trip !== trip.id) { TM.fit(list.length ? list : placesOf(trip.id)); $("map").dataset.trip = trip.id; view.fitDay = false; }
     paintPanel(trip);
     panel.hidden = !panel.childNodes.length;
   }
@@ -576,7 +625,7 @@
         openIn(sel));
       return;
     }
-    const nowhere = all.filter((p) => p.lat == null);
+    const nowhere = shownPlaces(trip).filter((p) => p.lat == null);
     if (!nowhere.length) { panel.replaceChildren(); return; }
     panel.replaceChildren(
       el("p.dim", { text: plural(nowhere.length, "place has", "places have") + " no location yet. Pick one, then tap the map." }),
@@ -595,6 +644,72 @@
     if (at) links.push(["Waze", "https://waze.com/ul?ll=" + at + "&navigate=yes"]);
     return el("p.open-in", {}, el("span.dim", { text: "Open in " }),
       links.map(([label, href], i) => [i ? el("span.dim", { text: " · " }) : null, el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label })]));
+  }
+
+  // ---------- Google's 30-day locations ----------
+  // A location from Google is kept 30 days (its terms). Past that it's
+  // fetched again by its place id, or dropped when Google can't answer;
+  // a dropped one comes back the next time Google can. Offline, nothing
+  // changes until there's a connection.
+  let refreshing = false;
+  async function refreshGoogle() {
+    if (refreshing || navigator.onLine === false) return;
+    const due = M.staleGoogle(doc.places, today()).slice(0, 50);
+    if (!due.length) return;
+    refreshing = true;
+    const key = SET.ready("google") ? SET.get().providers.google.key : "";
+    let changed = 0;
+    for (const p of due) {
+      try {
+        if (!key) throw new Error("no key");
+        const at = await PL.googleLocation(p.placeId, { key });
+        Object.assign(p, { lat: at.lat, lng: at.lng, geoAt: today() });
+        changed++;
+      } catch (e) {
+        if (p.lat != null) { delete p.lat; delete p.lng; delete p.geoAt; changed++; }
+      }
+    }
+    refreshing = false;
+    if (changed) save();
+  }
+  SET.onChange(() => setTimeout(refreshGoogle, 500));
+  window.addEventListener("online", () => refreshGoogle());
+
+  // ---------- Backup files ----------
+  const toDataUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+  function fromDataUrl(url) {
+    const [head, b64] = String(url).split(",");
+    const type = (/^data:([^;]+)/.exec(head) || [])[1] || "image/jpeg";
+    const bin = atob(b64 || "");
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type });
+  }
+  const fileName = (s) => (s.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").toLowerCase() || "trips");
+  async function saveBackup(tripIds) {
+    const data = M.backupOf(doc, tripIds);
+    for (const t of data.trips) {
+      const blob = t.cover ? await store.cover(t.id) : null;
+      if (blob) data.covers[t.id] = await toDataUrl(blob);
+    }
+    const name = (data.trips.length === 1 ? fileName(data.trips[0].name) : "tripboard") + "-" + today() + ".json";
+    const a = el("a", { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" })), download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast("Saved " + name + ".");
+  }
+  async function restoreBackup(file) {
+    let data, r;
+    try { data = JSON.parse(await file.text()); r = M.mergeBackup(doc, data); }
+    catch (e) { toast(e instanceof SyntaxError ? "That file isn't a Tripboard backup." : e.message); return; }
+    for (const id of r.ids) {
+      const url = data.covers && data.covers[id];
+      if (url) { await store.setCover(id, fromDataUrl(url)); if (covers.get(id)) URL.revokeObjectURL(covers.get(id)); covers.delete(id); }
+    }
+    const n = r.added + r.replaced;
+    undoable("Restored " + plural(n, "trip", "trips") + (r.replaced ? " (" + r.replaced + " replaced)" : "") + ".", () => { doc = r.doc; });
   }
 
   // ---------- Settings ----------
@@ -643,6 +758,7 @@
   function settingsIndex() {
     const out = [
       { ico: "database", title: "Storage", where: "Settings", href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
+      { ico: "database", title: "Backup", where: "Storage", href: "#/settings/storage", words: "backup restore file export import save json" },
       { ico: "palette", title: "Appearance", where: "Settings", href: "#/settings/appearance", words: "theme dark light system mode colours" },
       { ico: "plug", title: "Services", where: "Settings", href: "#/settings/services", words: "connections providers map search keys google maptiler openstreetmap openfreemap" },
       { ico: "map", title: "Map", where: "Services", href: "#/settings/map", words: "map tiles use fallback if it fails provider" },
@@ -685,7 +801,7 @@
     const results = el("div.settings-results");
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
     const home = el("div.sgroup", {}, el("div.sgroup-card", {},
-      srow("#/settings/storage", "database", "Storage", { text: "Trips, photos and space used" }),
+      srow("#/settings/storage", "database", "Storage", { text: "Space used, backup and restore" }),
       srow("#/settings/appearance", "palette", "Appearance", { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] }),
       srow("#/settings/services", "plug", "Services", needs || { text: "Map and Find by name: " + SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }),
       srow("#/settings/about", "info", "About", { text: "Version " + window.Tripboard.version + " · credits" })));
@@ -732,6 +848,12 @@
     main.append(el("section.panel", {}, el("h2", { text: "On this device" }),
       el("p", { text: plural(trips, "trip", "trips") + ", " + plural(places, "place", "places") + ", " + plural(covers, "cover photo", "cover photos") + "." }), used),
     el("section.panel", {}, el("h2", { text: "Kept safe" }), keep, el("div.loc-actions", {}, keepBtn)),
+    el("section.panel", {}, el("h2", { text: "Backup" }),
+      el("p.hint.dim", { text: "A file with your trips, places and cover photos. Restoring it adds its trips here, and replaces a trip that's already here." }),
+      el("div.loc-actions", {},
+        el("button.btn", { type: "button", text: "Save a backup", disabled: !trips, onclick: () => saveBackup() }),
+        el("label.btn.quiet", {}, "Restore from a file", el("input.visually-hidden", { type: "file", accept: ".json,application/json",
+          onchange: (e) => { const f = e.target.files && e.target.files[0]; if (f) restoreBackup(f); e.target.value = ""; } })))),
     el("p.dim.hint.page-hint", { text: "Trips live in this browser only until sync is built. Clearing this site's data deletes them." }));
     const S = navigator.storage;
     if (S && S.estimate) {
@@ -833,7 +955,7 @@
     const m = /^#\/trip\/([\w-]+)(\/map)?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
-    if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.trip = trip ? trip.id : null; }
+    if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? "map" : "board";
     const onMap = view.mode === "map";
     $("viewToggle").hidden = !trip;
@@ -883,6 +1005,7 @@
     $("fab").addEventListener("click", (e) => openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);
     render();
+    setTimeout(refreshGoogle, 2000);
   }
 
   window.Tripboard.views = { start, el, render: () => render(), get doc() { return doc; } };
