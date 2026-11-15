@@ -8,6 +8,8 @@
 //   TripMap.route(list)                a line through them in order (a day's plan)
 //   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …
 (function () {
+  // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
+  const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
   const OFM = "https://tiles.openfreemap.org/styles/";
   const MAPTILER = { streets: ["streets-v2", "streets-v2-dark"], outdoor: ["outdoor-v2", "outdoor-v2-dark"], satellite: ["hybrid", "hybrid"] };
   // Google's dark map, in its own styling rules (Map Tiles API `styles`).
@@ -29,8 +31,8 @@
     if (!res.ok) {
       let msg = "";
       try { const j = await res.json(); msg = (j.error && j.error.message) || j.message || ""; } catch (e) { /* no body */ }
-      throw new Error(res.status === 401 || res.status === 403 || res.status === 400 ? who + " refused the key" + (msg ? ": " + msg : ".")
-        : res.status === 429 ? who + "'s quota is used up for now." : who + "'s map didn't load (" + res.status + ").");
+      throw new Error(res.status === 401 || res.status === 403 || res.status === 400 ? (msg ? i18n.t("{who} refused the key: {msg}", { who, msg }) : i18n.t("{who} refused the key.", { who }))
+        : res.status === 429 ? i18n.t("{who}'s quota is used up for now.", { who }) : i18n.t("{who}'s map didn't load ({status}).", { who, status: res.status }));
     }
     return res.json();
   }
@@ -61,12 +63,12 @@
       return getJson(OFM + name, "OpenFreeMap");
     },
     async maptiler(o, dark) {
-      if (!o.key) throw new Error("MapTiler needs a key (Settings).");
+      if (!o.key) throw new Error(i18n.t("{who} needs a key (Settings).", { who: "MapTiler" }));
       const pair = MAPTILER[o.style] || MAPTILER.streets;
       return getJson("https://api.maptiler.com/maps/" + pair[dark ? 1 : 0] + "/style.json?key=" + encodeURIComponent(o.key), "MapTiler");
     },
     async google(o, dark) {
-      if (!o.key) throw new Error("Google needs a key (Settings).");
+      if (!o.key) throw new Error(i18n.t("{who} needs a key (Settings).", { who: "Google" }));
       const type = o.mapType === "satellite" ? "satellite" : "roadmap";
       const session = await googleSession(o.key, type, dark);
       return {
@@ -97,7 +99,7 @@
       try { return { style: await SOURCES[id](cfg.providers[id] || {}, dark()), by: id, skipped }; }
       catch (e) { skipped.push({ id, reason: e.message }); }
     }
-    const err = new Error(skipped.map((x) => x.reason).join(" ") || "No map is set up.");
+    const err = new Error(skipped.map((x) => x.reason).join(" ") || i18n.t("No map is set up."));
     err.skipped = skipped;
     throw err;
   }
@@ -147,7 +149,7 @@
     map.on("moveend", googleAttribution);
     map.on("style.load", () => { if (map.getLayer && !map.getLayer("tb-route")) drawRoute(); });
     await new Promise((res, rej) => {
-      const t = setTimeout(() => rej(new Error("The map took too long to load.")), 20000);
+      const t = setTimeout(() => rej(new Error(i18n.t("The map took too long to load."))), 20000);
       map.once("load", () => { clearTimeout(t); res(); });
     });
     googleAttribution();

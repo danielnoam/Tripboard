@@ -51,6 +51,15 @@ motion; a CSS transition uses its `--spring-*` variables.
 **Ask first for big things.** A new look, a reworked screen or a big
 change is shown or explained to Daniel first and waits for his OK.
 
+**Every language.** Tripboard is in English and Hebrew (right to left).
+Words a person sees go through `i18n.t("...")` / `i18n.tn(...)` in JS or
+`data-t` / `data-t-attr` in index.html, keyed by the English, with a
+line in `src/lang/he.js` (`test/i18n.test.js` fails without it). Hebrew
+copy uses gender-neutral forms. CSS uses logical sides (`inset-inline-start`,
+`margin-inline-end`, `text-align: start`), not left/right, except over
+the map, whose controls don't flip. Dates and numbers go through Intl
+with `i18n.lang`.
+
 ## Keeping the notes files right
 
 - A change a person can notice adds a note in `changes/` (see its

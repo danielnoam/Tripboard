@@ -18,22 +18,24 @@
 // A file: id, trip, name, type (its MIME type), size in bytes, and
 // optionally place and note. Its bytes are kept apart (store.js), never in the doc.
 (function () {
+  // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
+  const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
   const CATEGORIES = [
-    ["sight", "Sights"], ["food", "Food & drink"], ["nature", "Nature"], ["museum", "Museums"],
-    ["shopping", "Shopping"], ["nightlife", "Nightlife"], ["stay", "Stays"], ["transport", "Getting around"],
-    ["other", "Other"],
+    ["sight", i18n.t("Sights")], ["food", i18n.t("Food & drink")], ["nature", i18n.t("Nature")], ["museum", i18n.t("Museums")],
+    ["shopping", i18n.t("Shopping")], ["nightlife", i18n.t("Nightlife")], ["stay", i18n.t("Stays")], ["transport", i18n.t("Getting around")],
+    ["other", i18n.t("Other")],
   ];
   const CATEGORY = new Map(CATEGORIES);
   // Highest first. Importance is both a sort and a filter on the board.
-  const IMPORTANCE = [["must", "Must see"], ["want", "Want to"], ["maybe", "Maybe"]];
+  const IMPORTANCE = [["must", i18n.t("Must see")], ["want", i18n.t("Want to")], ["maybe", i18n.t("Maybe")]];
   const IMPORTANCE_LABEL = new Map(IMPORTANCE);
   const RANK = { must: 0, want: 1, maybe: 2 };
   // A day's time slots. A place with a day and no time is "Any time".
-  const SLOTS = [["morning", "Morning", "00:00"], ["afternoon", "Afternoon", "12:00"], ["evening", "Evening", "17:00"]];
+  const SLOTS = [["morning", i18n.t("Morning"), "00:00"], ["afternoon", i18n.t("Afternoon"), "12:00"], ["evening", i18n.t("Evening"), "17:00"]];
 
   const EXPENSE_CATEGORIES = [
-    ["stay", "Stays"], ["transport", "Getting around"], ["food", "Food & drink"], ["activity", "Tickets & activities"],
-    ["shopping", "Shopping"], ["other", "Other"],
+    ["stay", i18n.t("Stays")], ["transport", i18n.t("Getting around")], ["food", i18n.t("Food & drink")], ["activity", i18n.t("Tickets & activities")],
+    ["shopping", i18n.t("Shopping")], ["other", i18n.t("Other")],
   ];
   const EXPENSE_CATEGORY = new Map(EXPENSE_CATEGORIES);
   // The currencies offered first; any other ISO code is kept as it comes.
@@ -276,19 +278,19 @@
       const rest = shown.filter((p) => p.lat == null).sort(byImportance);
       const near = from ? located.map((p) => ({ p, km: distanceKm(from, p) })).sort((a, b) => a.km - b.km) : [];
       const out = [];
-      if (from && near.length) out.push({ id: "near", title: "Nearest first", places: near.map((x) => x.p), km: new Map(near.map((x) => [x.p.id, x.km])) });
-      else if (located.length) out.push({ id: "located", title: "Located", places: located.sort(byImportance) });
-      if (rest.length) out.push({ id: "nowhere", title: "No location", places: rest });
+      if (from && near.length) out.push({ id: "near", title: i18n.t("Nearest first"), places: near.map((x) => x.p), km: new Map(near.map((x) => [x.p.id, x.km])) });
+      else if (located.length) out.push({ id: "located", title: i18n.t("Located"), places: located.sort(byImportance) });
+      if (rest.length) out.push({ id: "nowhere", title: i18n.t("No location"), places: rest });
       return out;
     }
     const groups = tripDays(trip, places).map((day) => {
       const list = shown.filter((p) => p.day === day);
       const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p) === id).sort(byTime) }))
-        .concat([{ id: "any", title: "Any time", places: list.filter((p) => !p.time).sort(byImportance) }])
+        .concat([{ id: "any", title: i18n.t("Any time"), places: list.filter((p) => !p.time).sort(byImportance) }])
         .filter((s) => s.places.length);
       return { id: day, day, title: day, places: list, slots };
     });
-    groups.push({ id: "nodate", title: "No date", places: shown.filter((p) => !p.day).sort(byImportance) });
+    groups.push({ id: "nodate", title: i18n.t("No date"), places: shown.filter((p) => !p.day).sort(byImportance) });
     return groups;
   }
 
@@ -305,8 +307,8 @@
   // A backup's trips join the doc. A trip already here (same id) is
   // replaced by the file's copy, places and all. → { doc, added, replaced }
   function mergeBackup(doc, data) {
-    if (!data || data.app !== "tripboard" || !Array.isArray(data.trips)) throw new Error("That file isn't a Tripboard backup.");
-    if (data.format > BACKUP_FORMAT) throw new Error("That backup is from a newer Tripboard. Update this one first.");
+    if (!data || data.app !== "tripboard" || !Array.isArray(data.trips)) throw new Error(i18n.t("That file isn't a Tripboard backup."));
+    if (data.format > BACKUP_FORMAT) throw new Error(i18n.t("That backup is from a newer Tripboard. Update this one first."));
     const incoming = sanitizeDoc({ trips: data.trips, places: data.places || [], expenses: data.expenses || [], files: data.files || [] });
     const ids = new Set(incoming.trips.map((t) => t.id));
     const replaced = doc.trips.filter((t) => ids.has(t.id)).length;

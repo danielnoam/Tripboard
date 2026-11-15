@@ -28,12 +28,16 @@ src/keel/platform.js where it runs: browser, phone or desktop (from keel)
 src/keel/releases.js the update check and test builds (from keel)
 src/keel/motion.js   springs and moves, made in app.js (from keel)
 src/keel/sw-preview.js  the service worker's half of a test build (from keel)
+src/keel/i18n.js     languages: t()/tn() keyed by the English text, data-t in index.html, Intl dates and numbers (from keel)
+src/language.js      the app's i18n, made in <head>; loads src/lang/<code>.js when the language isn't English
+src/lang/he.js       the Hebrew words, keyed by the English
 test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
 test/merge.test.js   src/merge.js and the model's stamp()
 test/places.test.js  src/places.js
 test/settings.test.js  src/settings.js
+test/i18n.test.js    every language table has every word the code uses, nothing stale or broken (keel's check)
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
@@ -135,6 +139,14 @@ adds a line here.
 ## Traps
 
 Things that broke once and would again.
+
+- `t` means a trip all through views.js, so words go through
+  `i18n.t()` / `i18n.tn()`, never a bare `t()`. Files Node also loads
+  (model, settings, places, sync, map) fall back to an English-only
+  i18n when there's no window.
+- A count goes through `i18n.tn(n, "1 place", "{n} places")`. Building a
+  sentence from pieces ("Day " + n) can't be translated: give the whole
+  sentence with `{name}` slots.
 
 - maplibre-gl.css gives the map's container `position: relative`, which
   beat `.map`'s absolute fill and left the map 0 px high: the rule is

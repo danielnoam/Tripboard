@@ -8,6 +8,8 @@
   const K = window.Keel;
   const $ = (id) => document.getElementById(id);
   const T = window.Tripboard;
+  // index.html is written in English; its marked words turn once, here.
+  if (window.i18n.lang !== "en") window.i18n.apply();
 
 
   // The theme: Settings' choice, or the system's light or dark.
@@ -34,7 +36,7 @@
     K.platform.ready.then(() => releases.latest()).then((r) => {
       if (!r || !K.releases.newer(r.version, APP_VERSION)) return;
       const el = $("update");
-      el.textContent = "Version " + r.version + " is out.";
+      el.textContent = i18n.t("Version {version} is out.", { version: r.version });
       el.hidden = false;
     }).catch(() => { /* offline: ask again next launch */ });
   }

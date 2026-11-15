@@ -12,6 +12,8 @@
 //   with the day it was fetched (geoAt), and no address.
 // - maptiler: MapTiler's geocoding, with the person's key.
 (function () {
+  // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
+  const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 
   // OpenStreetMap's own kinds of place, to Tripboard's categories.
@@ -47,7 +49,7 @@
       u.searchParams.set("viewbox", [Math.min(...lngs) - pad, Math.max(...lats) + pad, Math.max(...lngs) + pad, Math.min(...lats) - pad].join(","));
     }
     const res = await fetchFn(u.href, { headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(res.status === 429 ? "OpenStreetMap: too many searches at once. Wait a moment and try again." : "OpenStreetMap didn't answer (" + res.status + ").");
+    if (!res.ok) throw new Error(res.status === 429 ? i18n.t("OpenStreetMap: too many searches at once. Wait a moment and try again.") : i18n.t("{who} didn't answer ({status}).", { who: "OpenStreetMap", status: res.status }));
     const list = await res.json();
     return (Array.isArray(list) ? list : []).map(fromNominatim).filter((r) => isFinite(r.lat) && isFinite(r.lng));
   }
@@ -72,15 +74,15 @@
   async function failure(res, who) {
     let msg = "";
     try { const j = await res.json(); msg = (j.error && (j.error.message || j.error.status)) || j.message || ""; } catch (e) { /* no body */ }
-    if (res.status === 429) return new Error(who + ": too many searches, or the quota is used up.");
-    if (res.status === 400 || res.status === 401 || res.status === 403) return new Error(who + " refused the key" + (msg ? ": " + msg : "."));
-    return new Error(who + " didn't answer (" + res.status + ").");
+    if (res.status === 429) return new Error(i18n.t("{who}: too many searches, or the quota is used up.", { who }));
+    if (res.status === 400 || res.status === 401 || res.status === 403) return new Error(msg ? i18n.t("{who} refused the key: {msg}", { who, msg }) : i18n.t("{who} refused the key.", { who }));
+    return new Error(i18n.t("{who} didn't answer ({status}).", { who, status: res.status }));
   }
 
   async function googleSearch(query, { near = [], key, fetchFn = fetch } = {}) {
     const q = String(query || "").trim();
     if (!q) return [];
-    if (!key) throw new Error("Google needs a key (Settings).");
+    if (!key) throw new Error(i18n.t("{who} needs a key (Settings).", { who: "Google" }));
     const body = { textQuery: q, pageSize: 6 };
     if (near.length) { const b = box(near, 0.3); body.locationBias = { rectangle: { low: { latitude: b.s, longitude: b.w }, high: { latitude: b.n, longitude: b.e } } }; }
     const res = await fetchFn("https://places.googleapis.com/v1/places:searchText", {
@@ -100,20 +102,20 @@
   // A Google place's location again, by its id (Place Details, location
   // only), for the 30-day refresh. → { lat, lng }
   async function googleLocation(placeId, { key, fetchFn = fetch } = {}) {
-    if (!key) throw new Error("Google needs a key (Settings).");
+    if (!key) throw new Error(i18n.t("{who} needs a key (Settings).", { who: "Google" }));
     const res = await fetchFn("https://places.googleapis.com/v1/places/" + encodeURIComponent(placeId), {
       headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": "location" },
     });
     if (!res.ok) throw await failure(res, "Google");
     const j = await res.json();
-    if (!j.location) throw new Error("Google has no location for that place now.");
+    if (!j.location) throw new Error(i18n.t("Google has no location for that place now."));
     return { lat: j.location.latitude, lng: j.location.longitude };
   }
 
   async function maptilerSearch(query, { near = [], key, fetchFn = fetch } = {}) {
     const q = String(query || "").trim();
     if (!q) return [];
-    if (!key) throw new Error("MapTiler needs a key (Settings).");
+    if (!key) throw new Error(i18n.t("{who} needs a key (Settings).", { who: "MapTiler" }));
     const u = new URL("https://api.maptiler.com/geocoding/" + encodeURIComponent(q) + ".json");
     u.searchParams.set("key", key);
     u.searchParams.set("limit", "6");
@@ -145,7 +147,7 @@
         return { results, by: id, skipped };
       } catch (e) { last = e; skipped.push({ id, reason: e.message }); }
     }
-    throw last || new Error("No search is set up.");
+    throw last || new Error(i18n.t("No search is set up."));
   }
 
   const api = { providers, search, googleLocation, categoryOf, googleCategory, fromNominatim };

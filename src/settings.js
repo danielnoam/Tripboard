@@ -8,16 +8,18 @@
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
 (function () {
+  // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
+  const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
   const KEY = "tripboard.settings";
   // What each provider offers, and what it needs set up.
   const PROVIDERS = {
-    openfreemap: { name: "OpenFreeMap", services: ["map"], key: false, note: "Free map, no key.",
-      options: { style: [["light", "Light (dark in dark mode)"], ["liberty", "Liberty"], ["bright", "Bright"]] } },
-    osm: { name: "OpenStreetMap", services: ["search"], key: false, note: "Free search, no key, about one search a second." },
-    google: { name: "Google", services: ["map", "search"], key: true, note: "Google's map and Places search, with your own key.",
-      options: { mapType: [["roadmap", "Map"], ["satellite", "Satellite"]] } },
-    maptiler: { name: "MapTiler", services: ["map", "search"], key: true, note: "Maps and search with a free MapTiler key (a monthly allowance).",
-      options: { style: [["streets", "Streets"], ["outdoor", "Outdoor"], ["satellite", "Satellite"]] } },
+    openfreemap: { name: "OpenFreeMap", services: ["map"], key: false, note: i18n.t("Free map, no key."),
+      options: { style: [["light", i18n.t("Light (dark in dark mode)")], ["liberty", "Liberty"], ["bright", "Bright"]] } },
+    osm: { name: "OpenStreetMap", services: ["search"], key: false, note: i18n.t("Free search, no key, about one search a second.") },
+    google: { name: "Google", services: ["map", "search"], key: true, note: i18n.t("Google's map and Places search, with your own key."),
+      options: { mapType: [["roadmap", i18n.t("Map")], ["satellite", i18n.t("Satellite")]] } },
+    maptiler: { name: "MapTiler", services: ["map", "search"], key: true, note: i18n.t("Maps and search with a free MapTiler key (a monthly allowance)."),
+      options: { style: [["streets", i18n.t("Streets")], ["outdoor", i18n.t("Outdoor")], ["satellite", i18n.t("Satellite")]] } },
   };
   const DEFAULTS = {
     providers: { openfreemap: { style: "light" }, osm: {}, google: { key: "", mapType: "roadmap" }, maptiler: { key: "", style: "streets" } },
