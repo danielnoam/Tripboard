@@ -1,0 +1,18 @@
+{
+  "appId": "com.danielnoam.trips",
+  "appName": "Tripboard",
+  "webDir": "www",
+  "backgroundColor": "#F6F5F2",
+  "android": {
+    "backgroundColor": "#F6F5F2"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  },
+  "ios": {
+    "backgroundColor": "#F6F5F2",
+    "contentInset": "never"
+  }
+}
