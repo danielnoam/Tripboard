@@ -11,7 +11,6 @@ moves to DROPPED.md with his reason.
 
 ## Trips
 
-
 ## With other people
 
 - **Sharing a trip and editing it together.** Needs a server or a shared
@@ -19,7 +18,6 @@ moves to DROPPED.md with his reason.
   device. To be designed before building.
 - **Publishing a trip.** A read-only copy others can open (and later
   copy, which is where community trips start).
-
 
 ## From the scope (docs/SCOPE.md)
 
