@@ -1,0 +1,143 @@
+<!-- Travel's markup, extracted from LifeLog's index.html (main at eca2dac, 2026-11-15). -->
+
+<!-- The tab -->
+        <button class="tab" role="tab" aria-selected="false" data-view="travel"><span class="tab-ico" data-ico="plane"></span>Travel</button>
+
+<!-- The + menu's group -->
+      <div class="add-group" data-view="travel">
+        <p class="add-head" aria-hidden="true"></p>
+        <button type="button" data-add="trip" data-view="travel"><span class="add-ico" aria-hidden="true" data-ico="plane"></span>Trip</button>
+        <button type="button" data-add="place" data-view="travel"><span class="add-ico" aria-hidden="true" data-ico="map-pin"></span>Place</button>
+        <button type="button" data-add="import-places" data-view="travel"><span class="add-ico" aria-hidden="true" data-ico="download"></span>From Google Maps</button>
+      </div>
+
+<!-- The trip chips row (filter bar) -->
+      <div class="filter-group" id="tripFilterGroup" hidden>
+        <label class="filter-label">Trips</label>
+        <div class="cats" id="tripFilter"></div>
+      </div>
+
+<!-- The trip and place sheets -->
+  <div class="modal-overlay" id="tripModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tripModalTitle">
+      <h2 id="tripModalTitle">New trip</h2>
+      <form id="tripForm">
+        <label>Name
+          <input id="tripName" type="text" required autocomplete="off" placeholder="e.g. Rome in spring" />
+        </label>
+        <div class="field-row row-dates">
+          <label>Starts
+            <input id="tripStart" type="date" />
+          </label>
+          <label>Ends
+            <input id="tripEnd" type="date" />
+          </label>
+        </div>
+        <p class="hint">Dates are optional. With them, every day of the trip gets its own place in the plan.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-danger" id="deleteTripBtn" hidden>Delete</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="cancelTripBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="placeModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="placeModalTitle">
+      <h2 id="placeModalTitle">Add a place</h2>
+      <p class="muted place-modal-trip" id="placeTripName"></p>
+      <form id="placeForm">
+        <label>Name
+          <input id="placeName" type="text" required autocomplete="off" placeholder="e.g. Trevi Fountain" />
+        </label>
+        <label>Day
+          <input id="placeDay" type="date" />
+        </label>
+        <div class="field-row">
+          <label>From
+            <input id="placeTime" type="time" />
+          </label>
+          <label>Until
+            <input id="placeEndTime" type="time" />
+          </label>
+        </div>
+        <p class="hint" id="placeTimeHint">Pick a day to give it a time. Without one it's somewhere you'll get to sometime this trip.</p>
+        <label>Address
+          <input id="placeAddress" type="text" autocomplete="off" />
+        </label>
+        <label>Google Maps link
+          <input id="placeUrl" type="url" inputmode="url" autocomplete="off" placeholder="Paste it from Share in Google Maps" />
+        </label>
+        <label>Note
+          <textarea id="placeNote" rows="2" placeholder="Book ahead, try the cacio e pepe…"></textarea>
+        </label>
+        <label class="toggle-label"><input type="checkbox" id="placeVisited" /> Been there</label>
+        <!-- From Google (0.245.0): fetched each time the sheet opens, with
+             your Places key. Google's terms don't allow keeping it. -->
+        <section class="place-google" id="placeGoogle" hidden aria-live="polite"></section>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-danger" id="deletePlaceBtn" hidden>Delete</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="cancelPlaceBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+<!-- The Google Maps import sheet -->
+  <div class="modal-overlay" id="importPlacesModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importPlacesTitle">
+      <h2 id="importPlacesTitle">Import from Google Maps</h2>
+      <p class="muted place-modal-trip" id="importTripName"></p>
+      <form id="importPlacesForm">
+        <label>A saved list or a place
+          <input id="importLink" type="url" inputmode="url" autocomplete="off" placeholder="Share → Copy link, in Google Maps" />
+        </label>
+        <p class="hint" id="importHint">A list brings all its places to choose from. A place brings just that one.</p>
+        <div class="trip-map import-map no-swipe" id="importMap" role="region" aria-label="Map of the list's places: tap a pin to pick it" hidden></div>
+        <div class="import-pick" id="importPick" hidden></div>
+        <div class="modal-actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="cancelImportBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="importGoBtn">Find places</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+<!-- Settings → Sync: the trips file backup -->
+        <div class="sgroup-card" id="travelFileCard" hidden>
+          <div class="sitem">
+            <span class="sitem-text"><span class="sitem-title">Trips file</span><span class="sitem-sub" id="travelFileInfo"></span></span>
+          </div>
+          <button type="button" class="sitem sitem-go" id="connectTravelFileBtn">Choose trips file…</button>
+          <button type="button" class="sitem sitem-go" id="reconnectTravelFileBtn" hidden>Reconnect trips file</button>
+          <button type="button" class="sitem sitem-go sitem-danger" id="disconnectTravelFileBtn" hidden>Disconnect</button>
+        </div>
+
+<!-- Settings → History: trips -->
+      <section class="sgroup">
+        <div class="sgroup-head">
+          <h3 class="sgroup-label">Trips</h3>
+          <button class="btn btn-small" id="travelHistoryBtn" type="button">Show versions</button>
+        </div>
+        <p class="hint">Trips keep their own history too. Open a version to see its trips and bring back any that have changed or gone since, with their places.</p>
+        <p class="muted" id="travelHistoryStatus" hidden></p>
+        <div class="sgroup-card history-card" id="travelHistoryList" hidden></div>
+      </section>
+
+<!-- Settings → Media lookups: the Places key -->
+          <label class="sitem sitem-stack">
+            <span class="sitem-text"><span class="sitem-title key-title">Google Places key<span class="key-status" data-key-status="googlePlaces" role="status" hidden></span></span><span class="sitem-sub">A Travel place's rating, opening hours and reviews — <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" rel="noopener">console.cloud.google.com</a>, with Places API (New) turned on; billing must be on, though personal use stays inside the free monthly allowance</span></span>
+            <input id="googlePlacesKey" type="password" placeholder="Paste your Google Places API key…" autocomplete="off" spellcheck="false" />
+          </label>
+
+<!-- Settings → About: credits -->
+          <a class="sitem sitem-go" href="https://leafletjs.com" target="_blank" rel="noopener"><span class="sitem-text"><span class="sitem-title">Leaflet</span><span class="sitem-sub">The Travel maps · BSD 2-Clause</span></span></a>
+          <a class="sitem sitem-go" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"><span class="sitem-text"><span class="sitem-title">OpenStreetMap contributors and CARTO</span><span class="sitem-sub">Map tiles, and town names through Nominatim · ODbL</span></span></a>
+          <a class="sitem sitem-go" href="https://developers.google.com/maps/documentation/places/web-service" target="_blank" rel="noopener"><span class="sitem-text"><span class="sitem-title">Google Places</span><span class="sitem-sub">Place details in Travel, with your own key</span></span></a>
