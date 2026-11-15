@@ -3,6 +3,7 @@
 //   map, search  which provider each service uses, and its fallback
 //   appearance  the theme: system, light or dark
 //   sync        GitHub sync's token and repo
+//   me          who you are on shared trips: an id made once, and your name
 // A service tries its main provider; if that fails (no key, an error, a
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
@@ -25,7 +26,9 @@
     appearance: { theme: "system" },
     // GitHub sync: a fine-grained token for one private repo of yours.
     sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
+    me: { id: "", name: "" },
   };
+  const newPersonId = () => "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const merge = (saved) => {
     const out = JSON.parse(JSON.stringify(DEFAULTS));
     if (!saved || typeof saved !== "object") return out;
@@ -39,10 +42,15 @@
     const th = saved.appearance && saved.appearance.theme;
     if (["system", "light", "dark"].includes(th)) out.appearance.theme = th;
     for (const k of Object.keys(out.sync)) if (saved.sync && typeof saved.sync[k] === "string") out.sync[k] = saved.sync[k];
+    const me = saved.me || {};
+    if (typeof me.id === "string" && /^[\w-]{4,40}$/.test(me.id)) out.me.id = me.id;
+    if (typeof me.name === "string") out.me.name = me.name.trim().slice(0, 60);
     return out;
   };
   let cur;
   try { cur = merge(JSON.parse(localStorage.getItem(KEY) || "null")); } catch (e) { cur = merge(null); }
+  // An id for you, made once on this device; it marks what you change.
+  if (!cur.me.id) { cur.me.id = newPersonId(); try { localStorage.setItem(KEY, JSON.stringify(cur)); } catch (e) { /* this visit */ } }
   const listeners = [];
   const S = {
     PROVIDERS,
@@ -50,6 +58,7 @@
     provider: (id) => ({ ...cur.providers[id] }),
     setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
     setTheme(theme) { cur.appearance = { theme }; S.save(); },
+    setMe(patch) { cur.me = { ...cur.me, ...patch, id: cur.me.id }; cur.me.name = String(cur.me.name || "").trim().slice(0, 60); S.save(); },
     setSync(patch) { cur.sync = { ...cur.sync, ...patch }; S.save(); },
     setService(svc, patch) { cur[svc] = { ...cur[svc], ...patch }; if (cur[svc].fallback === cur[svc].main) cur[svc].fallback = ""; S.save(); },
     save() {

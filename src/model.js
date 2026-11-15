@@ -11,6 +11,10 @@
 // An expense: id, trip, title, amount (a number, in `currency`, an ISO
 // 4217 code), category, and optionally day, place (a place's id), note and
 // paidBy (who paid, for when a trip is shared).
+// Every record can carry `by`: the id of the person who changed it last.
+// A trip can carry owner (a person id) and members: [{ id, name, role }],
+// role owner, editor or viewer. Nothing checks them yet (there's no shared
+// store); they're here so trips made now are ready to be shared.
 // A file: id, trip, name, type (its MIME type), size in bytes, and
 // optionally place and note. Its bytes are kept apart (store.js), never in the doc.
 (function () {
@@ -36,12 +40,12 @@
   const CURRENCIES = ["USD", "EUR", "GBP", "ILS", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW", "SGD", "THB", "VND",
     "IDR", "MYR", "PHP", "INR", "AED", "TRY", "EGP", "MAD", "ZAR", "MXN", "BRL", "ARS", "CLP", "PEN", "COP",
     "SEK", "NOK", "DKK", "ISK", "PLN", "CZK", "HUF", "RON", "GEL"];
-  const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "createdAt", "updatedAt"]);
-  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "createdAt", "updatedAt"]);
+  const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "by", "createdAt", "updatedAt"]);
+  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
-  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "createdAt", "updatedAt"]);
+  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "geoAt", "visited", "createdAt", "updatedAt"]);
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
   // additions survive an older one saving.
   function keepUnknown(src, out, known) {
@@ -68,7 +72,36 @@
       .map(text).filter(Boolean);
     out.destinations = [...new Set(dest)].slice(0, 20);
     if (t.cover) out.cover = true;
+    const members = (Array.isArray(t.members) ? t.members : []).filter((m) => m && isPersonId(m.id))
+      .map((m) => ({ id: m.id, name: text(m.name).slice(0, 60), role: ROLES.includes(m.role) ? m.role : "viewer" }));
+    const seen = new Set();
+    out.members = members.filter((m) => !seen.has(m.id) && seen.add(m.id));
+    if (isPersonId(t.owner)) out.owner = t.owner;
+    else if (out.members.some((m) => m.role === "owner")) out.owner = out.members.find((m) => m.role === "owner").id;
+    // The owner is always a member, and the only one with that role.
+    for (const m of out.members) if (m.role === "owner" && m.id !== out.owner) m.role = "editor";
+    if (out.owner && !out.members.some((m) => m.id === out.owner)) out.members.unshift({ id: out.owner, name: "", role: "owner" });
+    const om = out.members.find((m) => m.id === out.owner);
+    if (om) om.role = "owner";
+    if (!out.members.length) delete out.members;
+    if (isPersonId(t.by)) out.by = t.by;
     return keepUnknown(t, out, KNOWN_TRIP);
+  }
+
+  const ROLES = ["owner", "editor", "viewer"];
+  const isPersonId = (v) => typeof v === "string" && /^[\w-]{1,40}$/.test(v);
+  // What a person may do with a trip: "read", "edit" or "manage" (members,
+  // deleting the trip). A trip with no members yet is its device's own.
+  function can(trip, personId, what) {
+    if (!trip.members || !trip.members.length) return true;
+    const m = trip.members.find((x) => x.id === personId);
+    if (!m) return false;
+    return m.role === "owner" || (m.role === "editor" && what !== "manage") || what === "read";
+  }
+  // A trip made by `me` starts with them as its owner.
+  function ownTrip(trip, me) {
+    if (!me || !isPersonId(me.id) || trip.owner) return trip;
+    return Object.assign(trip, { owner: me.id, members: [{ id: me.id, name: text(me.name), role: "owner" }] });
   }
 
   function sanitizePlace(p) {
@@ -91,6 +124,7 @@
     // When a Google location was fetched: Google allows keeping it 30 days.
     if (out.lat != null && isDay(p.geoAt)) out.geoAt = p.geoAt;
     if (p.visited) out.visited = true;
+    if (isPersonId(p.by)) out.by = p.by;
     return keepUnknown(p, out, KNOWN_PLACE);
   }
 
@@ -107,6 +141,7 @@
     };
     if (isDay(e.day)) out.day = e.day;
     for (const k of ["place", "note", "paidBy"]) { const v = text(e[k]); if (v) out[k] = v; }
+    if (isPersonId(e.by)) out.by = e.by;
     return keepUnknown(e, out, KNOWN_EXPENSE);
   }
 
@@ -120,6 +155,7 @@
       createdAt: f.createdAt || now(), updatedAt: f.updatedAt || f.createdAt || now(),
     };
     for (const k of ["place", "note"]) { const v = text(f[k]); if (v) out[k] = v; }
+    if (isPersonId(f.by)) out.by = f.by;
     return keepUnknown(f, out, KNOWN_FILE);
   }
 
@@ -138,7 +174,7 @@
     const deleted = {};
     const cutoff = new Date(Date.now() - TOMBSTONE_DAYS * DAY_MS).toISOString();
     for (const [id, t] of Object.entries((d && d.deleted) || {})) {
-      if (t && typeof t.at === "string" && t.at > cutoff && !ids.has(id) && !live.has(id)) deleted[id] = { at: t.at, trip: text(t.trip) };
+      if (t && typeof t.at === "string" && t.at > cutoff && !ids.has(id) && !live.has(id)) deleted[id] = isPersonId(t.by) ? { at: t.at, trip: text(t.trip), by: t.by } : { at: t.at, trip: text(t.trip) };
     }
     return keepUnknown(d, { trips, places, expenses, files, deleted }, new Set(["trips", "places", "expenses", "files", "deleted"]));
   }
@@ -146,20 +182,20 @@
   // What changed between two saves: a record that's new or different gets
   // `updatedAt` now, and one that's gone is remembered in `deleted`. Done in
   // one place so no edit can forget it, and a sync can trust both.
-  function stamp(prev, next, at) {
+  function stamp(prev, next, at, by) {
     at = at || now();
     const before = new Map();
     for (const t of (prev && prev.trips) || []) before.set(t.id, { r: t, trip: t.id });
     for (const p of ((prev && prev.places) || []).concat((prev && prev.expenses) || [], (prev && prev.files) || [])) before.set(p.id, { r: p, trip: p.trip });
-    const same = (a, b) => { const x = { ...a }, y = { ...b }; delete x.updatedAt; delete y.updatedAt; return JSON.stringify(x) === JSON.stringify(y); };
+    const same = (a, b) => { const x = { ...a }, y = { ...b }; delete x.updatedAt; delete y.updatedAt; delete x.by; delete y.by; return JSON.stringify(x) === JSON.stringify(y); };
     const seen = new Set();
     for (const r of next.trips.concat(next.places, next.expenses || [], next.files || [])) {
       seen.add(r.id);
       const b = before.get(r.id);
-      if (!b || !same(b.r, r)) r.updatedAt = at;
+      if (!b || !same(b.r, r)) { r.updatedAt = at; if (isPersonId(by)) r.by = by; }
       delete next.deleted[r.id];
     }
-    for (const [id, b] of before) if (!seen.has(id)) next.deleted[id] = { at, trip: b.trip };
+    for (const [id, b] of before) if (!seen.has(id)) next.deleted[id] = isPersonId(by) ? { at, trip: b.trip, by } : { at, trip: b.trip };
     return next;
   }
 
@@ -318,7 +354,7 @@
   }
 
   const api = {
-    sanitizeFile, MAX_FILE_MB, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
+    sanitizeFile, MAX_FILE_MB, ROLES, can, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,

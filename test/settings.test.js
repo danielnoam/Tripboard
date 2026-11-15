@@ -43,4 +43,10 @@ test("the theme is system, light or dark, and system by default", () => {
   assert.strictEqual(S.get().appearance.theme, "light");
 });
 
+test("me: a person id and a name are kept, a bad id isn't", () => {
+  assert.deepStrictEqual(S.merge({ me: { id: "u123abc", name: "  Daniel " } }).me, { id: "u123abc", name: "Daniel" });
+  assert.strictEqual(S.merge({ me: { id: "<x>" } }).me.id, "");
+  assert.ok(/^u\w+$/.test(S.get().me.id));
+});
+
 console.log(passed + " passed");

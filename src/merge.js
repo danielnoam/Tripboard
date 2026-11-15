@@ -58,12 +58,14 @@
     const out = {};
     const keys = new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)]);
     for (const k of keys) {
-      if (k === "updatedAt") continue;
+      if (k === "updatedAt" || k === "by") continue;
       const m = mine[k], t = theirs[k], b = base[k];
       const v = eq(m, b) ? t : eq(t, b) ? m : newer(mine, theirs) ? m : t;
       if (v !== undefined) out[k] = v;
     }
-    out.updatedAt = newer(mine, theirs) ? mine.updatedAt : theirs.updatedAt;
+    const last = newer(mine, theirs) ? mine : theirs;
+    out.updatedAt = last.updatedAt;
+    if (last.by) out.by = last.by;
     return out;
   }
 

@@ -13,9 +13,9 @@ moves to DROPPED.md with his reason.
 
 ## With other people
 
-- **Sharing a trip and editing it together.** Needs a server or a shared
-  store the app doesn't have; every option so far keeps data on the
-  device. To be designed before building.
+- **Sharing a trip and editing it together.** The data is ready
+  (members, roles, who changed what, who paid); the shared store isn't.
+  The options and a recommendation are in docs/SHARING.md.
 - **Publishing a trip.** A read-only copy others can open (and later
   copy, which is where community trips start).
 
