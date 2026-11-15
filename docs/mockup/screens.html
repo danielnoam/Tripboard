@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tripboard Screens</title>
+<style>
+/* Layout: a guide column beside one clickable phone; inside it, Tripboard's own tokens and components from src/styles.css. */
+:root {
+  --bg: #F6F5F2; --surface: #FFFFFF; --surface-2: #ECEBE6;
+  --text: #1E1F1C; --text-dim: #5C5F58; --accent: #2F5D50; --on-accent: #FFFFFF;
+  --line: #8A8D85; --must: #A3402B; --want: #2F5D50; --maybe: #6B6E66; --danger: #A3302B;
+  --scrim: rgba(0,0,0,0.45); --on-photo: #FFFFFF;
+  --tint-0: #2F5D50; --tint-1: #5A4A7A; --tint-2: #8A5A2B; --tint-3: #2B5A8A; --tint-4: #7A3B4A;
+  --page: #E4E3DD; --frame: #1E1F1C;
+  --map-land: #EDEBE4; --map-park: #D5E3D3; --map-water: #BCD3E0; --map-road: #FFFFFF; --map-rail: #B9B7AE;
+  --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px; --space-5: 32px;
+  --radius: 12px; --radius-lg: 16px;
+  --fs-small: 13px; --fs-body: 16px; --fs-title: 20px; --fs-big: 28px;
+  --shadow: 0 1px 2px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.05);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141513; --surface: #1E201D; --surface-2: #2A2D29; --text: #ECEDE8; --text-dim: #A9ACA3;
+    --accent: #8FC3B2; --on-accent: #10201B; --line: #74786F; --must: #F0A08C; --want: #8FC3B2; --maybe: #A9ACA3; --danger: #F0958C;
+    --page: #0C0D0C; --frame: #3A3D38;
+    --map-land: #22251F; --map-park: #2A3A2C; --map-water: #22384A; --map-road: #3A3D37; --map-rail: #4A4D46;
+    --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141513; --surface: #1E201D; --surface-2: #2A2D29; --text: #ECEDE8; --text-dim: #A9ACA3;
+  --accent: #8FC3B2; --on-accent: #10201B; --line: #74786F; --must: #F0A08C; --want: #8FC3B2; --maybe: #A9ACA3; --danger: #F0958C;
+  --page: #0C0D0C; --frame: #3A3D38;
+  --map-land: #22251F; --map-park: #2A3A2C; --map-water: #22384A; --map-road: #3A3D37; --map-rail: #4A4D46;
+  --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+body {
+  background: var(--page); color: var(--text);
+  font: var(--fs-body)/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: var(--space-4);
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dim { color: var(--text-dim); }
+.icon { width: 20px; height: 20px; flex: none; }
+
+/* The stage */
+.stage { display: flex; gap: var(--space-5); justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+.guide { flex: 0 1 300px; min-width: 0; display: grid; gap: var(--space-3); padding-top: var(--space-3); }
+.guide h1 { margin: 0; font-size: var(--fs-big); line-height: 1.2; }
+.guide p { margin: 0; color: var(--text-dim); font-size: 15px; }
+.jump { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.jump button {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: var(--space-2);
+  padding: 10px 14px; border: 1px solid transparent; border-radius: var(--radius); background: var(--surface); text-align: left;
+}
+.jump button[aria-current="true"] { border-color: var(--accent); }
+.jump b { font-weight: 600; }
+.jump span { color: var(--text-dim); font-size: var(--fs-small); direction: rtl; }
+.theme-row { display: flex; gap: var(--space-2); }
+.later-key { display: flex; align-items: center; gap: var(--space-2); font-size: 14px; color: var(--text-dim); }
+
+.phone {
+  flex: none; width: 390px; max-width: 100%; height: 800px; max-height: calc(100dvh - 48px); min-height: 600px;
+  border: 10px solid var(--frame); border-radius: 46px; background: var(--bg);
+  overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+}
+.screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.screen::-webkit-scrollbar { display: none; }
+@media (max-width: 520px) {
+  body { padding-block: var(--space-3); }
+  .phone { border-width: 6px; border-radius: 30px; height: 740px; }
+}
+
+/* App: bar */
+.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-2); background: var(--bg); }
+.bar-title { flex: 1; margin: 0; font-size: var(--fs-title); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-title.big { font-size: var(--fs-big); }
+.icon-btn { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); }
+.icon-btn:hover { background: var(--surface-2); }
+.icon-btn.small { min-width: 36px; min-height: 36px; }
+.app-main { padding: 0 var(--space-3) 112px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.quiet { border-color: transparent; background: transparent; }
+.btn.danger { border-color: transparent; background: transparent; color: var(--danger); padding: 0 var(--space-2); }
+.btn.small { min-height: 34px; padding: 0 12px; font-size: 14px; }
+
+.section { font-size: var(--fs-small); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0 0 var(--space-2); font-weight: 600; }
+.later { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px dashed var(--line); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+
+/* Home */
+.starts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin: var(--space-2) 0 var(--space-4); }
+.start {
+  display: grid; align-content: space-between; gap: var(--space-3); min-height: 150px; padding: var(--space-3);
+  border: 0; border-radius: var(--radius-lg); text-align: left; font-weight: 600; font-size: 17px; line-height: 1.25;
+}
+.start .icon { width: 28px; height: 28px; }
+.start.new { background: var(--accent); color: var(--on-accent); }
+.start.community { background: transparent; border: 1px dashed var(--line); color: var(--text-dim); cursor: default; }
+.start small { display: block; margin-top: 4px; font-weight: 400; font-size: var(--fs-small); }
+.trips { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.trip-card { position: relative; display: block; width: 100%; overflow: hidden; padding: 0; border: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); text-align: left; }
+.trip-cover { height: 96px; }
+.trip-text { display: grid; padding: 12px var(--space-3) 14px; }
+.trip-text strong { font-size: 18px; }
+.trip-text span { color: var(--text-dim); font-size: 15px; }
+.badge { position: absolute; top: var(--space-2); right: var(--space-2); padding: 2px 10px; border-radius: 999px; font-size: var(--fs-small); font-weight: 600; background: var(--surface); color: var(--text); }
+.version { margin-top: var(--space-5); font-size: var(--fs-small); text-align: center; color: var(--text-dim); }
+
+.tint-0 { background: var(--tint-0); } .tint-1 { background: var(--tint-1); } .tint-2 { background: var(--tint-2); } .tint-3 { background: var(--tint-3); } .tint-4 { background: var(--tint-4); }
+
+/* New trip */
+.form { display: grid; gap: var(--space-3); }
+.cover-pick { display: flex; align-items: center; gap: var(--space-3); }
+.cover-preview { display: grid; place-items: center; width: 112px; height: 76px; flex: none; border-radius: 10px; color: var(--on-photo); font-size: var(--fs-small); }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch { width: 32px; height: 32px; padding: 0; border: 2px solid transparent; border-radius: 50%; }
+.swatch[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 2px var(--bg); }
+.field { display: grid; gap: var(--space-1); min-width: 0; margin: 0; padding: 0; border: 0; font-size: 14px; font-weight: 600; color: var(--text-dim); }
+.field legend { padding: 0; margin-bottom: var(--space-1); }
+.field input, .field select, .field textarea { width: 100%; min-height: 44px; padding: var(--space-2) 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font-size: var(--fs-body); font-weight: 400; }
+.hint { font-weight: 400; font-size: var(--fs-small); }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.dest-box { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 44px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.dest-box input { flex: 1 1 80px; min-width: 80px; min-height: 30px; border: 0; padding: 0 6px; background: transparent; }
+.dest-box input:focus { outline: none; }
+.dest { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 10px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 14px; line-height: 28px; }
+.dest button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-dim); }
+.dest .icon { width: 14px; height: 14px; }
+.form-actions { display: flex; gap: var(--space-2); justify-content: flex-end; align-items: center; padding-top: var(--space-2); }
+.grow { flex: 1; }
+
+/* Board */
+.hero { position: relative; display: flex; align-items: flex-end; min-height: 128px; margin-bottom: var(--space-3); border-radius: var(--radius-lg); overflow: hidden; }
+.hero-text { width: 100%; padding: var(--space-4) var(--space-3) var(--space-3); background: linear-gradient(to top, var(--scrim), transparent); color: var(--on-photo); font-weight: 600; }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-1); margin: var(--space-2) 0 0; padding: 0; }
+.chips li { padding: 0 10px; border-radius: 999px; background: var(--scrim); font-size: var(--fs-small); line-height: 26px; }
+.controls { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface-2); overflow-x: auto; scrollbar-width: none; }
+.seg button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 38px; padding: 0 6px; font-size: 14px; border: 0; border-radius: 999px; background: transparent; color: var(--text-dim); font-weight: 600; }
+.seg button .icon { width: 16px; height: 16px; }
+.seg button[aria-selected="true"], .seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.seg button.imp-must[aria-checked="true"] { color: var(--must); }
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 600; }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.4; }
+.chip.plain::before { display: none; }
+.chip[aria-pressed="true"] { background: var(--surface); color: var(--text); }
+.chip.imp-must[aria-pressed="true"]::before { background: var(--must); opacity: 1; }
+.chip.imp-want[aria-pressed="true"]::before { background: var(--want); opacity: 1; }
+.chip.imp-maybe[aria-pressed="true"]::before { background: var(--maybe); opacity: 1; }
+.filter-label { font-size: var(--fs-small); color: var(--text-dim); font-weight: 600; }
+
+.groups { display: grid; gap: var(--space-3); }
+.group { padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); min-width: 0; }
+.group-head { display: flex; align-items: center; gap: var(--space-2); }
+.group-head h2 { flex: 1; margin: 0; font-size: 17px; }
+.count { color: var(--text-dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+.free { margin: var(--space-2) 0 0; color: var(--text-dim); font-size: 14px; }
+
+/* Time view: a day's slots run left to right, as in the wireframe */
+.lane { display: flex; gap: var(--space-2); margin: var(--space-2) calc(-1 * var(--space-3)) 0; padding: 0 var(--space-3) 4px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.slot-col { flex: 0 0 148px; display: grid; gap: 4px; align-content: start; scroll-snap-align: start; }
+.slot-time { font-size: var(--fs-small); font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-2); }
+
+.tile, .card {
+  position: relative; display: grid; gap: 2px; width: 100%; padding: 10px 12px 10px 14px; text-align: left;
+  border: 0; border-left: 4px solid var(--want); border-radius: 10px; background: var(--bg); color: var(--text);
+}
+.tile { min-height: 84px; align-content: start; }
+.tile.imp-must, .card.imp-must { border-left-color: var(--must); }
+.tile.imp-maybe, .card.imp-maybe { border-left-color: var(--maybe); }
+.tile-name, .card-name { font-weight: 600; line-height: 1.3; }
+.tile-name { font-size: 15px; padding-right: 22px; }
+.visited .tile-name, .visited .card-name { text-decoration: line-through; text-decoration-color: var(--text-dim); }
+.tile-meta, .card-meta { color: var(--text-dim); font-size: 13px; }
+.imp-word { font-weight: 600; }
+.imp-must .imp-word { color: var(--must); }
+.tick-dot { position: absolute; top: 9px; right: 8px; display: grid; place-items: center; width: 20px; height: 20px; border: 2px solid var(--line); border-radius: 50%; color: transparent; }
+.tick-dot .icon { width: 12px; height: 12px; }
+.visited .tick-dot { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.cards { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.card { grid-template-columns: 1fr auto; align-items: center; gap: var(--space-2); min-height: 56px; }
+.card-dist { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
+.card-dist small { display: block; font-weight: 400; font-size: 12px; color: var(--text-dim); }
+.cat-row { display: flex; gap: 6px; overflow-x: auto; margin: 0 calc(-1 * var(--space-3)) var(--space-3); padding: 0 var(--space-3) 2px; scrollbar-width: none; }
+.cat-row .chip { flex: none; }
+.from { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); font-size: 14px; }
+.from strong { flex: 1; }
+
+/* Map */
+.map { position: relative; height: 430px; border-radius: var(--radius-lg); overflow: hidden; background: var(--map-land); }
+.map svg.base { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pin { position: absolute; transform: translate(-50%, -100%); display: grid; place-items: center; width: 30px; height: 36px; padding: 0; border: 0; background: transparent; }
+.pin svg { width: 30px; height: 36px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+.pin span { position: absolute; top: 6px; font-size: 12px; font-weight: 700; color: var(--bg); }
+.pin[aria-pressed="true"] svg { transform: scale(1.2); transform-origin: 50% 100%; }
+.hotel { position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 800; }
+.map-credit { position: absolute; right: 6px; bottom: 4px; font-size: 10px; color: var(--text-dim); background: var(--map-land); padding: 0 4px; border-radius: 4px; }
+.map-note { position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 999px; background: var(--surface); font-size: 12px; font-weight: 600; box-shadow: var(--shadow); }
+.map-pick { margin-top: var(--space-2); }
+.map-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); font-size: 13px; color: var(--text-dim); }
+.map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+
+.fab { position: absolute; z-index: 6; right: var(--space-3); bottom: var(--space-3); display: grid; place-items: center; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
+.fab .icon { width: 26px; height: 26px; }
+
+/* Place */
+.search { position: relative; flex: 1; }
+.search .icon { position: absolute; left: 12px; top: 12px; color: var(--text-dim); }
+.search input { width: 100%; min-height: 44px; padding: 0 12px 0 40px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.results { list-style: none; margin: 0 0 var(--space-3); padding: 4px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); border: 1px solid var(--surface-2); }
+.results button { width: 100%; display: grid; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
+.results button:hover { background: var(--surface-2); }
+.results small { color: var(--text-dim); font-size: 13px; }
+.results .powered { padding: 4px 10px; font-size: 11px; color: var(--text-dim); text-align: right; }
+.source { display: flex; align-items: center; gap: var(--space-2); padding: 8px 12px; border-radius: var(--radius); background: var(--surface-2); font-size: 14px; }
+.source .icon { color: var(--accent); width: 18px; height: 18px; }
+.panel { padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); display: grid; gap: var(--space-2); }
+.panel h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: var(--space-2); }
+.panel h2 .grow { flex: 1; }
+.panel.is-later { background: transparent; box-shadow: none; border: 1px dashed var(--line); }
+.rating { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); align-items: center; color: var(--text-dim); font-size: 15px; }
+.stars { display: inline-flex; gap: 1px; }
+.stars .icon { width: 14px; height: 14px; }
+.near { display: flex; gap: var(--space-2); overflow-x: auto; margin: 0 calc(-1 * var(--space-3)); padding: 2px var(--space-3) 4px; scrollbar-width: none; }
+.near-card { flex: 0 0 156px; display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.near-card strong { font-size: 15px; line-height: 1.3; }
+.near-card span { font-size: 13px; color: var(--text-dim); }
+.near-card .btn { justify-self: start; }
+.toast { position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 9; padding: 8px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <aside class="guide" aria-label="About this mockup">
+    <h1>Tripboard screens</h1>
+    <p>Your wireframe drawn in Tripboard's own look: its colours, cards and controls from the app. Tap around inside the phone, or jump to a screen here. The data is made up.</p>
+    <ul class="jump" id="jump"></ul>
+    <div class="theme-row" role="group" aria-label="Theme">
+      <button class="btn small" id="tLight" type="button">Light</button>
+      <button class="btn small" id="tDark" type="button">Dark</button>
+      <button class="btn small quiet" id="tSystem" type="button">System</button>
+    </div>
+    <p class="later-key"><span class="later">Later</span> marks what the wireframe has that isn't in v1.</p>
+  </aside>
+  <div class="phone"><div class="screen" id="screen"></div></div>
+</div>
+
+<script>
+(function () {
+  const P = {
+    back: ["m12 19-7-7 7-7", "M19 12H5"],
+    plus: ["M5 12h14", "M12 5v14"],
+    check: ["M20 6 9 17l-5-5"],
+    pencil: ["M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z", "m15 5 4 4"],
+    pin: ["M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0", "c12 10 3"],
+    search: ["c11 11 8", "m21 21-4.3-4.3"],
+    map: ["M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z", "M15 5.764v15", "M9 3.236v15"],
+    grid: ["r3 3 7 7 1", "r14 3 7 7 1", "r14 14 7 7 1", "r3 14 7 7 1"],
+    users: ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "c9 7 4", "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"],
+    x: ["M18 6 6 18", "m6 6 12 12"],
+    star: ["M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"],
+    image: ["r3 3 18 18 2", "c9 9 2", "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"],
+    nav: ["M3 11l19-9-9 19-2-8-8-2z"],
+  };
+  function icon(name, cls) {
+    let s = '<svg class="icon' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+    for (const d of P[name] || []) {
+      if (d[0] === "c") { const [cx, cy, r] = d.slice(1).split(" "); s += `<circle cx="${cx}" cy="${cy}" r="${r}"/>`; }
+      else if (d[0] === "r") { const [x, y, w, h, rx] = d.slice(1).split(" "); s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>`; }
+      else s += `<path d="${d}"/>`;
+    }
+    return s + "</svg>";
+  }
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const IMP = { must: "Must see", want: "Want to", maybe: "Maybe" };
+  const CATS = ["Sights", "Food & drink", "Nature", "Museums", "Shopping"];
+  const TODAY = new Date(2026, 10, 15);
+
+  const trips = [
+    { id: "kyoto", name: "Kyoto in autumn", start: "2026-12-03", end: "2026-12-06", dest: ["Kyoto", "Nara", "Osaka"], tint: 3,
+      hotel: { name: "Hotel Kanra Kyoto", x: 50, y: 64 },
+      places: [
+        { id: 1, name: "Fushimi Inari Taisha", imp: "must", cat: "Sights", day: 0, time: "07:30", x: 64, y: 86, visited: true, note: "Go early, before the crowds. The full loop is about 2 hours." },
+        { id: 2, name: "Nishiki Market", imp: "want", cat: "Food & drink", day: 0, time: "12:00", x: 47, y: 42 },
+        { id: 3, name: "Kiyomizu-dera", imp: "must", cat: "Sights", day: 0, time: "15:00", x: 68, y: 54 },
+        { id: 4, name: "Gion evening walk", imp: "want", cat: "Sights", day: 0, time: "18:30", x: 63, y: 44 },
+        { id: 5, name: "Arashiyama Bamboo Grove", imp: "must", cat: "Nature", day: 1, time: "08:00", x: 9, y: 30 },
+        { id: 6, name: "Tenryu-ji", imp: "want", cat: "Sights", day: 1, time: "10:30", x: 14, y: 36 },
+        { id: 7, name: "Kinkaku-ji", imp: "must", cat: "Sights", day: 1, time: "14:00", x: 30, y: 12 },
+        { id: 8, name: "Nara deer park", imp: "maybe", cat: "Nature", day: 2, time: "10:00", off: 36 },
+        { id: 9, name: "Dotonbori", imp: "want", cat: "Food & drink", day: 3, time: "19:00", off: 44 },
+        { id: 10, name: "Kyoto Railway Museum", imp: "want", cat: "Museums", x: 40, y: 70 },
+        { id: 11, name: "Kissa Madura coffee", imp: "maybe", cat: "Food & drink", x: 52, y: 40 },
+        { id: 12, name: "Philosopher's Path", imp: "want", cat: "Nature", x: 78, y: 28 },
+      ] },
+    { id: "lisbon", name: "Lisbon long weekend", start: "2027-02-12", end: "2027-02-15", dest: ["Lisbon", "Sintra"], tint: 2,
+      hotel: { name: "Casa do Barão", x: 50, y: 55 },
+      places: [
+        { id: 21, name: "Pena Palace", imp: "must", cat: "Sights", day: 1, time: "10:00", off: 28 },
+        { id: 22, name: "Time Out Market", imp: "want", cat: "Food & drink", day: 0, time: "13:00", x: 40, y: 70 },
+        { id: 23, name: "Tram 28", imp: "maybe", cat: "Sights", x: 60, y: 45 },
+      ] },
+    { id: "iceland", name: "Iceland ring road", start: "", end: "", dest: ["Reykjavík", "Vík"], tint: 0, hotel: { name: "Reykjavík", x: 50, y: 50 }, places: [] },
+  ];
+
+  const S = { screen: "home", trip: "kyoto", sort: "time", show: { must: true, want: true, maybe: true }, cat: "", mapPick: null, place: null, query: "", picked: null, draft: null, toast: "" };
+  const el = document.getElementById("screen");
+  const trip = () => trips.find((t) => t.id === S.trip);
+
+  function d(iso) { const [y, m, dd] = iso.split("-").map(Number); return new Date(y, m - 1, dd); }
+  const fmt = (dt, o) => dt.toLocaleDateString("en-US", o);
+  function dateRange(t) {
+    if (!t.start) return "No dates yet";
+    const a = d(t.start), b = d(t.end);
+    return fmt(a, { month: "short", day: "numeric" }) + " – " + (a.getMonth() === b.getMonth() ? b.getDate() : fmt(b, { month: "short", day: "numeric" })) + ", " + b.getFullYear();
+  }
+  function until(t) {
+    if (!t.start) return "";
+    const n = Math.round((d(t.start) - TODAY) / 864e5);
+    return n > 0 ? "In " + n + " days" : n === 0 ? "Today" : "";
+  }
+  function days(t) {
+    if (!t.start) return [];
+    const out = []; for (let x = d(t.start); x <= d(t.end); x = new Date(x.getFullYear(), x.getMonth(), x.getDate() + 1)) out.push(x);
+    return out;
+  }
+  function km(t, p) {
+    if (p.off) return p.off;
+    return Math.hypot(p.x - t.hotel.x, (p.y - t.hotel.y) * 1.2) * 0.12;
+  }
+  function distText(k) { return k < 1 ? Math.round(k * 1000 / 10) * 10 + " m" : k.toFixed(1) + " km"; }
+  function howLong(k) { return k <= 2.5 ? Math.max(2, Math.round(k * 13)) + " min walk" : Math.round(k * 2.2 + 8) + " min by train"; }
+  const visible = (t) => t.places.filter((p) => S.show[p.imp]);
+
+  function go(screen, extra) { Object.assign(S, extra || {}, { screen }); render(); el.scrollTop = 0; }
+
+  // ---------- screens ----------
+  function home() {
+    return `
+    <header class="bar"><h1 class="bar-title big">Tripboard</h1></header>
+    <main class="app-main">
+      <div class="starts">
+        <button class="start new" type="button" data-go="new">${icon("plus")}<span>New trip</span></button>
+        <button class="start community" type="button" aria-disabled="true">${icon("users")}<span>Trips from the community<small><span class="later">Later</span></small></span></button>
+      </div>
+      <h2 class="section">My trips</h2>
+      <ul class="trips">${trips.map((t) => `
+        <li><button class="trip-card" type="button" data-trip="${t.id}">
+          <div class="trip-cover tint-${t.tint}"></div>
+          ${until(t) ? `<span class="badge">${until(t)}</span>` : ""}
+          <div class="trip-text"><strong>${esc(t.name)}</strong>
+            <span>${dateRange(t)} · ${t.places.length} ${t.places.length === 1 ? "place" : "places"}</span>
+            <span>${esc(t.dest.join(", "))}</span></div>
+        </button></li>`).join("")}
+      </ul>
+      <p class="version">Version 0.1.0</p>
+    </main>`;
+  }
+
+  function newTrip() {
+    const D = S.draft;
+    return `
+    <header class="bar"><button class="icon-btn" type="button" data-go="home" aria-label="All trips">${icon("back")}</button><h1 class="bar-title">New trip</h1></header>
+    <main class="app-main"><form class="form" id="tripForm" novalidate>
+      <div class="field"><span>Cover</span>
+        <div class="cover-pick">
+          <div class="cover-preview tint-${D.tint}">${icon("image")}</div>
+          <div style="display:grid;gap:8px">
+            <div class="swatches" role="group" aria-label="Colour">${[0, 1, 2, 3, 4].map((i) => `<button class="swatch tint-${i}" type="button" data-tint="${i}" aria-pressed="${D.tint === i}" aria-label="Colour ${i + 1}"></button>`).join("")}</div>
+            <button class="btn small" type="button" id="photoBtn">Choose a photo</button>
+          </div>
+        </div>
+      </div>
+      <label class="field">Name <input id="tName" type="text" autocomplete="off" placeholder="Japan in autumn" value="${esc(D.name)}"></label>
+      <div class="row">
+        <label class="field">From <input id="tStart" type="date" value="${D.start}"></label>
+        <label class="field">To <input id="tEnd" type="date" value="${D.end}"></label>
+      </div>
+      <span class="hint dim" style="margin-top:-8px">Dates are optional. Without them, every place goes under No date.</span>
+      <div class="field"><label for="tDest">Destinations</label>
+        <div class="dest-box">${D.dest.map((x, i) => `<span class="dest">${esc(x)}<button type="button" data-undest="${i}" aria-label="Remove ${esc(x)}">${icon("x")}</button></span>`).join("")}
+          <input id="tDest" type="text" autocomplete="off" placeholder="${D.dest.length ? "Add another" : "Tokyo"}"></div>
+        <span class="hint">Press Enter after each one.</span>
+      </div>
+      <div class="form-actions"><button class="btn quiet" type="button" data-go="home">Cancel</button><button class="btn primary" type="submit">Create trip</button></div>
+    </form></main>`;
+  }
+
+  function board() {
+    const t = trip();
+    const sorts = [["time", "Time"], ["category", "Category"], ["importance", "Importance"], ["distance", "Distance"], ["map", "Map"]];
+    return `
+    <header class="bar"><button class="icon-btn" type="button" data-go="home" aria-label="All trips">${icon("back")}</button>
+      <h1 class="bar-title">${esc(t.name)}</h1><button class="icon-btn" type="button" aria-label="Edit trip" data-toast="Edit trip opens the same form, filled in">${icon("pencil")}</button></header>
+    <main class="app-main">
+      <div class="hero tint-${t.tint}"><div class="hero-text">${dateRange(t)}${until(t) ? " · " + until(t) : ""}
+        <ul class="chips">${t.dest.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>
+      <div class="controls">
+        <div class="seg" role="tablist" aria-label="Sort by">${sorts.map(([k, l]) => `<button type="button" role="tab" data-sort="${k}" aria-selected="${S.sort === k}"${k === "map" ? ' aria-label="Map" style="flex:0 0 40px"' : ""}>${k === "map" ? icon("map") : l}</button>`).join("")}</div>
+        <div class="filters" role="group" aria-label="Show">${Object.keys(IMP).map((k) => `<button class="chip imp-${k}" type="button" data-show="${k}" aria-pressed="${S.show[k]}">${IMP[k]}</button>`).join("")}</div>
+      </div>
+      ${t.places.length ? ({ time: byTime, category: byCategory, importance: byImportance, distance: byDistance, map: onMap })[S.sort](t) : `<div class="group" style="text-align:center;padding:32px 16px"><p style="margin:0 0 4px;font-weight:600">No places yet</p><p class="dim" style="margin:0">Tap + to add the first one.</p></div>`}
+    </main>
+    <button class="fab" type="button" data-add aria-label="Add a place">${icon("plus")}</button>`;
+  }
+
+  function tile(p, extra) {
+    return `<button class="tile imp-${p.imp}${p.visited ? " visited" : ""}" type="button" data-place="${p.id}">
+      <span class="tick-dot">${icon("check")}</span>
+      <span class="tile-name">${esc(p.name)}</span>
+      <span class="tile-meta">${extra != null ? extra : `<span class="imp-word">${IMP[p.imp]}</span> · ${esc(p.cat)}`}</span></button>`;
+  }
+  function card(p, right) {
+    return `<li><button class="card imp-${p.imp}${p.visited ? " visited" : ""}" type="button" data-place="${p.id}">
+      <span style="display:grid;gap:2px;min-width:0"><span class="card-name">${esc(p.name)}</span>
+      <span class="card-meta"><span class="imp-word">${IMP[p.imp]}</span> · ${esc(p.cat)}${p.time && p.day != null ? " · " + p.time : ""}</span></span>${right || ""}</button></li>`;
+  }
+
+  function byTime(t) {
+    const ps = visible(t);
+    const ds = days(t);
+    const head = (title, n, extra) => `<div class="group-head"><h2>${title}</h2><span class="count">${n}</span><button class="icon-btn small" type="button" data-add ${extra || ""} aria-label="Add a place to ${title}">${icon("plus")}</button></div>`;
+    let html = ds.map((day, i) => {
+      const list = ps.filter((p) => p.day === i).sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
+      const title = `Day ${i + 1} · ${fmt(day, { weekday: "short", month: "short", day: "numeric" })}`;
+      return `<section class="group">${head(title, list.length, `data-day="${i}"`)}
+        ${list.length ? `<div class="lane">${list.map((p) => `<div class="slot-col"><span class="slot-time">${p.time || "Any time"}</span>${tile(p, esc(p.cat))}</div>`).join("")}</div>` : `<p class="free">Free day</p>`}</section>`;
+    }).join("");
+    const nod = ps.filter((p) => p.day == null);
+    html += `<section class="group">${head("No date", nod.length)}${nod.length ? `<div class="tiles">${nod.map((p) => tile(p)).join("")}</div>` : `<p class="free">Everything has a day.</p>`}</section>`;
+    return `<div class="groups">${html}</div>`;
+  }
+
+  function byCategory(t) {
+    const ps = visible(t);
+    const used = CATS.filter((c) => ps.some((p) => p.cat === c));
+    const shown = S.cat && used.includes(S.cat) ? [S.cat] : used;
+    return `<div class="cat-row" role="group" aria-label="Category">
+        <button class="chip plain" type="button" data-cat="" aria-pressed="${!S.cat}">All</button>
+        ${used.map((c) => `<button class="chip plain" type="button" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${esc(c)} <span class="count">${ps.filter((p) => p.cat === c).length}</span></button>`).join("")}</div>
+      <div class="groups">${shown.map((c) => {
+        const list = ps.filter((p) => p.cat === c);
+        return `<section class="group"><div class="group-head"><h2>${esc(c)}</h2><span class="count">${list.length}</span><button class="icon-btn small" type="button" data-add data-cat-add="${esc(c)}" aria-label="Add to ${esc(c)}">${icon("plus")}</button></div>
+          <div class="tiles">${list.map((p) => tile(p, `<span class="imp-word">${IMP[p.imp]}</span>${p.day != null ? " · Day " + (p.day + 1) : ""}`)).join("")}</div></section>`;
+      }).join("")}</div>`;
+  }
+
+  function byImportance(t) {
+    const ps = visible(t);
+    return `<div class="groups">${Object.keys(IMP).filter((k) => S.show[k]).map((k) => {
+      const list = ps.filter((p) => p.imp === k);
+      return `<section class="group"><div class="group-head"><h2>${IMP[k]}</h2><span class="count">${list.length}</span></div>
+        ${list.length ? `<ul class="cards">${list.map((p) => card(p)).join("")}</ul>` : `<p class="free">None yet.</p>`}</section>`;
+    }).join("")}</div>`;
+  }
+
+  function byDistance(t) {
+    const list = visible(t).map((p) => [p, km(t, p)]).sort((a, b) => a[1] - b[1]);
+    return `<div class="from">${icon("nav")}<span>From</span><strong>${esc(t.hotel.name)}</strong><button class="btn small quiet" type="button" data-toast="Pick: your hotel, where you are now, or any place">Change</button></div>
+      <section class="group"><div class="group-head"><h2>Nearest first</h2><span class="count">${list.length}</span></div>
+      <ul class="cards">${list.map(([p, k]) => card(p, `<span class="card-dist">${distText(k)}<small>${howLong(k)}</small></span>`)).join("")}</ul></section>`;
+  }
+
+  function pinSvg(color) {
+    return `<svg viewBox="0 0 30 36" aria-hidden="true"><path d="M15 35s12-11.2 12-20.5A12 12 0 0 0 3 14.5C3 23.8 15 35 15 35z" fill="${color}" stroke="var(--bg)" stroke-width="2"/></svg>`;
+  }
+  function onMap(t) {
+    const ps = visible(t);
+    const onIt = ps.filter((p) => !p.off);
+    const off = ps.length - onIt.length;
+    const pick = ps.find((p) => p.id === S.mapPick);
+    const color = { must: "var(--must)", want: "var(--want)", maybe: "var(--maybe)" };
+    return `<div class="map" role="img" aria-label="Map of ${esc(t.name)}">
+      <svg class="base" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <rect width="100" height="100" fill="var(--map-land)"/>
+        <path d="M0 20 Q20 26 22 45 T30 100 L0 100Z" fill="var(--map-park)" opacity=".8"/>
+        <path d="M72 0 L100 0 L100 70 Q86 60 80 40 T72 0Z" fill="var(--map-park)" opacity=".8"/>
+        <path d="M58 0 C56 25 60 40 57 60 S60 85 58 100" stroke="var(--map-water)" stroke-width="2.4" fill="none"/>
+        <path d="M0 33 C10 35 15 30 22 34" stroke="var(--map-water)" stroke-width="2" fill="none"/>
+        <g stroke="var(--map-road)" stroke-width="1.1" fill="none">
+          <path d="M0 42 H100"/><path d="M0 54 H100"/><path d="M10 72 H100"/><path d="M30 0 V100"/><path d="M44 0 V100"/><path d="M68 0 V100"/><path d="M80 20 V100"/><path d="M20 10 L90 90"/>
+        </g>
+        <path d="M0 66 H100" stroke="var(--map-rail)" stroke-width="0.8" stroke-dasharray="2 1.2"/>
+      </svg>
+      <div class="hotel" style="left:${t.hotel.x}%;top:${t.hotel.y}%" title="${esc(t.hotel.name)}">H</div>
+      ${onIt.map((p) => `<button class="pin" type="button" data-pin="${p.id}" aria-pressed="${S.mapPick === p.id}" aria-label="${esc(p.name)}" style="left:${p.x}%;top:${p.y}%">${pinSvg(color[p.imp])}<span>${p.day != null ? p.day + 1 : "·"}</span></button>`).join("")}
+      ${off ? `<span class="map-note">${off} more outside this view</span>` : ""}
+      <span class="map-credit">© OpenFreeMap © OpenStreetMap</span>
+    </div>
+    <div class="map-legend"><span><i style="background:var(--must)"></i>Must see</span><span><i style="background:var(--want)"></i>Want to</span><span><i style="background:var(--maybe)"></i>Maybe</span><span>Number = day</span></div>
+    <ul class="cards map-pick">${pick ? card(pick, `<span class="card-dist">${distText(km(t, pick))}<small>from hotel</small></span>`) : `<li class="free">Tap a pin to see the place.</li>`}</ul>`;
+  }
+
+  const FAKE = [
+    { name: "Ginkaku-ji", addr: "Sakyo Ward, Kyoto", cat: "Sights" },
+    { name: "Gion Corner", addr: "Higashiyama Ward, Kyoto", cat: "Sights" },
+    { name: "Ginza Kyoto Ramen", addr: "Shimogyo Ward, Kyoto", cat: "Food & drink" },
+  ];
+  const NEAR = {
+    default: [
+      { name: "Tofuku-ji", cat: "Sights", km: "1.4 km" },
+      { name: "Vermillion Café", cat: "Food & drink", km: "350 m" },
+      { name: "Inari Sushi Koji", cat: "Food & drink", km: "500 m" },
+      { name: "Kyoto National Museum", cat: "Museums", km: "2.1 km" },
+    ],
+  };
+
+  function place() {
+    const t = trip();
+    const p = S.place;
+    const isNew = !t.places.some((x) => x.id === p.id);
+    const ds = days(t);
+    const results = S.query.length > 1 ? FAKE.filter((f) => f.name.toLowerCase().includes(S.query.toLowerCase()) || S.query.length > 2) : [];
+    return `
+    <header class="bar">
+      <button class="icon-btn" type="button" data-go="board" aria-label="Back to the board">${icon("grid")}</button>
+      <label class="search">${icon("search")}<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">Search for a place</span>
+        <input id="q" type="search" autocomplete="off" placeholder="Search for a place" value="${esc(S.query)}"></label>
+    </header>
+    <main class="app-main" style="display:grid;gap:16px">
+      ${results.length ? `<ul class="results">${results.map((f, i) => `<li><button type="button" data-result="${i}"><strong>${esc(f.name)}</strong><small>${esc(f.addr)}</small></button></li>`).join("")}<li class="powered">Results from Google</li></ul>` : ""}
+      ${p.google ? `<div class="source">${icon("pin")}<span>Linked to Google Maps. Only the link is saved; details load when you open it.</span></div>` : ""}
+      <h2 style="margin:0;font-size:20px">${isNew ? "Add a place" : esc(p.name)}</h2>
+      <form class="form" id="placeForm" novalidate>
+        <label class="field">Name <input id="pName" type="text" autocomplete="off" placeholder="Fushimi Inari" value="${esc(p.name)}"></label>
+        <fieldset class="field"><legend>Importance</legend>
+          <div class="seg" role="radiogroup">${Object.keys(IMP).map((k) => `<button type="button" role="radio" class="imp-${k}" data-imp="${k}" aria-checked="${p.imp === k}">${IMP[k]}</button>`).join("")}</div></fieldset>
+        <div class="row">
+          <label class="field">Category <select id="pCat">${CATS.map((c) => `<option${c === p.cat ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+          <label class="field">Day <select id="pDay"><option value="">No date</option>${ds.map((x, i) => `<option value="${i}"${p.day === i ? " selected" : ""}>Day ${i + 1} · ${fmt(x, { weekday: "short", day: "numeric" })}</option>`).join("")}</select></label>
+        </div>
+        <label class="field">Time <input id="pTime" type="time" value="${p.time || ""}"></label>
+        <label class="field">Description <textarea id="pNote" rows="3" placeholder="Go early, before the crowds.">${esc(p.note || "")}</textarea></label>
+        <div class="form-actions">${isNew ? "" : `<button class="btn danger" type="button" data-del>Delete</button>`}<span class="grow"></span>
+          <button class="btn quiet" type="button" data-go="board">Cancel</button><button class="btn primary" type="submit">${isNew ? "Add place" : "Save"}</button></div>
+      </form>
+      <section class="panel is-later" aria-label="Ratings">
+        <h2><span class="grow">Ratings</span><span class="later">Later</span></h2>
+        <div class="rating"><span>Google</span><span class="stars">${[1, 2, 3, 4, 5].map(() => icon("star")).join("")}</span></div>
+        <div class="rating"><span>Tripadvisor</span><span class="stars">${[1, 2, 3, 4, 5].map(() => icon("star")).join("")}</span></div>
+        <p class="dim" style="margin:0;font-size:13px">Scores from other sites, side by side.</p>
+      </section>
+      <section class="panel" aria-label="Nearby">
+        <h2>Nearby</h2>
+        <div class="near">${NEAR.default.map((n, i) => `<div class="near-card"><strong>${esc(n.name)}</strong><span>${esc(n.cat)} · ${n.km}</span><button class="btn small" type="button" data-near="${i}">${icon("plus")}Add</button></div>`).join("")}</div>
+        <p class="dim" style="margin:0;font-size:13px">From Google, around this place.</p>
+      </section>
+    </main>`;
+  }
+
+  // ---------- render + events ----------
+  const JUMPS = [
+    ["home", "Home", "מסך פתיחה"],
+    ["new", "New trip", "מסך טיול חדש"],
+    ["time", "Board · Time", "מיון לפי זמן"],
+    ["category", "Board · Category", "מסך קטגוריה"],
+    ["importance", "Board · Importance", "חשיבות"],
+    ["distance", "Board · Distance", "מרחק"],
+    ["map", "Board · Map", "מפה"],
+    ["place", "Place", "מסך מקום חדש"],
+  ];
+  function current() { return S.screen === "board" ? S.sort : S.screen; }
+  function renderJump() {
+    document.getElementById("jump").innerHTML = JUMPS.map(([k, en, he]) => `<li><button type="button" data-jump="${k}" aria-current="${current() === k}"><b>${en}</b><span lang="he">${he}</span></button></li>`).join("");
+  }
+  function render() {
+    el.innerHTML = ({ home, new: newTrip, board, place })[S.screen]() + (S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : "");
+    renderJump();
+  }
+  let toastTimer;
+  function toast(msg) { S.toast = msg; render(); clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ""; render(); }, 2200); }
+  function openPlace(p) { go("place", { place: Object.assign({}, p), query: "" }); }
+  function newPlace(extra) { openPlace(Object.assign({ id: Date.now(), name: "", imp: "want", cat: "Sights", day: null, time: "" }, extra)); }
+  function newDraft() { return { name: "", start: "", end: "", dest: [], tint: 1 }; }
+
+  document.getElementById("jump").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-jump]"); if (!b) return;
+    const k = b.dataset.jump;
+    if (k === "home") go("home");
+    else if (k === "new") go("new", { draft: newDraft() });
+    else if (k === "place") { S.trip = "kyoto"; openPlace(trip().places[0]); }
+    else go("board", { trip: "kyoto", sort: k });
+  });
+
+  el.addEventListener("click", (e) => {
+    const t = e.target.closest("button"); if (!t) return;
+    const ds = t.dataset;
+    if (ds.go) { if (ds.go === "new") go("new", { draft: newDraft() }); else go(ds.go); return; }
+    if (ds.trip) { go("board", { trip: ds.trip, mapPick: null, cat: "" }); return; }
+    if (ds.sort) { S.sort = ds.sort; render(); return; }
+    if (ds.show) { S.show[ds.show] = !S.show[ds.show]; if (!Object.values(S.show).some(Boolean)) S.show[ds.show] = true; render(); return; }
+    if (ds.cat !== undefined && !("add" in ds)) { S.cat = ds.cat; render(); return; }
+    if (ds.pin) { S.mapPick = Number(ds.pin); render(); return; }
+    if (ds.place) { openPlace(trip().places.find((p) => p.id === Number(ds.place))); return; }
+    if ("add" in ds) { newPlace({ day: ds.day != null ? Number(ds.day) : null, cat: ds.catAdd || "Sights" }); return; }
+    if (ds.toast) { toast(ds.toast); return; }
+    if (ds.tint) { S.draft.tint = Number(ds.tint); render(); return; }
+    if (t.id === "photoBtn") { toast("Opens your photos"); return; }
+    if (ds.undest) { S.draft.dest.splice(Number(ds.undest), 1); render(); return; }
+    if (ds.imp) { readPlace(); S.place.imp = ds.imp; render(); return; }
+    if (ds.result) { const f = FAKE[Number(ds.result)]; readPlace(); Object.assign(S.place, { name: f.name, cat: f.cat, google: true }); S.query = ""; render(); return; }
+    if (ds.near) { const n = NEAR.default[Number(ds.near)]; trip().places.push({ id: Date.now(), name: n.name, imp: "maybe", cat: n.cat, x: 55 + Math.random() * 15, y: 70 + Math.random() * 15, google: true }); toast("Added " + n.name + " to No date"); return; }
+    if ("del" in ds) { const tr = trip(); tr.places = tr.places.filter((p) => p.id !== S.place.id); go("board"); toast("Deleted"); return; }
+  });
+
+  function readPlace() {
+    const g = (id) => document.getElementById(id);
+    if (!g("pName")) return;
+    S.place.name = g("pName").value; S.place.cat = g("pCat").value;
+    S.place.day = g("pDay").value === "" ? null : Number(g("pDay").value);
+    S.place.time = g("pTime").value; S.place.note = g("pNote").value;
+  }
+  function readDraft() {
+    const g = (id) => document.getElementById(id);
+    if (!g("tName")) return;
+    S.draft.name = g("tName").value; S.draft.start = g("tStart").value; S.draft.end = g("tEnd").value;
+  }
+
+  el.addEventListener("input", (e) => {
+    if (e.target.id === "q") {
+      readPlace(); S.query = e.target.value; const pos = e.target.selectionStart; render();
+      const q = document.getElementById("q"); q.focus(); q.setSelectionRange(pos, pos);
+    }
+  });
+  el.addEventListener("keydown", (e) => {
+    if (e.target.id === "tDest" && e.key === "Enter") {
+      e.preventDefault(); const v = e.target.value.trim(); if (!v) return;
+      readDraft(); S.draft.dest.push(v); render(); document.getElementById("tDest").focus();
+    }
+  });
+  el.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (e.target.id === "tripForm") {
+      readDraft(); const D = S.draft;
+      const extra = document.getElementById("tDest").value.trim(); if (extra) D.dest.push(extra);
+      if (!D.name.trim()) { const n = document.getElementById("tName"); n.setAttribute("aria-invalid", "true"); n.focus(); return; }
+      let end = D.end; if (D.start && (!end || end < D.start)) end = D.start;
+      const id = "t" + Date.now();
+      trips.unshift({ id, name: D.name.trim(), start: D.start, end: D.start ? end : "", dest: D.dest.length ? D.dest : ["Somewhere"], tint: D.tint, hotel: { name: "Your stay", x: 50, y: 50 }, places: [] });
+      go("board", { trip: id, sort: "time", mapPick: null });
+    }
+    if (e.target.id === "placeForm") {
+      readPlace(); const p = S.place;
+      if (!p.name.trim()) { const n = document.getElementById("pName"); n.setAttribute("aria-invalid", "true"); n.focus(); return; }
+      const tr = trip(); const i = tr.places.findIndex((x) => x.id === p.id);
+      if (i >= 0) tr.places[i] = p; else { if (p.x == null) { p.x = 35 + Math.random() * 30; p.y = 35 + Math.random() * 30; } tr.places.push(p); }
+      go("board"); toast(i >= 0 ? "Saved" : "Added " + p.name);
+    }
+  });
+
+  const root = document.documentElement;
+  const setTheme = (v) => { if (v) root.setAttribute("data-theme", v); else root.removeAttribute("data-theme"); try { localStorage.setItem("tb-theme", v || ""); } catch (_) {} };
+  document.getElementById("tLight").onclick = () => setTheme("light");
+  document.getElementById("tDark").onclick = () => setTheme("dark");
+  document.getElementById("tSystem").onclick = () => setTheme("");
+  try { const v = localStorage.getItem("tb-theme"); if (v) root.setAttribute("data-theme", v); } catch (_) {}
+
+  render();
+})();
+</script>
+</body>
+</html>
