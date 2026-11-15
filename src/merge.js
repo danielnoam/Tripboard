@@ -3,7 +3,7 @@
 // (test/merge.test.js).
 //
 // A trip travels as a bundle, one file per trip:
-//   { format, trip, places, deleted }
+//   { format, trip, places, expenses, deleted }
 // `deleted` is the trip's tombstones ({ id: { at, trip } }). A deleted trip
 // travels as { format, trip: { id, deletedAt } } so other devices drop it.
 //
@@ -23,7 +23,7 @@
     }
     const deleted = {};
     for (const [id, t] of Object.entries(doc.deleted || {})) if (t.trip === tripId && id !== tripId) deleted[id] = t;
-    return { format: FORMAT, trip, places: doc.places.filter((p) => p.trip === tripId), deleted };
+    return { format: FORMAT, trip, places: doc.places.filter((p) => p.trip === tripId), expenses: (doc.expenses || []).filter((x) => x.trip === tripId), deleted };
   }
 
   // The doc with one trip's records swapped for the bundle's.
@@ -33,12 +33,14 @@
       ...doc,
       trips: doc.trips.filter((t) => t.id !== id),
       places: doc.places.filter((p) => p.trip !== id),
+      expenses: (doc.expenses || []).filter((x) => x.trip !== id),
       deleted: Object.fromEntries(Object.entries(doc.deleted || {}).filter(([k, t]) => t.trip !== id || k === id)),
     };
     if (b.trip.deletedAt) { out.deleted[id] = { at: b.trip.deletedAt, trip: id }; return out; }
     delete out.deleted[id];
     out.trips.push(b.trip);
     out.places = out.places.concat(b.places || []);
+    out.expenses = out.expenses.concat(b.expenses || []);
     Object.assign(out.deleted, b.deleted || {});
     return out;
   }
@@ -103,9 +105,10 @@
       for (const [id, t] of Object.entries(src || {})) if (!gone[id] || t.at > gone[id].at) gone[id] = t;
     }
     const places = mergeList(b && b.places, mine.places, theirs.places, gone);
-    const kept = new Set(places.map((p) => p.id));
+    const expenses = mergeList(b && b.expenses, mine.expenses, theirs.expenses, gone);
+    const kept = new Set(places.concat(expenses).map((p) => p.id));
     for (const id of Object.keys(gone)) if (kept.has(id)) delete gone[id];
-    return { format: FORMAT, trip: mergeRecord(b && b.trip, mine.trip, theirs.trip), places, deleted: gone };
+    return { format: FORMAT, trip: mergeRecord(b && b.trip, mine.trip, theirs.trip), places, expenses, deleted: gone };
   }
 
   // The trips a doc has, alive or deleted (so a deletion is sent too).

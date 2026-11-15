@@ -8,6 +8,9 @@
 // A place: id, trip, name, category, importance, and optionally day, time
 // and endTime (HH:MM), note, lat and lng, address, placeId (Google's id,
 // the only thing kept from Google), visited.
+// An expense: id, trip, title, amount (a number, in `currency`, an ISO
+// 4217 code), category, and optionally day, place (a place's id), note and
+// paidBy (who paid, for when a trip is shared).
 (function () {
   const CATEGORIES = [
     ["sight", "Sights"], ["food", "Food & drink"], ["nature", "Nature"], ["museum", "Museums"],
@@ -22,6 +25,16 @@
   // A day's time slots. A place with a day and no time is "Any time".
   const SLOTS = [["morning", "Morning", "00:00"], ["afternoon", "Afternoon", "12:00"], ["evening", "Evening", "17:00"]];
 
+  const EXPENSE_CATEGORIES = [
+    ["stay", "Stays"], ["transport", "Getting around"], ["food", "Food & drink"], ["activity", "Tickets & activities"],
+    ["shopping", "Shopping"], ["other", "Other"],
+  ];
+  const EXPENSE_CATEGORY = new Map(EXPENSE_CATEGORIES);
+  // The currencies offered first; any other ISO code is kept as it comes.
+  const CURRENCIES = ["USD", "EUR", "GBP", "ILS", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW", "SGD", "THB", "VND",
+    "IDR", "MYR", "PHP", "INR", "AED", "TRY", "EGP", "MAD", "ZAR", "MXN", "BRL", "ARS", "CLP", "PEN", "COP",
+    "SEK", "NOK", "DKK", "ISK", "PLN", "CZK", "HUF", "RON", "GEL"];
+  const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "createdAt", "updatedAt"]);
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
     "lat", "lng", "address", "placeId", "geoAt", "visited", "createdAt", "updatedAt"]);
@@ -77,6 +90,22 @@
     return keepUnknown(p, out, KNOWN_PLACE);
   }
 
+  function sanitizeExpense(e) {
+    e = e || {};
+    const amount = num(e.amount);
+    const category = EXPENSE_CATEGORY.has(e.category) ? e.category : "other";
+    const out = {
+      id: text(e.id) || newId(), trip: text(e.trip),
+      title: text(e.title) || EXPENSE_CATEGORY.get(category),
+      amount: amount != null && amount >= 0 ? Math.round(amount * 100) / 100 : 0,
+      currency: /^[A-Z]{3}$/.test(text(e.currency).toUpperCase()) ? text(e.currency).toUpperCase() : "USD",
+      category, createdAt: e.createdAt || now(), updatedAt: e.updatedAt || e.createdAt || now(),
+    };
+    if (isDay(e.day)) out.day = e.day;
+    for (const k of ["place", "note", "paidBy"]) { const v = text(e[k]); if (v) out[k] = v; }
+    return keepUnknown(e, out, KNOWN_EXPENSE);
+  }
+
   // The whole store. A place whose trip is gone is dropped: deleting a trip
   // takes its places with it. `deleted` remembers what was deleted, when,
   // and in which trip, so a sync doesn't bring it back from another device:
@@ -86,12 +115,14 @@
     const trips = ((d && d.trips) || []).filter((t) => t && typeof t === "object").map(sanitizeTrip);
     const ids = new Set(trips.map((t) => t.id));
     const places = ((d && d.places) || []).filter((p) => p && typeof p === "object").map(sanitizePlace).filter((p) => ids.has(p.trip));
+    const expenses = ((d && d.expenses) || []).filter((x) => x && typeof x === "object").map(sanitizeExpense).filter((x) => ids.has(x.trip));
+    const live = new Set(places.concat(expenses).map((r) => r.id));
     const deleted = {};
     const cutoff = new Date(Date.now() - TOMBSTONE_DAYS * DAY_MS).toISOString();
     for (const [id, t] of Object.entries((d && d.deleted) || {})) {
-      if (t && typeof t.at === "string" && t.at > cutoff && !ids.has(id) && !places.some((p) => p.id === id)) deleted[id] = { at: t.at, trip: text(t.trip) };
+      if (t && typeof t.at === "string" && t.at > cutoff && !ids.has(id) && !live.has(id)) deleted[id] = { at: t.at, trip: text(t.trip) };
     }
-    return keepUnknown(d, { trips, places, deleted }, new Set(["trips", "places", "deleted"]));
+    return keepUnknown(d, { trips, places, expenses, deleted }, new Set(["trips", "places", "expenses", "deleted"]));
   }
 
   // What changed between two saves: a record that's new or different gets
@@ -101,10 +132,10 @@
     at = at || now();
     const before = new Map();
     for (const t of (prev && prev.trips) || []) before.set(t.id, { r: t, trip: t.id });
-    for (const p of (prev && prev.places) || []) before.set(p.id, { r: p, trip: p.trip });
+    for (const p of ((prev && prev.places) || []).concat((prev && prev.expenses) || [])) before.set(p.id, { r: p, trip: p.trip });
     const same = (a, b) => { const x = { ...a }, y = { ...b }; delete x.updatedAt; delete y.updatedAt; return JSON.stringify(x) === JSON.stringify(y); };
     const seen = new Set();
-    for (const r of next.trips.concat(next.places)) {
+    for (const r of next.trips.concat(next.places, next.expenses || [])) {
       seen.add(r.id);
       const b = before.get(r.id);
       if (!b || !same(b.r, r)) r.updatedAt = at;
@@ -213,18 +244,20 @@
   function backupOf(doc, tripIds) {
     const ids = new Set(tripIds && tripIds.length ? tripIds : doc.trips.map((t) => t.id));
     return { app: "tripboard", format: BACKUP_FORMAT, exportedAt: now(),
-      trips: doc.trips.filter((t) => ids.has(t.id)), places: doc.places.filter((p) => ids.has(p.trip)), covers: {} };
+      trips: doc.trips.filter((t) => ids.has(t.id)), places: doc.places.filter((p) => ids.has(p.trip)),
+      expenses: (doc.expenses || []).filter((x) => ids.has(x.trip)), covers: {} };
   }
   // A backup's trips join the doc. A trip already here (same id) is
   // replaced by the file's copy, places and all. → { doc, added, replaced }
   function mergeBackup(doc, data) {
     if (!data || data.app !== "tripboard" || !Array.isArray(data.trips)) throw new Error("That file isn't a Tripboard backup.");
     if (data.format > BACKUP_FORMAT) throw new Error("That backup is from a newer Tripboard. Update this one first.");
-    const incoming = sanitizeDoc({ trips: data.trips, places: data.places || [] });
+    const incoming = sanitizeDoc({ trips: data.trips, places: data.places || [], expenses: data.expenses || [] });
     const ids = new Set(incoming.trips.map((t) => t.id));
     const replaced = doc.trips.filter((t) => ids.has(t.id)).length;
     return {
-      doc: { ...doc, trips: doc.trips.filter((t) => !ids.has(t.id)).concat(incoming.trips), places: doc.places.filter((p) => !ids.has(p.trip)).concat(incoming.places) },
+      doc: { ...doc, trips: doc.trips.filter((t) => !ids.has(t.id)).concat(incoming.trips), places: doc.places.filter((p) => !ids.has(p.trip)).concat(incoming.places),
+        expenses: (doc.expenses || []).filter((x) => !ids.has(x.trip)).concat(incoming.expenses) },
       added: incoming.trips.length - replaced, replaced, ids: [...ids],
     };
   }
@@ -242,7 +275,30 @@
     return places.filter((p) => p.day === day && p.lat != null).sort(byTime);
   }
 
+  // What a trip's expenses add up to: one total per currency, the biggest
+  // first (no exchange rates, so currencies aren't added together).
+  function expenseTotals(list) {
+    const by = new Map();
+    for (const x of list) by.set(x.currency, Math.round(((by.get(x.currency) || 0) + x.amount) * 100) / 100);
+    return [...by].map(([currency, total]) => ({ currency, total })).sort((a, b) => b.total - a.total);
+  }
+  // Per category, in EXPENSE_CATEGORIES' order, each with its totals.
+  function expensesByCategory(list) {
+    return EXPENSE_CATEGORIES.map(([id, title]) => ({ id, title, totals: expenseTotals(list.filter((x) => x.category === id)) }))
+      .filter((g) => g.totals.length);
+  }
+  // The list by day, oldest first, then the undated; newest added first in each.
+  function expenseDays(list) {
+    const days = [...new Set(list.filter((x) => x.day).map((x) => x.day))].sort();
+    const order = (a, b) => String(b.createdAt).localeCompare(String(a.createdAt));
+    const out = days.map((day) => ({ day, items: list.filter((x) => x.day === day).sort(order) }));
+    const none = list.filter((x) => !x.day).sort(order);
+    if (none.length) out.push({ day: null, items: none });
+    return out;
+  }
+
   const api = {
+    EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,

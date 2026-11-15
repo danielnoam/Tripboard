@@ -92,4 +92,26 @@ test("tripIds lists live trips and deleted ones", () => {
   assert.deepStrictEqual(G.tripIds(d).sort(), ["t", "u"]);
 });
 
+test("expenses travel in the bundle and merge like places", () => {
+  const d = clone(start);
+  d.expenses = [{ id: "x", trip: "t", title: "Ryokan", amount: 300, currency: "JPY", category: "stay", createdAt: at(0), updatedAt: at(0) }];
+  const base = G.bundleOf(M.sanitizeDoc(d), "t");
+  assert.strictEqual(base.expenses.length, 1);
+  const mine = clone(base), theirs = clone(base);
+  Object.assign(mine.expenses[0], { amount: 320, updatedAt: at(2) });
+  theirs.expenses.push({ id: "y", trip: "t", title: "Train", amount: 14, currency: "EUR", category: "transport", updatedAt: at(3) });
+  const out = G.mergeBundles(base, mine, theirs);
+  assert.deepStrictEqual(out.expenses.map((x) => x.id + ":" + x.amount).sort(), ["x:320", "y:14"]);
+  const back = G.applyBundle({ trips: [], places: [], expenses: [], deleted: {} }, out);
+  assert.strictEqual(back.expenses.length, 2);
+});
+
+test("a bundle from before expenses merges with one that has them", () => {
+  const base = G.bundleOf(start, "t");
+  delete base.expenses;
+  const mine = clone(base);
+  mine.expenses = [{ id: "x", trip: "t", title: "Taxi", amount: 9, currency: "EUR", category: "transport", updatedAt: at(4) }];
+  assert.strictEqual(G.mergeBundles(base, mine, clone(base)).expenses.length, 1);
+});
+
 console.log(passed + " passed");

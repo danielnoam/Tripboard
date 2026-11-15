@@ -114,4 +114,41 @@ test("a day's route: its located places in planned order", () => {
   ], "2026-11-17").map((p) => p.id), ["early", "late"]);
 });
 
+test("an expense is cleaned: amount, currency, category, and its trip must exist", () => {
+  const d = M.sanitizeDoc({ trips: [{ id: "t", name: "K" }], expenses: [
+    { id: "a", trip: "t", amount: "12.345", currency: "eur", category: "food" },
+    { id: "b", trip: "t", amount: -5, currency: "euro", category: "spaceship", day: "2026-02-30" },
+    { id: "c", trip: "gone", amount: 1 },
+  ] });
+  assert.deepStrictEqual(d.expenses.map((x) => [x.id, x.amount, x.currency, x.category, x.title, x.day]), [
+    ["a", 12.35, "EUR", "food", "Food & drink", undefined],
+    ["b", 0, "USD", "other", "Other", undefined],
+  ]);
+});
+
+test("expense totals are per currency, and by category in order", () => {
+  const list = [
+    { amount: 10, currency: "EUR", category: "food" }, { amount: 0.1, currency: "EUR", category: "food" },
+    { amount: 0.2, currency: "EUR", category: "stay" }, { amount: 3000, currency: "JPY", category: "food" },
+  ];
+  assert.deepStrictEqual(M.expenseTotals(list), [{ currency: "JPY", total: 3000 }, { currency: "EUR", total: 10.3 }]);
+  assert.deepStrictEqual(M.expensesByCategory(list).map((g) => g.id), ["stay", "food"]);
+});
+
+test("expenses by day: dated days in order, then the undated", () => {
+  const list = [{ id: "n", createdAt: "1" }, { id: "b", day: "2026-12-02", createdAt: "1" }, { id: "a", day: "2026-12-01", createdAt: "1" }];
+  assert.deepStrictEqual(M.expenseDays(list).map((g) => g.day), ["2026-12-01", "2026-12-02", null]);
+});
+
+test("stamp covers expenses: changed ones get updatedAt, removed ones a tombstone", () => {
+  const prev = M.sanitizeDoc({ trips: [{ id: "t", name: "K", updatedAt: "2026-01-01" }], expenses: [
+    { id: "a", trip: "t", amount: 1, currency: "EUR", updatedAt: "2026-01-01" }, { id: "b", trip: "t", amount: 2, currency: "EUR", updatedAt: "2026-01-01" }] });
+  const next = JSON.parse(JSON.stringify(prev));
+  next.expenses[0].amount = 5;
+  next.expenses = next.expenses.slice(0, 1);
+  M.stamp(prev, next, "2026-11-15T00:00:00.000Z");
+  assert.strictEqual(next.expenses[0].updatedAt, "2026-11-15T00:00:00.000Z");
+  assert.deepStrictEqual(next.deleted.b, { at: "2026-11-15T00:00:00.000Z", trip: "t" });
+});
+
 console.log(passed + " passed");

@@ -67,6 +67,31 @@
     </form>
   </dialog>
 
+  <dialog class="sheet" id="expenseSheet" aria-labelledby="expenseSheetTitle">
+    <form class="sheet-body" id="expenseForm" novalidate>
+      <h2 id="expenseSheetTitle">Add an expense</h2>
+      <div class="row">
+        <label class="field">Amount <input name="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" required></label>
+        <label class="field">Currency <select name="currency" id="expenseCurrency"></select></label>
+      </div>
+      <label class="field">What
+        <input name="title" type="text" autocomplete="off" maxlength="160" placeholder="Ryokan, two nights">
+      </label>
+      <label class="field">Category <select name="category" id="expenseCategory"></select></label>
+      <label class="field">Day <select id="expenseDay"></select><input id="expenseDayInput" type="date" hidden></label>
+      <label class="field">Place <select name="place" id="expensePlace"></select></label>
+      <label class="field">Note
+        <textarea name="note" rows="2" maxlength="2000"></textarea>
+      </label>
+      <div class="sheet-actions">
+        <button class="btn danger" id="expenseDelete" type="button" hidden>Delete</button>
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close>Cancel</button>
+        <button class="btn primary" type="submit" id="expenseSave">Add expense</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="sheet" id="placeSheet" aria-labelledby="placeSheetTitle">
     <form class="sheet-body" id="placeForm" novalidate>
       <h2 id="placeSheetTitle">Add a place</h2>

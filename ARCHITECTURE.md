@@ -11,7 +11,7 @@ manifest.json        the web app manifest
 icon.svg             the app icon
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js)
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips and places: cleaning, days, time slots, the board's sorts and filter (Node-tested)
+src/model.js         trips, places and expenses: cleaning, days, time slots, the board's sorts and filter (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc") and each trip's cover photo
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
@@ -111,6 +111,9 @@ adds a line here.
 - Two devices changing the same field of the same record: the record with
   the later `updatedAt` wins, by each device's clock. A device with a
   wrong clock can win or lose when it shouldn't.
+- Expenses add up per currency, with no exchange rates (they'd need a
+  rates service and a date per expense), so a trip in two currencies
+  shows two totals.
 - Cover photos sync whole (covers/<id>.jpg); the trip's `coverAt` says
   which copy is newer.
 

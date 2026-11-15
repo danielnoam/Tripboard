@@ -139,7 +139,7 @@
     hero.append(el("div.hero-text", {},
       el("span", { text: rangeLabel(trip) + (whenLabel(trip) ? " · " + whenLabel(trip) : "") }),
       trip.destinations.length ? el("ul.chips", {}, trip.destinations.map((d) => el("li", { text: d }))) : null));
-    main.append(hero);
+    main.append(hero, tripTabs(trip));
 
     const controls = el("div.controls", {},
       el("div.seg.sorts", { role: "tablist", "aria-label": "Sort places by" }, SORTS.map(([id, label]) =>
@@ -174,6 +174,113 @@
     for (const g of groups) wrap.append(group(trip, g));
     main.append(wrap);
   }
+
+  // Plan and Expenses: a trip's two lists (the map is the button at the top).
+  function tripTabs(trip) {
+    const tabs = [["board", "Plan", ""], ["expenses", "Expenses", "/expenses"]];
+    return el("div.seg.trip-tabs", { role: "tablist", "aria-label": "Show" }, tabs.map(([mode, label, path]) =>
+      el("button", { type: "button", role: "tab", "aria-selected": String(view.mode === mode), text: label,
+        onclick: () => { location.hash = "#/trip/" + trip.id + path; } })));
+  }
+
+  // ---------- Expenses ----------
+  const expensesOf = (id) => (doc.expenses || []).filter((x) => x.trip === id);
+  function money(amount, currency) {
+    try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount); }
+    catch (e) { return amount + " " + currency; }
+  }
+  const moneyList = (totals) => totals.map((t) => money(t.total, t.currency)).join(" + ");
+
+  function renderExpenses(main, trip) {
+    $("title").textContent = trip.name;
+    main.append(tripTabs(trip));
+    const list = expensesOf(trip.id);
+    if (!list.length) {
+      main.append(el("div.empty", {}, el("p", { text: "No expenses yet." }), el("p.dim", { text: "Add what the trip costs with +." })));
+      return;
+    }
+    const totals = M.expenseTotals(list);
+    main.append(el("section.panel.spend", {},
+      el("h2", { text: "Total" }),
+      el("p.spend-total", {}, totals.map((t) => el("span", { text: money(t.total, t.currency) }))),
+      totals.length > 1 ? el("p.hint.dim", { text: "Each currency adds up on its own, without exchange rates." }) : null,
+      el("ul.spend-cats", {}, M.expensesByCategory(list).map((g) => el("li", {}, el("span", { text: g.title }), el("span.amount", { text: moneyList(g.totals) }))))));
+    const wrap = el("div.groups");
+    for (const g of M.expenseDays(list)) {
+      const title = g.day ? (trip.start ? "Day " + M.dayIndex(trip, g.day) + " · " : "") + dayLabel(g.day) : "No date";
+      wrap.append(el("section.group", {},
+        el("div.group-head", {}, el("h2", { text: title }), el("span.count", { text: moneyList(M.expenseTotals(g.items)) })),
+        el("div.xrows", {}, g.items.map((x) => {
+          const place = x.place && doc.places.find((p) => p.id === x.place);
+          return el("button.xrow", { type: "button", onclick: (e) => openExpense(x, trip, e.currentTarget) },
+            el("span.xrow-text", {}, el("span.xrow-title", { text: x.title }),
+              el("span.xrow-meta", { text: M.EXPENSE_CATEGORY.get(x.category) + (place ? " · " + place.name : "") + (x.note ? " · " + x.note : "") })),
+            el("span.amount", { text: money(x.amount, x.currency) }));
+        }))));
+    }
+    main.append(wrap);
+  }
+
+  let editingExpense = null, expenseTrip = null;
+  const lastCurrency = () => { try { return localStorage.getItem("tripboard.currency") || ""; } catch (e) { return ""; } };
+  function openExpense(x, trip, from) {
+    editingExpense = x;
+    expenseTrip = trip;
+    const f = $("expenseForm");
+    f.reset();
+    f.amount.removeAttribute("aria-invalid");
+    const mine = expensesOf(trip.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const cur = x ? x.currency : (mine[0] && mine[0].currency) || lastCurrency() || "USD";
+    const codes = [...new Set([cur, ...mine.map((e) => e.currency), ...M.CURRENCIES])];
+    $("expenseCurrency").replaceChildren(...codes.map((c) => el("option", { value: c, text: c })));
+    $("expenseCurrency").value = cur;
+    $("expenseCategory").replaceChildren(...M.EXPENSE_CATEGORIES.map(([id, label]) => el("option", { value: id, text: label })));
+    $("expenseCategory").value = x ? x.category : "food";
+    const dated = !!trip.start;
+    $("expenseDay").hidden = !dated;
+    $("expenseDayInput").hidden = dated;
+    $("expenseDay").replaceChildren(el("option", { value: "", text: "No date" }),
+      ...M.tripDays(trip, placesOf(trip.id)).map((d) => el("option", { value: d, text: (trip.start ? "Day " + M.dayIndex(trip, d) + " · " : "") + dayLabel(d) })));
+    const today = new Date().toISOString().slice(0, 10);
+    const day = x ? x.day || "" : M.tripDays(trip, []).includes(today) ? today : "";
+    $("expenseDay").value = day;
+    $("expenseDayInput").value = day;
+    $("expensePlace").replaceChildren(el("option", { value: "", text: "None" }),
+      ...placesOf(trip.id).slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => el("option", { value: p.id, text: p.name })));
+    $("expensePlace").value = (x && x.place && placesOf(trip.id).some((p) => p.id === x.place)) ? x.place : "";
+    f.amount.value = x ? String(x.amount) : "";
+    f.title.value = x ? x.title : "";
+    f.note.value = x ? x.note || "" : "";
+    $("expenseSheetTitle").textContent = x ? "Edit expense" : "Add an expense";
+    $("expenseSave").textContent = x ? "Save" : "Add expense";
+    $("expenseDelete").hidden = !x;
+    if (x) armDelete($("expenseDelete"), "Delete", () => {
+      closeSheet($("expenseSheet"));
+      undoable("Deleted " + x.title + ".", () => { doc.expenses = doc.expenses.filter((e) => e !== x); });
+    });
+    openSheet($("expenseSheet"), from);
+  }
+  // "12,50" and "1 200.5" are amounts too.
+  function parseAmount(v) {
+    let t = String(v).replace(/[\s\u00a0']/g, "");
+    if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
+    t = t.replace(/,/g, "");
+    return /^\d+(\.\d+)?$/.test(t) ? +t : null;
+  }
+  $("expenseForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const amount = parseAmount(f.amount.value);
+    if (amount == null) { f.amount.setAttribute("aria-invalid", "true"); f.amount.focus(); return; }
+    const stamp = new Date().toISOString();
+    const x = editingExpense || { id: M.newId(), trip: expenseTrip.id, createdAt: stamp };
+    Object.assign(x, { amount, currency: f.currency.value, title: f.title.value, category: f.category.value,
+      day: expenseTrip.start ? $("expenseDay").value : $("expenseDayInput").value, place: f.place.value, note: f.note.value, updatedAt: stamp });
+    try { localStorage.setItem("tripboard.currency", x.currency); } catch (err) { /* private window */ }
+    if (!editingExpense) { doc.expenses = doc.expenses || []; doc.expenses.push(x); }
+    await closeSheet($("expenseSheet"));
+    save();
+  });
 
   function group(trip, g) {
     const isDay = !!g.day;
@@ -1045,11 +1152,11 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
-    const m = /^#\/trip\/([\w-]+)(\/map)?/.exec(location.hash);
+    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
     if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
-    view.mode = trip && m[2] ? "map" : "board";
+    view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
     $("viewToggle").hidden = !trip;
     $("viewToggle").replaceChildren(icon(onMap ? "list" : "map"));
@@ -1067,8 +1174,8 @@
       return;
     }
     const main = $("app");
-    const y = main.dataset.trip === String(view.trip) ? window.scrollY : 0;
-    main.dataset.trip = String(view.trip);
+    const y = main.dataset.trip === view.trip + view.mode ? window.scrollY : 0;
+    main.dataset.trip = view.trip + view.mode;
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
     document.body.classList.toggle("on-home", !trip && !settings);
@@ -1076,7 +1183,9 @@
     $("editTrip").hidden = !trip;
     $("fab").hidden = !trip;
     if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
+    else if (trip && view.mode === "expenses") renderExpenses(main, trip);
     else if (trip) renderBoard(main, trip); else renderHome(main);
+    $("fab").setAttribute("aria-label", view.mode === "expenses" ? "Add an expense" : "Add a place");
     window.scrollTo(0, y);
   }
 
@@ -1096,7 +1205,8 @@
       location.hash = "#/trip/" + view.trip + (view.mode === "map" ? "" : "/map");
     });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
-    $("fab").addEventListener("click", (e) => openPlace(null, findTrip(view.trip), null, e.currentTarget));
+    $("fab").addEventListener("click", (e) => view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
+      : openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);
     render();
     setTimeout(refreshGoogle, 2000);

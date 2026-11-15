@@ -13,7 +13,6 @@ moves to DROPPED.md with his reason.
 
 - **A files section.** Tickets, bookings, PDFs kept with the trip,
   offline.
-- **An expenses section.** What the trip costs, by place or day.
 
 ## With other people
 
