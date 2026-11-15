@@ -171,7 +171,19 @@ body.on-board main { max-width: 1200px; }
 .locate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
 .locate p { margin: 0; flex: 1 1 240px; }
 
+.trip-tabs { max-width: 420px; margin-bottom: var(--space-3); }
 .groups { display: grid; gap: var(--space-3); }
+/* Expenses */
+.spend-total { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.spend-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.spend-cats li, .xrow { display: flex; align-items: baseline; gap: var(--space-2); }
+.spend-cats li span:first-child { flex: 1; color: var(--text-dim); }
+.amount { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.xrows { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
+.xrow { width: 100%; min-height: 48px; padding: 8px 12px; border: 0; border-radius: 10px; background: var(--bg); text-align: start; cursor: pointer; }
+.xrow-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.xrow-title { font-weight: 600; }
+.xrow-meta { color: var(--text-dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group { padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
 .group-head { display: flex; align-items: center; gap: var(--space-2); }
 .group-head h2 { flex: 1; margin: 0; font-size: 17px; }
