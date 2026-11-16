@@ -848,11 +848,68 @@
     $("tripFileRow").hidden = !trip;
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
     $("tripImportRow").hidden = !trip;
+    $("tripOfflineRow").hidden = !trip;
     $("tripImportLinkRow").hidden = !SHARE.enabled();
     $("tripImportLink").value = "";
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
     openSheet($("tripSheet"), from);
+    paintOffline();
   }
+  // Offline, in Edit trip: OpenFreeMap's map around the trip's places,
+  // kept on this device (offline.js).
+  const OFF = window.Tripboard.offline;
+  function paintOffline() {
+    const trip = editingTrip, box = $("offlineCard");
+    if (!trip || !$("tripSheet").open) return;
+    const st = OFF.status(trip.id);
+    const points = OFF.pointsOf(placesOf(trip.id));
+    const where = trip.destinations.length ? i18n.join(trip.destinations) : "";
+    const mb = (n) => Math.max(1, Math.round(n / 1e6));
+    const go = (force) => OFF.save(trip, OFF.pointsOf(placesOf(trip.id)), { style: (SET.get().providers.openfreemap || {}).style, force })
+      .catch((e) => toast(e.message));
+    const wifi = el("label.check", {}, el("input", { type: "checkbox", checked: OFF.wifiOnly, onchange: (e) => { OFF.wifiOnly = e.target.checked; } }),
+      el("span", { text: i18n.t("Only on Wi-Fi") }));
+    const kids = [];
+    if (st && st.state === "saving") {
+      kids.push(el("p.offline-title", { text: i18n.t("Saving for no signal…") }),
+        el("progress", { max: st.total || 1, value: st.done, "aria-label": i18n.t("Saving for no signal…") }),
+        el("p.dim", { text: st.waiting === "wifi" ? i18n.t("Waiting for Wi-Fi. It goes on by itself on Wi-Fi, or untick Only on Wi-Fi.")
+          : st.waiting === "offline" ? i18n.t("Waiting for a connection. It goes on by itself once there is one.")
+          : !st.total ? i18n.t("Getting ready…")
+          : i18n.t("Map tiles {done} of {total} · about {mb} MB so far. You can keep using the app.", { done: fmtNum(st.done), total: fmtNum(st.total), mb: mb(st.bytes) }) }),
+        el("div.offline-actions", {}, el("button.btn.quiet", { type: "button", text: i18n.t("Stop"), onclick: () => OFF.stop() })),
+        st.waiting === "wifi" ? wifi : null);
+    } else if (st && st.state === "saved") {
+      const gone = OFF.missing(st.points, points);
+      const at = new Date(st.at);
+      const when = new Intl.DateTimeFormat(i18n.lang, at.toDateString() === new Date().toDateString() ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(at);
+      kids.push(el("p.offline-title", { text: i18n.t("Saved for no signal") }),
+        el("p.dim", { text: (where ? i18n.t("The map of {where} (zoomed in to street level), every place, cover and synced file.", { where })
+          : i18n.t("The map around this trip's places (zoomed in to street level), every place, cover and synced file.")) + " "
+          + i18n.t("{mb} MB on this device. Updated {when}.", { mb: mb(st.bytes), when }) }),
+        gone ? el("p", { text: i18n.tn(gone, "1 place added since isn't on the saved map. Update now to add it.", "{n} places added since aren't on the saved map. Update now to add them.") }) : null,
+        el("div.offline-actions", {}, el("button.btn", { type: "button", text: i18n.t("Update now"), onclick: () => go(true) }),
+          el("button.btn.quiet", { type: "button", text: i18n.t("Remove"), onclick: () => OFF.remove(trip.id) })));
+    } else {
+      const partial = st && st.state === "partial";
+      kids.push(el("p.offline-title", { text: partial ? i18n.t("Not finished") : i18n.t("Not saved for offline") }),
+        el("p.dim", { text: !points.length ? i18n.t("Add places with a location first. The map is saved around them.")
+          : partial ? (st.error ? st.error + " " : "") + i18n.t("{done} of {total} map files saved. Save for offline picks up where it stopped.", { done: fmtNum(st.saved || 0), total: fmtNum(st.total || 0) })
+          : where ? i18n.t("Saves the map around this trip's places ({where}, about {mb} MB). Places, covers and synced files are already on this device, so it all works with no signal.", { where, mb: mb(OFF.estimate(points)) })
+          : i18n.t("Saves the map around this trip's places (about {mb} MB). Places, covers and synced files are already on this device, so it all works with no signal.", { mb: mb(OFF.estimate(points)) }) }),
+        el("div.offline-actions", {}, el("button.btn.primary", { type: "button", text: i18n.t("Save for offline"), disabled: !points.length, onclick: () => go(false) }),
+          partial ? el("button.btn.quiet", { type: "button", text: i18n.t("Remove"), onclick: () => OFF.remove(trip.id) }) : null),
+        wifi);
+    }
+    box.replaceChildren(...kids.filter(Boolean));
+  }
+  const fmtNum = (n) => new Intl.NumberFormat(i18n.lang).format(n);
+  OFF.onChange(() => { paintOffline(); paintOfflineBadge(); });
+  function paintOfflineBadge() {
+    const st = view.trip && OFF.status(view.trip);
+    $("offlineBadge").hidden = !(st && st.state === "saved") || view.mode === "share";
+  }
+
   // A photo is made at most 1600 px wide as a JPEG before it's kept.
   async function shrink(file) {
     const img = await createImageBitmap(file);
@@ -1972,6 +2029,7 @@
     const onMap = view.mode === "map";
     $("mapView").hidden = !onMap;
     paintTripBar(view.mode === "share" ? null : trip);
+    paintOfflineBadge();
     $("shareTrip").hidden = !trip || view.mode === "share";
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);
@@ -2034,6 +2092,7 @@
     render();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();
+    if (doc.trips.length) OFF.sweep(doc.trips.map((t) => t.id));
     const T = window.Tripboard;
     if (T.sync) {
       T.sync.onStatus = () => { if (syncPaint) syncPaint(); };

@@ -18,6 +18,7 @@
   <header class="bar">
     <button class="icon-btn" id="back" type="button" aria-label="All trips" hidden data-t-attr="aria-label"></button>
     <h1 class="bar-title" id="title">Tripboard</h1>
+    <span class="offline-badge" id="offlineBadge" hidden data-t>Ready offline</span>
     <button class="icon-btn" id="newTrip" type="button" aria-label="New trip" title="New trip" hidden data-t-attr="aria-label,title"></button>
     <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-t-attr="aria-label"></button>
     <button class="icon-btn" id="shareTrip" type="button" aria-label="Sharing" title="Sharing" hidden data-t-attr="aria-label,title"></button>
@@ -70,6 +71,11 @@
           <input id="tripImportLink" type="url" inputmode="url" autocomplete="off" placeholder="https://maps.app.goo.gl/…" aria-label="A shared Google Maps list's link" data-t-attr="aria-label">
           <button class="btn" id="tripImportGo" type="button" data-t>Import</button>
         </div>
+      </div>
+      <div class="field" id="tripOfflineRow" hidden>
+        <span data-t>Offline</span>
+        <div class="offline-card" id="offlineCard"></div>
+        <p class="hint dim" data-t>Maps from OpenFreeMap. Google's map can't be saved: its terms don't allow it.</p>
       </div>
       <div class="field" id="tripFileRow" hidden>
         <span data-t>Backup</span>
@@ -224,6 +230,7 @@
   <script src="src/drive.js?v=0.1.0"></script>
   <script src="src/places.js?v=0.1.0"></script>
   <script src="src/listimport.js?v=0.1.0"></script>
+  <script src="src/offline.js?v=0.1.0"></script>
   <script src="src/map.js?v=0.1.0"></script>
   <script src="src/icons.js?v=0.1.0"></script>
   <script src="src/views.js?v=0.1.0"></script>

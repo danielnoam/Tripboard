@@ -61,6 +61,9 @@
   const SOURCES = {
     async openfreemap(o, dark) {
       const name = o.style === "liberty" || o.style === "bright" ? o.style : dark ? "dark" : "positron";
+      // With a trip saved for offline, the map reads through its kept copy (offline.js).
+      const off = window.Tripboard && window.Tripboard.offline;
+      if (off && off.any()) return off.style(name);
       return getJson(OFM + name, "OpenFreeMap");
     },
     async maptiler(o, dark) {
@@ -93,9 +96,13 @@
   const dark = () => document.documentElement.dataset.theme === "dark";
 
   // The first provider in the chain whose map loads. → { by, skipped }
+  // With no connection and a trip saved for offline, OpenFreeMap goes first:
+  // it's the map that's kept.
   async function resolve(cfg) {
     const skipped = [];
-    for (const id of cfg.chain) {
+    const off = window.Tripboard && window.Tripboard.offline;
+    const chain = navigator.onLine === false && off && off.any() ? ["openfreemap", ...cfg.chain.filter((x) => x !== "openfreemap")] : cfg.chain;
+    for (const id of chain) {
       if (!SOURCES[id]) continue;
       try { return { style: await SOURCES[id](cfg.providers[id] || {}, dark()), by: id, skipped }; }
       catch (e) { skipped.push({ id, reason: e.message }); }
@@ -129,7 +136,8 @@
   let queue = Promise.resolve();
   T.open = (container, cfg) => (queue = queue.catch(() => {}).then(() => open(container, cfg)));
   async function open(container, cfg) {
-    const want = JSON.stringify([cfg, dark()]);
+    const off = window.Tripboard.offline;
+    const want = JSON.stringify([cfg, dark(), navigator.onLine, !!(off && off.any())]);
     if (map && want === applied) { map.resize(); return T.last; }
     css();
     if (!lib) {
@@ -137,6 +145,7 @@
       // Hebrew and Arabic labels in the right order; fetched only when a
       // label needs it, and kept offline with the app.
       try { lib.setRTLTextPlugin(new URL("src/vendor/rtl-text/plugin.mjs", location.href).href, true); } catch (e) { /* already set */ }
+      if (window.Tripboard.offline) lib.addProtocol("tbo", window.Tripboard.offline.protocol);
     }
     const r = await resolve(cfg);
     google = r.style.__google || null;
