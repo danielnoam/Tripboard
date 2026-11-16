@@ -751,7 +751,7 @@
   }
 
   // 350 m, 1.2 km; in Hebrew 350 מ׳, 1.2 ק״מ.
-  const distLabel = (km) => (km < 1
+  const boardDist = (km) => (km < 1
     ? new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "meter", maximumFractionDigits: 0 }).format(Math.round(km * 1000))
     : new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "kilometer", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(km));
   function cards(trip, list, g) {
@@ -761,7 +761,7 @@
       else if (p.endDay && g.day) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       if (p.time) meta.push(timeLabel(p));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
-      if (g.km && g.km.has(p.id)) meta.push(distLabel(g.km.get(p.id)));
+      if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
       return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
         el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
           onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
