@@ -9,7 +9,7 @@
 // A section someone doesn't see never reaches their device, so applying the
 // server's copy drops it here too.
 //
-//   Tripboard.share.start({ getDoc, adopt, version, store, filesChanged, coverChanged, gone })
+//   Tripboard.share.start({ getDoc, adopt, version, store, filesChanged, coverChanged, unshared })
 //   .invite(trip) -> link    .join(tripId, code)    .leave(id)    .stop(id)
 //   .shared(id) -> { role, hidden } or null    .onChange = () => …
 (function () {
@@ -25,11 +25,29 @@
   S.enabled = () => !!server();
   S.shared = (id) => (state[id] ? { role: state[id].role, hidden: state[id].hidden || [] } : null);
 
+  // Keys this device let go of (left, removed, stopped), so a copy of them
+  // in the sync repo isn't taken up again.
+  let dropped = [];
   async function load() {
-    if (!loaded) loaded = ctx.store.meta("shares").then((s) => { state = s || {}; });
+    if (!loaded) loaded = Promise.all([ctx.store.meta("shares"), ctx.store.meta("sharesDropped")])
+      .then(([s, d]) => { state = s || {}; dropped = d || []; });
     return loaded;
   }
-  const keep = () => ctx.store.setMeta("shares", state);
+  const keep = () => Promise.all([ctx.store.setMeta("shares", state), ctx.store.setMeta("sharesDropped", dropped.slice(-200))]);
+
+  // Your other devices: GitHub sync keeps each shared trip's key in your
+  // sync repo (shares.json), so every device of yours opens the trip as you.
+  S.keys = async () => { await load(); return Object.fromEntries(Object.entries(state).map(([id, st]) => [id, st.key]).sort()); };
+  S.adoptKeys = async (keys) => {
+    await load();
+    let added = false;
+    for (const [id, key] of Object.entries(keys || {})) {
+      if (state[id] || typeof key !== "string" || dropped.includes(key) || !/^[\w-]{1,40}$/.test(id)) continue;
+      state[id] = { key, version: 0, base: null, role: "editor", hidden: [], files: {}, cover: "" };
+      added = true;
+    }
+    if (added) { await keep(); changed(); S.soon(0); }
+  };
   const changed = () => { if (S.onChange) S.onChange(); };
 
   async function call(method, path, { key, body, raw } = {}) {
@@ -84,19 +102,23 @@
   };
 
   // Leaving (someone else's trip) or stopping (your own): the server
-  // forgets this device's key. Leaving also takes the trip off this device.
+  // forgets the key. Either way, and when you're taken off a trip, the
+  // copy on this device stays, as your own trip that no longer syncs with
+  // the others.
   S.leave = async (id) => {
     await call("DELETE", "/trips/" + id + "/me", { key: state[id].key }).catch((e) => { if (e.status !== 401 && e.status !== 404) throw e; });
-    await drop(id, true);
+    await drop(id, "left");
   };
   S.stop = async (id) => {
     await call("DELETE", "/trips/" + id, { key: state[id].key }).catch((e) => { if (e.status !== 401 && e.status !== 404) throw e; });
-    await drop(id, false);
+    await drop(id, "stopped");
   };
-  async function drop(id, removeTrip) {
+  async function drop(id, why) {
+    const st = state[id];
     delete state[id];
+    if (st) dropped.push(st.key);
     await keep();
-    if (removeTrip && ctx.gone) ctx.gone(id);
+    if (ctx.unshared) ctx.unshared(id, st && st.role === "owner" ? "stopped" : why);
     changed();
   }
 
@@ -107,9 +129,8 @@
     let got;
     try { got = await call("GET", "/trips/" + id + (st.base ? "?v=" + st.version : ""), { key: st.key }); }
     catch (e) {
-      // Taken off the trip, or the trip was deleted: it leaves this device,
-      // unless it's yours.
-      if (e.status === 401 || e.status === 404) { await drop(id, st.role !== "owner"); return { gone: true, owner: st.role === "owner" }; }
+      // Taken off the trip, or its sharing stopped: this copy becomes yours.
+      if (e.status === 401 || e.status === 404) { await drop(id, e.status === 401 ? "removed" : "ended"); return { gone: true }; }
       throw e;
     }
     for (let tries = 0; tries < 4; tries++) {
@@ -131,7 +152,7 @@
         if (ctx.version() !== startVersion) return { again: true };
         const put = await call("PUT", "/trips/" + id, { key: st.key, body: { version, bundle: merged } });
         if (put.status === 409) { got = put.data.bundle ? { data: put.data } : await call("GET", "/trips/" + id, { key: st.key }); continue; }
-        if (put.data.deleted) { await drop(id, false); return {}; }
+        if (put.data.deleted) { await drop(id, "stopped"); return {}; }
         version = put.data.version;
       }
       if (ctx.version() !== startVersion) return { again: true };

@@ -5,7 +5,8 @@
 // The repo holds one file per trip, trips/<id>.json (a bundle), and its
 // cover photo, covers/<id>.jpg, and each file kept with a trip,
 // files/<trip id>/<file id> (named by id only; its name is in the bundle),
-// and me.json, the person id all your devices use. A sync reads the repo's tree in one call,
+// me.json, the person id all your devices use, and shares.json, the keys
+// of the shared trips you're on (src/share.js). A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
 // IndexedDB as "meta:sync"), and writes everything that differs in one
@@ -86,6 +87,21 @@
       }
     } else writes.push({ path: "me.json", text: text({ id: me.id }) });
     for (const old of me.was || []) doc = T.model.renamePerson(doc, old, me.id);
+
+    // Shared trips' keys travel to your other devices in shares.json, so
+    // each opens them as you (src/share.js). Your own repo only.
+    if (T.share && T.share.enabled()) {
+      let theirKeys = state.sharesSeen || {};
+      if (remote.has("shares.json") && state.sharesSha !== remote.get("shares.json")) {
+        const got = await gh.getJson("shares.json");
+        theirKeys = (got && got.data) || {};
+        state.sharesSha = remote.get("shares.json");
+        state.sharesSeen = theirKeys;
+      }
+      await T.share.adoptKeys(theirKeys);
+      const myKeys = await T.share.keys();
+      if (JSON.stringify(myKeys) !== JSON.stringify(remote.has("shares.json") ? theirKeys : {})) writes.push({ path: "shares.json", text: text(myKeys) });
+    }
     doc = T.model.sanitizeDoc(doc);
 
     // What to write: every trip that differs from the repo's copy.

@@ -73,6 +73,9 @@ adds a line here.
   runs its Cloudflare account; they aren't end-to-end encrypted. The
   server enforces who may edit and who sees expenses and files, but the
   owner's own sync repo still holds the whole trip.
+- A shared trip's key is kept in its member's own sync repo
+  (shares.json), so their devices share it; anyone who can read that
+  repo could use the key until the person is taken off the trip.
 
 - Trips live on this device only (IndexedDB) until sync is built: a
   cleared browser or a new phone starts empty.

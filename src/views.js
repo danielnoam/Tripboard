@@ -920,11 +920,11 @@
       armConfirm(btn, own ? i18n.t("Stop sharing") : i18n.t("Leave this trip"), async () => {
         try { if (own) await SHARE.stop(trip.id); else await SHARE.leave(trip.id); }
         catch (e) { toast(e.message); return; }
-        toast(own ? i18n.t("{name} isn't shared any more. Your copy stays.", { name: trip.name }) : i18n.t("You left {name}.", { name: trip.name }));
-        if (own) render();
+        toast(own ? i18n.t("{name} isn't shared any more. Your copy stays.", { name: trip.name }) : i18n.t("You left {name}. Your copy stays here.", { name: trip.name }));
+        render();
       });
       main.append(el("section.panel", {}, el("div", {}, btn),
-        el("p.hint.dim", { text: own ? i18n.t("Everyone else loses the trip. Your copy stays here.") : i18n.t("The trip leaves this device. Your other devices keep their copy until they sync.") })));
+        el("p.hint.dim", { text: own ? i18n.t("It stops syncing with everyone. Each person keeps their copy as their own.") : i18n.t("You keep your copy as your own trip. It stops getting their changes.") })));
     }
     main.append(el("section.panel.share-note", {},
       el("h2", { text: i18n.t("Who can see what") }),
@@ -1609,7 +1609,7 @@
       T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
     }
     SHARE.onChange = () => { if (view.mode === "share") render(); };
-    SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, gone });
+    SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, unshared });
   }
 
   // Sync's side: a doc it merged comes in as it is (already stamped by
@@ -1622,14 +1622,20 @@
     saveDoc(doc);
     render();
   }
-  // A shared trip you're no longer on leaves this device.
-  function gone(id) {
+  // A shared trip that stopped being shared with you stays here, as your
+  // own: you own this copy, and nobody else is on it.
+  function unshared(id, why) {
     const t = findTrip(id);
     if (!t) return;
-    doc.trips = doc.trips.filter((x) => x !== t);
-    if (view.trip === id) location.hash = "#/";
+    const me = SET.get().me;
+    if (t.owner !== me.id) {
+      t.owner = me.id;
+      t.members = [{ id: me.id, name: me.name, role: "owner" }];
+      delete t.share;
+    } else t.members = (t.members || []).filter((m) => m.id === me.id);
+    t.updatedAt = new Date().toISOString();
     save();
-    toast(i18n.t("You're no longer on {name}.", { name: t.name }));
+    if (why === "removed" || why === "ended") toast(i18n.t("{name} isn't shared with you any more. Your copy stays here.", { name: t.name }));
   }
   function coverChanged(id) {
     if (covers.get(id)) URL.revokeObjectURL(covers.get(id));
