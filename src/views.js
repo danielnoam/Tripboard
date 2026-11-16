@@ -1811,10 +1811,90 @@
     [i18n.t("Make a fine-grained token. Under Repository access pick Only select repositories and choose that repo. Under Permissions give Contents Read and write. Nothing else."), "https://github.com/settings/personal-access-tokens/new"],
     [i18n.t("Copy the token and paste it below, with your GitHub user name and the repo's name."), null],
   ];
+  // Another device in two taps: a setup link (or its QR code) carries the
+  // repo and token in the address's #, which never leaves the browser.
+  // Opening it asks first: any link someone got you to open could otherwise
+  // point this device at their repo and send your trips there.
+  const WEB = "https://danielnoam.github.io/Tripboard/";
+  const setupBase = () => (/^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname) ? location.origin + location.pathname : WEB);
+  function setupLink() {
+    const c = SET.get().sync;
+    return setupBase() + "#t=" + encodeURIComponent(c.token) + "&o=" + encodeURIComponent(c.owner) + "&r=" + encodeURIComponent(c.repo);
+  }
+  function setupIn(text) {
+    const m = /#(.*)$/.exec(String(text || "").trim());
+    if (!m) return null;
+    const q = new URLSearchParams(m[1]);
+    const v = { token: (q.get("t") || "").trim(), owner: (q.get("o") || "").trim(), repo: (q.get("r") || "").trim() };
+    return v.token && v.owner && v.repo && /^[\w.-]+$/.test(v.owner) && /^[\w.-]+$/.test(v.repo) ? v : null;
+  }
+  let pendingSetup = null;
+  async function connectSync(v, status, btn) {
+    if (btn) btn.disabled = true;
+    status.textContent = i18n.t("Checking with GitHub…");
+    try {
+      const info = await SYNC.check(v);
+      if (!info.private) { status.textContent = i18n.t("That repo is public, so anyone could read your trips. Make it private on GitHub (Settings, Danger zone), then connect."); return false; }
+      if (SYNC.connected()) { SET.setSync({ token: "" }); await SYNC.forget(); }
+      SET.setSync({ ...v, branch: info.branch });
+      SYNC.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
+      SYNC.now();
+      return true;
+    } catch (e) { status.textContent = SYNC.explain(e); return false; }
+    finally { if (btn) btn.disabled = false; }
+  }
+  function setupPanel() {
+    const v = pendingSetup, c = SET.get().sync;
+    const status = el("p.hint", { role: "status" });
+    const go = el("button.btn.primary", { type: "button", text: i18n.t("Connect") });
+    go.onclick = async () => { if (await connectSync(v, status, go)) { pendingSetup = null; render(); toast(i18n.t("Connected. Your trips are on their way.")); } };
+    return el("section.panel.setup-ask", {},
+      el("h2", { text: i18n.t("Connect this device?") }),
+      el("p", { text: SYNC.connected() && (c.owner + "/" + c.repo) !== (v.owner + "/" + v.repo)
+        ? i18n.t("This link connects Tripboard here to the GitHub repo {repo}, in place of {now}.", { repo: v.owner + "/" + v.repo, now: c.owner + "/" + c.repo })
+        : i18n.t("This link connects Tripboard here to the GitHub repo {repo}.", { repo: v.owner + "/" + v.repo }) }),
+      el("p.hint.warn", { text: i18n.t("Only continue if you made this link yourself, on another device of yours.") }),
+      el("div.loc-actions", {}, go, el("button.btn.quiet", { type: "button", text: i18n.t("Don't connect"), onclick: () => { pendingSetup = null; render(); } })),
+      status);
+  }
+  function addDevicePanel() {
+    const link = setupLink();
+    const Q = window.Keel && window.Keel.qr;
+    const box = el("div.sync-qr", { role: "img", "aria-label": i18n.t("Setup code") });
+    const svg = Q && Q.fits(link) ? Q.svg(link, { size: 200 }) : null;
+    if (svg) box.innerHTML = svg;
+    const copy = async () => {
+      try { await navigator.clipboard.writeText(link); toast(i18n.t("Setup link copied. Only send it to yourself.")); }
+      catch (e) { toast(i18n.t("Couldn't copy the link.")); }
+    };
+    return el("section.panel", {},
+      el("h2", { text: i18n.t("Add another device") }),
+      el("p.hint.dim", { text: i18n.t("Point the other device's camera at this code, or send yourself the link and open it there. Tripboard asks before it connects.") }),
+      svg ? box : null,
+      el("div.loc-actions", {}, el("button.btn", { type: "button", text: i18n.t("Copy setup link"), onclick: copy })),
+      el("p.hint.warn", { text: i18n.t("The code and the link hold your token. Only use them on your own devices.") }));
+  }
+  function pastePanel() {
+    const input = el("input", { type: "url", autocomplete: "off", spellcheck: false, autocapitalize: "off", placeholder: WEB + "#t=…" });
+    const status = el("p.hint", { role: "status" });
+    const go = el("button.btn", { type: "button", text: i18n.t("Use link"), onclick: () => {
+      const v = setupIn(input.value);
+      if (!v) { status.textContent = i18n.t("That isn't a Tripboard setup link."); return; }
+      pendingSetup = v; render();
+    } });
+    return el("section.panel", {}, el("h2", { text: i18n.t("Have a setup link?") }),
+      el("p.hint.dim", { text: i18n.t("From Settings › GitHub sync on a device that's already connected.") }),
+      el("div.link-row", {}, input, go), status);
+  }
+
   function renderSync(main) {
     $("title").textContent = i18n.t("GitHub sync");
     const c = SET.get().sync;
     const status = el("p.hint", { role: "status" });
+    if (pendingSetup) {
+      main.append(setupPanel());
+      if (!SYNC.connected()) return;
+    }
     if (!SYNC.connected()) {
       const owner = el("input", { value: c.owner, autocomplete: "off", spellcheck: false, autocapitalize: "off", placeholder: "your-user-name" });
       const repo = el("input", { value: c.repo, autocomplete: "off", spellcheck: false, autocapitalize: "off" });
@@ -1823,17 +1903,7 @@
       go.onclick = async () => {
         const v = { owner: owner.value.trim(), repo: repo.value.trim(), token: token.value.trim() };
         if (!v.owner || !v.repo || !v.token) { status.textContent = i18n.t("All three are needed."); return; }
-        go.disabled = true;
-        status.textContent = i18n.t("Checking with GitHub…");
-        try {
-          const info = await SYNC.check(v);
-          if (!info.private) { status.textContent = i18n.t("That repo is public, so anyone could read your trips. Make it private on GitHub (Settings, Danger zone), then connect."); return; }
-          SET.setSync({ ...v, branch: info.branch });
-          SYNC.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
-          SYNC.now();
-          render();
-        } catch (e) { status.textContent = SYNC.explain(e); }
-        finally { go.disabled = false; }
+        if (await connectSync(v, status, go)) render();
       };
       main.append(el("p.dim.hint.page-hint", { text: i18n.t("Sync keeps your trips in a private GitHub repo of yours, so your phone and computer see the same trips. Tripboard has no server: your trips go only to GitHub.") }),
         el("section.panel", {}, el("h2", { text: i18n.t("Set it up") }),
@@ -1843,6 +1913,7 @@
           el("label.field", {}, i18n.t("Repo"), repo),
           el("label.field", {}, i18n.t("Token"), token),
           el("div.loc-actions", {}, go), status),
+        pastePanel(),
         el("p.dim.hint", { text: i18n.t("The token is kept in this browser and sent only to GitHub. Anyone who can open this browser's Tripboard can use it, so give it only that one repo.") }));
       return;
     }
@@ -1865,6 +1936,7 @@
           render();
           toast(i18n.t("Disconnected. Your trips stay on this device and in the repo."));
         } }))),
+    addDevicePanel(),
     el("p.dim.hint", { text: i18n.t("Each trip is a file in the repo (trips/), with its cover photo (covers/). Changes made on two devices at once are merged; when both changed the same thing, the later change wins.") }));
     syncPaint();
   }
@@ -2066,6 +2138,15 @@
     window.scrollTo(0, y);
   }
 
+  // The token leaves the address bar before anything else happens.
+  function takeSetupLink() {
+    if (!/^#t=/.test(location.hash)) return false;
+    const v = setupIn(location.hash);
+    history.replaceState(history.state, "", location.pathname + location.search + "#/settings/sync");
+    if (v) pendingSetup = v; else toast(i18n.t("That setup link is incomplete. Make a new one on the other device."));
+    render();
+    return true;
+  }
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
     doc = M.sanitizeDoc(doc);
@@ -2087,9 +2168,9 @@
     $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
       : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
       : openPlace(null, findTrip(view.trip), view.mode === "today" ? { day: today() } : null, e.currentTarget));
-    window.addEventListener("hashchange", render);
+    window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
-    render();
+    if (!takeSetupLink()) render();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();
     if (doc.trips.length) OFF.sweep(doc.trips.map((t) => t.id));
