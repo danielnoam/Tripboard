@@ -11,7 +11,7 @@ manifest.json        the web app manifest
 icon.svg             the app icon
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js)
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter, Today's order and the guessed time between places (Node-tested)
+src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter, Today's order and the guessed time between places, what counts as a swipe (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
@@ -25,7 +25,7 @@ src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles 
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl-text 1.0.0 (BSD-2, LICENSE.md), rtl.js and its .wasm, loaded by plugin.mjs in the map's worker when a label needs it
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's Today, board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/today|/map] routing
+src/views.js         Home, a trip's Today, board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/today|/map] routing, and swiping between a trip's tabs
 src/styles.css       the tokens per theme, then the styles
 src/keel/drive.js    Google Drive: sign-in, upload in pieces, keeping the newest three, restore (from keel)
 src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
