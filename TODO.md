@@ -6,6 +6,9 @@ moves to DROPPED.md with his reason.
 
 ## Data
 
+- **Google Drive backups.** keel's Drive backups, as a second copy beside
+  GitHub sync. Needs Tripboard's own Google OAuth client IDs, which
+  Daniel makes.
 - **Export to LifeLog / sync.** Send a trip's places (and later expenses)
   to LifeLog. The format is to be decided with LifeLog's side.
 
