@@ -127,9 +127,8 @@
   function renderHome(main) {
     $("title").textContent = "Tripboard";
     const trips = M.sortTrips(doc.trips, today());
-    main.append(el("button.btn.primary.new-trip", { type: "button", onclick: (e) => openTrip(null, e.currentTarget) }, icon("plus"), i18n.t("New trip")));
     if (!trips.length) {
-      main.append(el("div.empty", {}, el("p", { text: i18n.t("No trips yet.") }), el("p.dim", { text: i18n.t("Make one, then add the places you want to see.") })));
+      main.append(el("div.empty", {}, el("p", { text: i18n.t("No trips yet.") }), el("p.dim", { text: i18n.t("Make one with + at the top, then add the places you want to see.") })));
     } else {
       main.append(el("h2.section", { text: i18n.t("My trips") }));
       main.append(el("ul.trips", {}, trips.map((t) => {
@@ -1799,6 +1798,7 @@
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
     document.body.classList.toggle("on-home", !trip && !settings && !jm);
+    $("newTrip").hidden = !!(trip || settings || jm);
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip || !mayEdit(trip) || view.mode === "share";
     $("fab").hidden = !trip || !mayEdit(trip) || view.mode === "share";
@@ -1824,6 +1824,8 @@
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("sliders"));
+    $("newTrip").append(icon("plus"));
+    $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));
     $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
       if (view.mode === "share" && view.trip) { location.hash = "#/trip/" + view.trip; return; }
