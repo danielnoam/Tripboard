@@ -1,0 +1,3 @@
+- A trip's sharing page (the people button at the top right): what everyone on the trip can do (edit or only view) and see (expenses, files), and a different setting for any one person. The app follows them: someone who can only view gets no +, no editing and read-only sheets, and a hidden section's tab goes away. They aren't a lock, since the sync repo holds the whole trip.
+- Your devices that sync now share one person id, kept in the sync repo as me.json, so they count as one person on a trip.
+- CLI `share` and MCP `update_sharing`; `get_trip` lists the people and what each gets.

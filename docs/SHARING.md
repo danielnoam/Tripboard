@@ -21,6 +21,17 @@ there's no store that more than one person can reach.
   bundle (`trips/<id>.json`) with its own tombstones, files and cover.
   That bundle is the unit to share.
 
+- **Share settings** (2026-11-16). `trip.share = { role, hide }` is what
+  everyone gets; a member's own `role` or `hide` overrides it.
+  `model.access(trip, id)` works out what a person gets, and the app
+  follows it for whoever uses it (read-only sheets, hidden tabs). It is
+  not a lock: the bundle in the repo still holds everything.
+- **One id per person.** The first device to sync writes `me.json`
+  (`{ id }`) to the repo; the others take that id and move trips that
+  named their old one over (`settings.me.was`, `model.renamePerson`).
+- **Joining.** Opening a trip that has members adds you to them
+  (`model.join`), so the sharing page lists everyone who synced it.
+
 ## What's missing, and the options
 
 The missing piece is a place that every member's device can read and
@@ -46,8 +57,5 @@ quick try for two people who both use GitHub.
 
 ## Still to decide
 
-- How a person's id follows them across their own devices. One option is
-  to keep it in their sync repo (`me.json`) and have every connected
-  device adopt it.
 - How invites work, and what a viewer sees.
 - Publishing (a read-only public copy). It can reuse the bundle as is.

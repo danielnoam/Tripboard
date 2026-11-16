@@ -434,3 +434,25 @@ p[data-tone="warn"] { color: var(--must); }
 .attached-local .icon { color: var(--text-dim); }
 .clip { display: inline-flex; align-items: center; gap: 2px; margin-inline-start: 6px; color: var(--accent); font-weight: 600; }
 .clip .icon { width: 14px; height: 14px; }
+
+/* A trip's sharing page: everyone's defaults, then each person. */
+.chips-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chips-row .chip::before { content: none; }
+.chips-row .chip .icon { width: 16px; height: 16px; }
+.chips-row .chip[aria-pressed="false"] { text-decoration: line-through; }
+.chip:disabled, .seg button:disabled { opacity: 0.6; }
+.people { list-style: none; margin: 0; padding: 0; }
+.person + .person { border-top: 1px solid var(--line); }
+.person-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; list-style: none; cursor: default; }
+summary.person-head { cursor: pointer; }
+summary.person-head::-webkit-details-marker { display: none; }
+details[open] > summary .srow-chev { transform: rotate(90deg); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.person-body { display: grid; gap: var(--space-3); padding: 0 0 var(--space-3); }
+.share-note { background: var(--surface-2); box-shadow: none; }
+.share-note h2 { font-size: 15px; }
+.share-note p { font-size: 14px; color: var(--text-dim); }
+.tick:disabled { opacity: 0.5; }
+.share-page .seg { max-width: 420px; }
+[dir="rtl"] details[open] > summary .srow-chev { transform: rotate(-90deg); }
+.sheet button:disabled:not(.attached-file) { opacity: 0.5; }

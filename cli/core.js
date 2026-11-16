@@ -110,6 +110,7 @@ function tripView(doc, trip) {
     trip,
     places: places.slice().sort((a, b) => String(a.day || "9999").localeCompare(String(b.day || "9999")) || String(a.time || "").localeCompare(String(b.time || ""))),
     expenses, totals: M.expenseTotals(expenses),
+    people: (trip.members || []).map((m) => { const a = M.access(trip, m.id); return { id: m.id, name: m.name, role: a.role, hidden: a.hide, own: a.own }; }),
     files: (doc.files || []).filter((f) => f.trip === trip.id).map(({ id, name, type, size, place, note }) => ({ id, name, type, size, place, note })),
   };
 }
@@ -174,6 +175,25 @@ const ops = {
     Object.assign(x, pick(a, EXPENSE_FIELDS));
     if (a.amount != null) x.amount = +a.amount;
     return x;
+  },
+  // Who may do what: with no person, what everyone gets; with one, that
+  // person's own (role "default" or hide "default" go back to everyone's).
+  updateSharing(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const hide = (v) => (Array.isArray(v) ? v : String(v).split(",")).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+    for (const x of a.hide && a.hide !== "default" ? hide(a.hide) : []) if (!M.SECTIONS.includes(x)) throw new Error("No section " + JSON.stringify(x) + ". Sections: " + M.SECTIONS.join(", ") + ".");
+    if (a.role !== undefined && !["editor", "viewer", "default"].includes(a.role)) throw new Error("A role is editor or viewer" + (a.person ? ", or default." : "."));
+    if (!a.person) {
+      if (a.role === "default") throw new Error("Everyone's role is editor or viewer.");
+      const d = t.share || { role: "editor", hide: [] };
+      t.share = { role: a.role || d.role, hide: a.hide !== undefined && a.hide !== "default" ? hide(a.hide) : a.hide === "default" ? [] : d.hide };
+      return { trip: t.name, everyone: t.share };
+    }
+    const m = findIn(t.members || [], a.person, "person");
+    if (m.id === t.owner) throw new Error("The owner always has everything.");
+    if (a.role === "default") delete m.role; else if (a.role) m.role = a.role;
+    if (a.hide === "default") delete m.hide; else if (a.hide !== undefined) m.hide = hide(a.hide);
+    return { trip: t.name, person: m.name || m.id, access: M.access(t, m.id) };
   },
   deleteExpense(doc, a) {
     const t = findTrip(doc, a.trip);

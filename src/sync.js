@@ -4,7 +4,8 @@
 //
 // The repo holds one file per trip, trips/<id>.json (a bundle), and its
 // cover photo, covers/<id>.jpg, and each file kept with a trip,
-// files/<trip id>/<file id> (named by id only; its name is in the bundle). A sync reads the repo's tree in one call,
+// files/<trip id>/<file id> (named by id only; its name is in the bundle),
+// and me.json, the person id all your devices use. A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
 // IndexedDB as "meta:sync"), and writes everything that differs in one
@@ -72,10 +73,22 @@
       const merged = G.mergeBundles(state.base[id], G.bundleOf(doc, id), got.data);
       doc = G.applyBundle(doc, merged);
     }
+    // One id for you on all your devices: the first to sync keeps it in
+    // me.json, and the others take it. Trips that named an old id move over.
+    const writes = [], sent = {};
+    let me = T.settings.get().me;
+    if (remote.has("me.json")) {
+      if (state.me !== remote.get("me.json")) {
+        const got = await gh.getJson("me.json");
+        const id = got && got.data && got.data.id;
+        if (typeof id === "string" && id !== me.id) { T.settings.adoptId(id); me = T.settings.get().me; }
+        state.me = remote.get("me.json");
+      }
+    } else writes.push({ path: "me.json", text: text({ id: me.id }) });
+    for (const old of me.was || []) doc = T.model.renamePerson(doc, old, me.id);
     doc = T.model.sanitizeDoc(doc);
 
     // What to write: every trip that differs from the repo's copy.
-    const writes = [], sent = {};
     for (const id of new Set(G.tripIds(doc).concat(remoteIds))) {
       const mine = G.bundleOf(doc, id);
       if (!mine) continue;

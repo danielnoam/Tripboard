@@ -45,6 +45,12 @@ const TOOLS = [
   { name: "delete_place", description: "Delete a place from a trip.", inputSchema: obj({ trip: tripArg, place: { type: "string" } }, ["trip", "place"]), op: "deletePlace" },
   { name: "add_expense", description: "Add an expense to a trip.", inputSchema: obj({ trip: tripArg, ...expenseFields }, ["trip", "amount", "currency"]), op: "addExpense" },
   { name: "update_expense", description: "Change an expense.", inputSchema: obj({ trip: tripArg, expense: { type: "string", description: "The expense's id or title." }, ...expenseFields }, ["trip", "expense"]), op: "updateExpense" },
+  { name: "update_sharing", description: "Who on a shared trip may edit, and who doesn't see expenses or files. With no person it sets what everyone gets; with a person, their own setting (\"default\" goes back to everyone's). The app follows these; they aren't a lock, since the sync repo holds the whole trip. get_trip lists the people.",
+    inputSchema: obj({ trip: tripArg, person: { type: "string", description: "A person's id or name on the trip. Leave out for everyone." },
+      role: { type: "string", enum: ["editor", "viewer", "default"] },
+      hide: { type: "array", items: { type: "string", enum: M.SECTIONS }, description: "The sections they don't see; [] shows all." },
+      sameAsEveryone: { type: "boolean", description: "With a person: what they see goes back to everyone's." } }, ["trip"]),
+    run: async (tb, a) => tb.change((doc) => core.ops.updateSharing(doc, { ...a, hide: a.sameAsEveryone ? "default" : a.hide }), "Tripboard MCP: update_sharing") },
   { name: "delete_expense", description: "Delete an expense.", inputSchema: obj({ trip: tripArg, expense: { type: "string" } }, ["trip", "expense"]), op: "deleteExpense" },
 ];
 

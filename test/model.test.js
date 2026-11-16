@@ -169,13 +169,44 @@ test("members: cleaned, one owner who is always a member, and what each role may
   const t = M.sanitizeTrip({ id: "t", name: "K", owner: "ana", members: [
     { id: "ana", name: "Ana", role: "editor" }, { id: "ben", name: " Ben ", role: "owner" }, { id: "ben", role: "viewer" },
     { id: "cy", role: "boss" }, { id: "bad id!", role: "editor" }] });
-  assert.deepStrictEqual(t.members, [{ id: "ana", name: "Ana", role: "owner" }, { id: "ben", name: "Ben", role: "editor" }, { id: "cy", name: "", role: "viewer" }]);
+  assert.deepStrictEqual(t.members, [{ id: "ana", name: "Ana", role: "owner" }, { id: "ben", name: "Ben", role: "editor" }, { id: "cy", name: "" }]);
   assert.ok(M.can(t, "ana", "manage") && M.can(t, "ben", "edit") && !M.can(t, "ben", "manage"));
-  assert.ok(M.can(t, "cy", "read") && !M.can(t, "cy", "edit") && !M.can(t, "zed", "read"));
+  // no role of their own: what everyone gets (edit, by default)
+  assert.ok(M.can(t, "cy", "read") && M.can(t, "cy", "edit") && M.can(t, "zed", "edit") && !M.can(t, "zed", "manage"));
   assert.ok(M.can(M.sanitizeTrip({ name: "Mine" }), "anyone", "manage"));
   assert.strictEqual(M.sanitizeTrip({ name: "Plain" }).members, undefined);
   const own = M.ownTrip({ name: "New" }, { id: "ana", name: "Ana" });
   assert.deepStrictEqual([own.owner, own.members], ["ana", [{ id: "ana", name: "Ana", role: "owner" }]]);
+});
+
+test("share: everyone's default, each person's own, and the owner sees all", () => {
+  const t = M.sanitizeTrip({ id: "t", name: "K", owner: "ana", share: { role: "viewer", hide: ["files", "nope"] }, members: [
+    { id: "ana", hide: ["expenses"] }, { id: "ben", role: "editor" }, { id: "cy", hide: [] }, { id: "dee", role: "viewer", hide: ["expenses"] }] });
+  assert.deepStrictEqual(t.share, { role: "viewer", hide: ["files"] });
+  assert.strictEqual(t.members[0].hide, undefined);
+  assert.ok(M.can(t, "ana", "files") && M.can(t, "ana", "expenses") && M.can(t, "ana", "manage"));
+  assert.ok(M.can(t, "ben", "edit") && !M.can(t, "ben", "files") && M.can(t, "ben", "expenses"));
+  assert.ok(!M.can(t, "cy", "edit") && M.can(t, "cy", "files"));
+  assert.ok(!M.can(t, "dee", "edit") && !M.can(t, "dee", "expenses") && M.can(t, "dee", "files"));
+  assert.ok(!M.can(t, "stranger", "edit") && !M.can(t, "stranger", "files"));
+  assert.deepStrictEqual(M.access(t, "ben").own, { role: true, hide: false });
+  // the default default is no share field at all
+  assert.strictEqual(M.sanitizeTrip({ name: "K", share: { role: "editor", hide: [] } }).share, undefined);
+});
+
+test("join adds you to a shared trip once and keeps your name; renamePerson moves an old id over", () => {
+  const t = M.sanitizeTrip({ id: "t", name: "K", owner: "ana", members: [{ id: "ana", name: "Ana" }] });
+  assert.strictEqual(M.join(t, { id: "ben", name: "Ben" }), true);
+  assert.strictEqual(M.join(t, { id: "ben", name: "Ben" }), false);
+  assert.strictEqual(M.join(t, { id: "ben", name: "Benny" }), true);
+  assert.deepStrictEqual(t.members[1], { id: "ben", name: "Benny" });
+  assert.strictEqual(M.join(M.sanitizeTrip({ name: "Plain" }), { id: "ben" }), false);
+  const doc = M.sanitizeDoc({ trips: [t, { id: "u", name: "U", owner: "old1", members: [{ id: "old1", role: "owner" }], updatedAt: "2026-01-01" }],
+    expenses: [{ id: "x", trip: "u", amount: 1, currency: "EUR", paidBy: "old1", updatedAt: "2026-01-01" }] });
+  M.renamePerson(doc, "old1", "ana");
+  assert.deepStrictEqual([doc.trips[1].owner, doc.trips[1].members[0].id, doc.expenses[0].paidBy], ["ana", "ana", "ana"]);
+  assert.ok(doc.trips[1].updatedAt > "2026-01-01");
+  assert.ok(doc.expenses[0].updatedAt > "2026-01-01");
 });
 
 test("stamp marks who changed a record and who deleted one", () => {

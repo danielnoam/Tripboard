@@ -3,7 +3,8 @@
 //   map, search  which provider each service uses, and its fallback
 //   appearance  the theme: system, light or dark
 //   sync        GitHub sync's token and repo
-//   me          who you are on shared trips: an id made once, and your name
+//   me          who you are on shared trips: an id (made once, or taken from
+//               the sync repo so all your devices share it), and your name
 // A service tries its main provider; if that fails (no key, an error, a
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
@@ -47,6 +48,7 @@
     const me = saved.me || {};
     if (typeof me.id === "string" && /^[\w-]{4,40}$/.test(me.id)) out.me.id = me.id;
     if (typeof me.name === "string") out.me.name = me.name.trim().slice(0, 60);
+    if (Array.isArray(me.was)) out.me.was = me.was.filter((x) => typeof x === "string" && /^[\w-]{4,40}$/.test(x)).slice(-5);
     return out;
   };
   let cur;
@@ -61,6 +63,13 @@
     setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
     setTheme(theme) { cur.appearance = { theme }; S.save(); },
     setMe(patch) { cur.me = { ...cur.me, ...patch, id: cur.me.id }; cur.me.name = String(cur.me.name || "").trim().slice(0, 60); S.save(); },
+    // Takes the id your other devices use (sync's me.json), remembering the
+    // old one so trips that named it can be moved over.
+    adoptId(id) {
+      if (!/^[\w-]{4,40}$/.test(id) || id === cur.me.id) return;
+      cur.me = { ...cur.me, was: (cur.me.was || []).concat(cur.me.id).filter((x) => x !== id).slice(-5), id };
+      S.save();
+    },
     setSync(patch) { cur.sync = { ...cur.sync, ...patch }; S.save(); },
     setService(svc, patch) { cur[svc] = { ...cur[svc], ...patch }; if (cur[svc].fallback === cur[svc].main) cur[svc].fallback = ""; S.save(); },
     save() {
