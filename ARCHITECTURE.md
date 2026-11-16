@@ -18,7 +18,7 @@ src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard 
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
 src/share.js         shared trips: each device on one syncs that trip with the sharing server (server/), beside GitHub sync; invite links, joining, leaving
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
-src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) (Node-tested)
+src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) and its name; New trip can start from one, Edit trip imports into the trip (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
 src/offline.js       a trip saved for no signal: OpenFreeMap's map around its places in the Cache API, the plan of tiles, and the tbo:// protocol the map reads it through (Node-tested)
 src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
