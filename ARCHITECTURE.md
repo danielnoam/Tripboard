@@ -120,7 +120,11 @@ adds a line here.
 - Expenses add up per currency, with no exchange rates (they'd need a
   rates service and a date per expense), so a trip in two currencies
   shows two totals.
-- A trip's files are kept whole on every synced device (no
+- A file can be kept on this device only (`local`): its record stays out
+  of the trip's bundle, so other devices and other people never see it,
+  not even its name. Making a synced file local removes its bytes from
+  the repo but not from git history.
+- A trip's synced files are kept whole on every synced device (no
   download-on-demand yet), up to 25 MB each. In the repo they're named
   by id (files/<trip>/<id>); their names are in the trip's bundle.
 - A backup file holds each file's bytes as base64, so it grows by about

@@ -136,4 +136,39 @@ test("who changed a record goes with the newer side", () => {
   assert.deepStrictEqual([out.note, out.importance, out.by], ["Go early", "must", "ben"]);
 });
 
+test("a local file never goes in the bundle, and a merge keeps it on its device", () => {
+  const d = clone(start);
+  d.files = [{ id: "l", trip: "t", name: "passport.jpg", type: "image/jpeg", size: 9, local: true, updatedAt: at(1) },
+    { id: "s", trip: "t", name: "ticket.pdf", type: "application/pdf", size: 9, updatedAt: at(1) }];
+  const doc = M.sanitizeDoc(d);
+  const b = G.bundleOf(doc, "t");
+  assert.deepStrictEqual(b.files.map((f) => f.id), ["s"]);
+  const theirs = clone(b);
+  theirs.files[0].note = "Car 7";
+  const out = G.applyBundle(doc, G.mergeBundles(b, b, theirs));
+  assert.deepStrictEqual(out.files.map((f) => f.id + (f.local ? ":local" : "") + (f.note ? ":" + f.note : "")).sort(), ["l:local", "s:Car 7"]);
+});
+
+test("a synced file made local leaves other devices; a local file made synced reaches them", () => {
+  const d = clone(start);
+  d.files = [{ id: "s", trip: "t", name: "ticket.pdf", type: "application/pdf", size: 9, updatedAt: at(1) }];
+  const base = G.bundleOf(M.sanitizeDoc(d), "t");
+  const mine = clone(d);
+  mine.files[0].local = true;
+  const sent = G.bundleOf(M.sanitizeDoc(mine), "t");
+  assert.deepStrictEqual(G.mergeBundles(base, clone(base), sent).files, []);
+  const none = clone(base);
+  none.files = [];
+  const back = clone(base);
+  assert.deepStrictEqual(G.mergeBundles(none, none, back).files.map((f) => f.id), ["s"]);
+});
+
+test("deleting a local file leaves no tombstone to travel", () => {
+  const prev = M.sanitizeDoc({ trips: [{ id: "t", name: "K" }], files: [{ id: "l", trip: "t", name: "x", local: true }] });
+  const next = clone(prev);
+  next.files = [];
+  M.stamp(prev, next);
+  assert.strictEqual(next.deleted.l, undefined);
+});
+
 console.log(passed + " passed");

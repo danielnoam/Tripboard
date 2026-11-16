@@ -70,6 +70,25 @@
   </dialog>
 
   <input id="fileAdd" type="file" multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
+  <dialog class="sheet" id="addFilesSheet" aria-labelledby="addFilesTitle">
+    <div class="sheet-body">
+      <h2 id="addFilesTitle"></h2>
+      <p class="hint dim" id="addFilesNames"></p>
+      <button class="choice" id="addFilesSync" type="button">
+        <span class="choice-title" data-t>Sync</span>
+        <span class="choice-text" data-t>On all your devices, and with everyone the trip is shared with.</span>
+      </button>
+      <button class="choice" id="addFilesLocal" type="button">
+        <span class="choice-title" data-t>Only this device</span>
+        <span class="choice-text" data-t>Stays here. Other devices and other people don't see it.</span>
+      </button>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="sheet" id="fileSheet" aria-labelledby="fileSheetTitle">
     <form class="sheet-body" id="fileForm" novalidate>
       <h2 id="fileSheetTitle" data-t>File</h2>
@@ -81,6 +100,11 @@
       <label class="field"><span data-t>Name</span>
         <input name="name" type="text" autocomplete="off" maxlength="200" required>
       </label>
+      <fieldset class="field">
+        <legend data-t>Kept</legend>
+        <div class="seg" id="fileKeptSeg" role="radiogroup"></div>
+        <span class="hint" id="fileKeptHint"></span>
+      </fieldset>
       <label class="field"><span data-t>Place</span>  <select name="place" id="filePlace"></select></label>
       <label class="field"><span data-t>Note</span>
         <textarea name="note" rows="2" maxlength="2000" placeholder="Booking number 4417" data-t-attr="placeholder"></textarea>
@@ -149,6 +173,11 @@
       <div class="row">
         <label class="field"><span data-t>From</span>  <input name="time" type="time"></label>
         <label class="field"><span data-t>To</span>  <input name="endTime" type="time"></label>
+      </div>
+      <div class="field" id="placeFilesRow" hidden>
+        <span data-t>Files</span>
+        <ul class="attached" id="placeFiles"></ul>
+        <div><button class="btn quiet" id="placeAttach" type="button" data-t>Attach a file</button></div>
       </div>
       <label class="field"><span data-t>Description</span>
         <textarea name="note" rows="3" maxlength="2000" placeholder="Go early, before the crowds." data-t-attr="placeholder"></textarea>
