@@ -414,3 +414,23 @@ p[data-tone="warn"] { color: var(--must); }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Files: the choice when adding, and files attached to a place */
+.choice {
+  display: grid; gap: 2px; width: 100%; margin-bottom: var(--space-2); padding: var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); text-align: start; cursor: pointer;
+}
+.choice:hover, .choice:focus-visible { border-color: var(--accent); }
+.choice-title { font-weight: 700; color: var(--text); }
+.choice-text { font-size: 14px; color: var(--text-dim); }
+.attached { list-style: none; display: grid; gap: var(--space-1); margin: 0; padding: 0; }
+.attached:empty { display: none; }
+.attached-file {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 44px; padding: 6px 12px;
+  border: 0; border-radius: 10px; background: var(--accent-soft); color: var(--text); font-weight: 600; text-align: start; cursor: pointer;
+}
+.attached-file > span:not(.attached-local) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attached-file .icon { width: 18px; height: 18px; flex: none; color: var(--accent); }
+.attached-local .icon { color: var(--text-dim); }
+.clip { display: inline-flex; align-items: center; gap: 2px; margin-inline-start: 6px; color: var(--accent); font-weight: 600; }
+.clip .icon { width: 14px; height: 14px; }

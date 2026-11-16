@@ -4,7 +4,8 @@
 //
 // A trip travels as a bundle, one file per trip:
 //   { format, trip, places, expenses, files, deleted }
-// (a file here is its record; its bytes travel as files/<trip>/<id>).
+// (a file here is its record; its bytes travel as files/<trip>/<id>). A
+// file marked local stays out of the bundle, and applyBundle keeps it.
 // `deleted` is the trip's tombstones ({ id: { at, trip } }). A deleted trip
 // travels as { format, trip: { id, deletedAt } } so other devices drop it.
 //
@@ -25,7 +26,7 @@
     const deleted = {};
     for (const [id, t] of Object.entries(doc.deleted || {})) if (t.trip === tripId && id !== tripId) deleted[id] = t;
     return { format: FORMAT, trip, places: doc.places.filter((p) => p.trip === tripId), expenses: (doc.expenses || []).filter((x) => x.trip === tripId),
-      files: (doc.files || []).filter((x) => x.trip === tripId), deleted };
+      files: (doc.files || []).filter((x) => x.trip === tripId && !x.local), deleted };
   }
 
   // The doc with one trip's records swapped for the bundle's.
@@ -36,7 +37,7 @@
       trips: doc.trips.filter((t) => t.id !== id),
       places: doc.places.filter((p) => p.trip !== id),
       expenses: (doc.expenses || []).filter((x) => x.trip !== id),
-      files: (doc.files || []).filter((x) => x.trip !== id),
+      files: (doc.files || []).filter((x) => x.trip !== id || x.local),
       deleted: Object.fromEntries(Object.entries(doc.deleted || {}).filter(([k, t]) => t.trip !== id || k === id)),
     };
     if (b.trip.deletedAt) { out.deleted[id] = { at: b.trip.deletedAt, trip: id }; return out; }
@@ -44,7 +45,8 @@
     out.trips.push(b.trip);
     out.places = out.places.concat(b.places || []);
     out.expenses = out.expenses.concat(b.expenses || []);
-    out.files = out.files.concat(b.files || []);
+    const mineOnly = new Set(out.files.filter((x) => x.local).map((x) => x.id));
+    out.files = out.files.concat((b.files || []).filter((x) => !mineOnly.has(x.id)));
     Object.assign(out.deleted, b.deleted || {});
     return out;
   }

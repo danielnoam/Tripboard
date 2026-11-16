@@ -114,8 +114,9 @@
     // Files: their bytes never change (a new version is a new file), so
     // each goes up once, comes down once, and goes when its record does.
     const filePulls = [];
-    const fileIds = new Set((doc.files || []).map((f) => f.id));
-    for (const f of doc.files || []) {
+    const fileIds = new Set((doc.files || []).filter((f) => !f.local).map((f) => f.id));
+    const localIds = new Set((doc.files || []).filter((f) => f.local).map((f) => f.id));
+    for (const f of (doc.files || []).filter((x) => !x.local)) {
       const path = "files/" + f.trip + "/" + f.id;
       if (state.files[f.id] && remote.has(path)) continue;
       const blob = await store.file(f.id);
@@ -129,7 +130,8 @@
       const m = /^files\/([\w-]+)\/([\w-]+)$/.exec(path);
       if (!m || fileIds.has(m[2])) continue;
       const gone = doc.deleted || {};
-      if (gone[m[2]] || gone[m[1]]) { writes.push({ path, sha: null }); delete state.files[m[2]]; }
+      // Deleted, or made this-device-only: its bytes leave the repo.
+      if (gone[m[2]] || gone[m[1]] || localIds.has(m[2])) { writes.push({ path, sha: null }); delete state.files[m[2]]; }
     }
 
     if (ctx.version() !== startVersion) return "again";

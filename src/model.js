@@ -16,7 +16,8 @@
 // role owner, editor or viewer. Nothing checks them yet (there's no shared
 // store); they're here so trips made now are ready to be shared.
 // A file: id, trip, name, type (its MIME type), size in bytes, and
-// optionally place and note. Its bytes are kept apart (store.js), never in the doc.
+// optionally place, note and local (true: kept on this device only, never
+// synced or shared). Its bytes are kept apart (store.js), never in the doc.
 (function () {
   // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
   const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
@@ -43,7 +44,7 @@
     "IDR", "MYR", "PHP", "INR", "AED", "TRY", "EGP", "MAD", "ZAR", "MXN", "BRL", "ARS", "CLP", "PEN", "COP",
     "SEK", "NOK", "DKK", "ISK", "PLN", "CZK", "HUF", "RON", "GEL"];
   const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "by", "createdAt", "updatedAt"]);
-  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "by", "createdAt", "updatedAt"]);
+  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
@@ -158,6 +159,7 @@
     };
     for (const k of ["place", "note"]) { const v = text(f[k]); if (v) out[k] = v; }
     if (isPersonId(f.by)) out.by = f.by;
+    if (f.local) out.local = true;
     return keepUnknown(f, out, KNOWN_FILE);
   }
 
@@ -197,7 +199,7 @@
       if (!b || !same(b.r, r)) { r.updatedAt = at; if (isPersonId(by)) r.by = by; }
       delete next.deleted[r.id];
     }
-    for (const [id, b] of before) if (!seen.has(id)) next.deleted[id] = isPersonId(by) ? { at, trip: b.trip, by } : { at, trip: b.trip };
+    for (const [id, b] of before) if (!seen.has(id) && !b.r.local) next.deleted[id] = isPersonId(by) ? { at, trip: b.trip, by } : { at, trip: b.trip };
     return next;
   }
 

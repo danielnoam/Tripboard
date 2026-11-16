@@ -233,12 +233,32 @@
     return f.type === "application/pdf" ? "PDF" : f.type.startsWith("image/") ? i18n.t("Image") : ext ? ext.toUpperCase() : i18n.t("File");
   };
   let haveFiles = new Set();
-  async function addFiles(list, trip) {
+  // New files ask once whether they sync or stay on this device.
+  let pendingFiles = null, attachTo = "";
+  function askFiles(list, trip, place) {
+    const ok = list.filter((f) => f.size <= M.MAX_FILE_MB * 1e6);
+    const big = list.filter((f) => f.size > M.MAX_FILE_MB * 1e6).map((f) => f.name);
+    if (big.length) toast(i18n.tn(big.length, "{join} is over {MAX_FILE_MB} MB, too big to keep here.", "{join} are over {MAX_FILE_MB} MB, too big to keep here.", { join: i18n.join(big), MAX_FILE_MB: M.MAX_FILE_MB }));
+    if (!ok.length) return;
+    pendingFiles = { list: ok, trip, place: place || "" };
+    $("addFilesTitle").textContent = i18n.tn(ok.length, "Add 1 file", "Add {n} files");
+    $("addFilesNames").textContent = i18n.join(ok.map((f) => f.name));
+    openSheet($("addFilesSheet"));
+  }
+  for (const [id, local] of [["addFilesSync", false], ["addFilesLocal", true]]) {
+    $(id).addEventListener("click", async () => {
+      const p = pendingFiles;
+      pendingFiles = null;
+      await closeSheet($("addFilesSheet"));
+      if (p) await addFiles(p.list, p.trip, { local, place: p.place });
+    });
+  }
+  async function addFiles(list, trip, { local = false, place = "" } = {}) {
     const big = [], added = [];
     for (const file of list) {
       if (file.size > M.MAX_FILE_MB * 1e6) { big.push(file.name); continue; }
       const stamp = new Date().toISOString();
-      const f = M.sanitizeFile({ id: M.newId(), trip: trip.id, name: file.name, type: file.type, size: file.size, createdAt: stamp, updatedAt: stamp });
+      const f = M.sanitizeFile({ id: M.newId(), trip: trip.id, name: file.name, type: file.type, size: file.size, local, place, createdAt: stamp, updatedAt: stamp });
       await store.setFile(f.id, file);
       haveFiles.add(f.id);
       added.push(f);
@@ -246,10 +266,12 @@
     if (added.length) { doc.files = (doc.files || []).concat(added); save(); }
     if (big.length) toast(i18n.tn(big.length, "{join} is over {MAX_FILE_MB} MB, too big to keep here.", "{join} are over {MAX_FILE_MB} MB, too big to keep here.", { join: i18n.join(big), MAX_FILE_MB: M.MAX_FILE_MB }));
     else if (added.length) toast(i18n.tn(added.length, "Added 1 file.", "Added {n} files."));
+    if ($("placeSheet").open) paintPlaceFiles();
   }
   $("fileAdd").addEventListener("change", (e) => {
     const trip = findTrip(view.trip);
-    if (trip && e.target.files.length) addFiles([...e.target.files], trip);
+    if (trip && e.target.files.length) askFiles([...e.target.files], trip, attachTo);
+    attachTo = "";
     e.target.value = "";
   });
 
@@ -259,24 +281,36 @@
     // A file dropped anywhere on the page joins the trip (with a mouse).
     main.ondragover = (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); main.classList.add("file-over"); } };
     main.ondragleave = (e) => { if (e.target === main) main.classList.remove("file-over"); };
-    main.ondrop = (e) => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); main.classList.remove("file-over"); addFiles([...e.dataTransfer.files], trip); };
+    main.ondrop = (e) => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); main.classList.remove("file-over"); askFiles([...e.dataTransfer.files], trip); };
     if (!list.length) {
       main.append(el("div.empty", {}, el("p", { text: i18n.t("No files yet.") }),
         el("p.dim", { text: window.matchMedia("(pointer: fine)").matches ? i18n.t("Keep tickets, bookings and PDFs with the trip, to open without a connection. Add one with +, or drop it here.") : i18n.t("Keep tickets, bookings and PDFs with the trip, to open without a connection. Add one with +.") })));
       return;
     }
-    main.append(el("section.group", {}, el("div.xrows", {}, list.map((f) => {
+    const row = (f) => {
       const place = f.place && doc.places.find((p) => p.id === f.place);
       const here = haveFiles.has(f.id);
       return el("button.xrow", { type: "button", onclick: (e) => openFile(f, trip, e.currentTarget) },
         el("span.xrow-ic", {}, icon(f.type.startsWith("image/") ? "image" : "file")),
         el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }),
           el("span.xrow-meta", { text: [kindOf(f), sizeLabel(f.size), place ? place.name : "", here ? "" : i18n.t("not on this device yet")].filter(Boolean).join(" · ") })));
-    }))));
+    };
+    const synced = list.filter((f) => !f.local), local = list.filter((f) => f.local);
+    const wrap = el("div.groups");
+    if (synced.length) wrap.append(el("section.group", {}, el("div.group-head", {}, el("h2", { text: i18n.t("Synced") }), el("span.count", { text: String(synced.length) })),
+      el("p.hint.dim", { text: i18n.t("On all your devices, and with everyone the trip is shared with.") }), el("div.xrows", {}, synced.map(row))));
+    if (local.length) wrap.append(el("section.group", {}, el("div.group-head", {}, el("h2", { text: i18n.t("On this device only") }), el("span.count", { text: String(local.length) })),
+      el("p.hint.dim", { text: i18n.t("Stays here. Other devices and other people don't see it.") }), el("div.xrows", {}, local.map(row))));
+    main.append(wrap);
     if (window.matchMedia("(pointer: fine)").matches) main.append(el("p.dim.hint.page-hint", { text: i18n.t("Drop files here to add them.") }));
   }
 
-  let editingFile = null;
+  let editingFile = null, fileLocal = false;
+  function paintKept() {
+    $("fileKeptSeg").replaceChildren(...[[false, i18n.t("Synced")], [true, i18n.t("Only this device")]].map(([local, label]) =>
+      el("button", { type: "button", role: "radio", "aria-checked": String(fileLocal === local), text: label, onclick: () => { fileLocal = local; paintKept(); } })));
+    $("fileKeptHint").textContent = fileLocal ? i18n.t("Stays here. Other devices and other people don't see it.") : i18n.t("On all your devices, and with everyone the trip is shared with.");
+  }
   async function openFile(f, trip, from) {
     editingFile = f;
     const form = $("fileForm");
@@ -286,6 +320,8 @@
     $("filePlace").replaceChildren(el("option", { value: "", text: i18n.t("None") }),
       ...placesOf(trip.id).slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => el("option", { value: p.id, text: p.name })));
     $("filePlace").value = f.place && placesOf(trip.id).some((p) => p.id === f.place) ? f.place : "";
+    fileLocal = !!f.local;
+    paintKept();
     const blob = await store.file(f.id);
     $("fileInfo").textContent = i18n.t(blob ? "{kind} · {size} · added {date}" : "{kind} · {size} · added {date}. It isn't on this device yet; it comes with the next sync.", { kind: kindOf(f), size: sizeLabel(f.size), date: i18n.date(new Date(f.createdAt)) });
     $("fileOpen").disabled = $("fileSaveCopy").disabled = !blob;
@@ -308,9 +344,35 @@
     if (!form.name.value.trim()) { form.name.setAttribute("aria-invalid", "true"); form.name.focus(); return; }
     form.name.removeAttribute("aria-invalid");
     Object.assign(editingFile, { name: form.name.value, place: form.place.value, note: form.note.value });
+    if (fileLocal) editingFile.local = true; else delete editingFile.local;
     await closeSheet($("fileSheet"));
     save();
   });
+  // Opens a file's bytes in a new tab, or says why it can't.
+  async function viewFile(f) {
+    const blob = await store.file(f.id);
+    if (!blob) { toast(i18n.t("{name} isn't on this device yet; it comes with the next sync.", { name: f.name })); return; }
+    const u = URL.createObjectURL(blob.type ? blob : new Blob([blob], { type: f.type }));
+    window.open(u, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(u), 60000);
+  }
+  const filesOn = (placeId) => (doc.files || []).filter((f) => f.place === placeId);
+  function fileButtons(list) {
+    return list.map((f) => el("li", {}, el("button.attached-file", { type: "button", onclick: () => viewFile(f) },
+      icon(f.type.startsWith("image/") ? "image" : "file"), el("span", { text: f.name }),
+      f.local ? el("span.attached-local", { title: i18n.t("Only this device"), "aria-label": i18n.t("Only this device") }, icon("phone")) : null)));
+  }
+  function paintPlaceFiles() {
+    const on = !!editingPlace;
+    $("placeFilesRow").hidden = !on;
+    if (on) $("placeFiles").replaceChildren(...fileButtons(filesOn(editingPlace.id)));
+  }
+  $("placeAttach").addEventListener("click", () => {
+    if (!editingPlace) return;
+    attachTo = editingPlace.id;
+    $("fileAdd").click();
+  });
+
   // Bytes whose record is gone (deleted, past its Undo) are let go at start.
   async function sweepFiles() {
     const ids = await store.fileIds().catch(() => []);
@@ -484,13 +546,15 @@
       const meta = view.sort === "category" ? [] : [M.CATEGORY.get(p.category)];
       if (view.sort !== "time" && p.day) meta.push(dayLabel(p.day));
       if (p.time) meta.push(timeLabel(p));
+      const nFiles = filesOn(p.id).length;
       if (g.km && g.km.has(p.id)) meta.push(g.km.get(p.id) < 1 ? Math.round(g.km.get(p.id) * 1000) + " m" : g.km.get(p.id).toFixed(1) + " km");
       return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
         el("button.tick", { type: "button", "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
           onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
           el("span.card-name", { text: p.name }),
-          el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), meta.length ? " · " + meta.join(" · ") : ""),
+          el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), meta.length ? " · " + meta.join(" · ") : "",
+            nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
           p.note ? el("span.card-note", { text: p.note }) : null));
     }));
   }
@@ -719,6 +783,7 @@
     $("placeFindNote").textContent = "";
     paintWhere();
     $("placeDelete").hidden = !place;
+    paintPlaceFiles();
     if (place) armDelete($("placeDelete"), i18n.t("Delete"), () => {
       closeSheet($("placeSheet"));
       undoable(i18n.t("Deleted {name}.", { name: place.name }), () => { doc.places = doc.places.filter((x) => x !== place); });
@@ -839,6 +904,7 @@
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
         sel.address ? el("span.dim.addr", { text: sel.address }) : null),
+        filesOn(sel.id).length ? el("ul.attached", {}, fileButtons(filesOn(sel.id))) : null,
         el("div.loc-actions", {},
           el("button.btn", { type: "button", text: i18n.t("Edit"), onclick: (e) => openPlace(sel, trip, null, e.currentTarget) }),
           el("button.btn.quiet", { type: "button", text: i18n.t("Move pin"), onclick: () => { view.pick = sel.id; view.sel = null; render(); } })),
