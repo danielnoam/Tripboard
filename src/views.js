@@ -2130,7 +2130,7 @@
   function render() {
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
-    $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
+    $("settingsBtn").hidden = settings;
     const jm = /^#\/join\/([\w-]+)\/([\w-]+)/.exec(location.hash);
     const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
@@ -2240,12 +2240,13 @@
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("sliders"));
+    $("offlineBadge").prepend(icon("check"));
     $("newTrip").append(icon("plus"));
     $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));
-    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
+    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; view.settingsFrom = /^#\/trip\//.test(location.hash) ? location.hash : null; location.hash = "#/settings"; });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
       if (view.mode === "share" && view.trip) { location.hash = "#/trip/" + view.trip; return; }
-      location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"; });
+      location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : /^#\/settings$/.test(location.hash) && view.settingsFrom || "#/"; });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
       : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
