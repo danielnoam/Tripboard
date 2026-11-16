@@ -515,8 +515,14 @@ dialog[tabindex="-1"]:focus { outline: none; }
 
 /* Offline: the trip's badge in the bar, and its card in Edit trip */
 .offline-badge {
-  flex: none; padding: 4px var(--space-2); border-radius: 999px;
+  flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px var(--space-2); border-radius: 999px;
   background: var(--accent-soft); color: var(--accent); font-size: var(--fs-small); font-weight: 600; white-space: nowrap;
+}
+.offline-badge svg { width: 16px; height: 16px; }
+/* On a phone the bar also holds Sharing, Edit trip and Settings, so the badge keeps only its tick. */
+@media (max-width: 420px) {
+  .offline-badge { padding: 4px; }
+  .offline-badge-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 .offline-card {
   font-size: var(--fs-body);
