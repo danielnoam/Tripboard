@@ -11,7 +11,7 @@ manifest.json        the web app manifest
 icon.svg             the app icon
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js)
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter (Node-tested)
+src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter, Today's order and the guessed time between places (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
@@ -23,7 +23,7 @@ src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles 
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl-text 1.0.0 (BSD-2, LICENSE.md), rtl.js and its .wasm, loaded by plugin.mjs in the map's worker when a label needs it
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/map] routing
+src/views.js         Home, a trip's Today, board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/today|/map] routing
 src/styles.css       the tokens per theme, then the styles
 src/keel/drive.js    Google Drive: sign-in, upload in pieces, keeping the newest three, restore (from keel)
 src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
@@ -96,6 +96,12 @@ adds a line here.
 
 - Trips live on this device only (IndexedDB) until sync is built: a
   cleared browser or a new phone starts empty.
+- Today's times between places are guesses from the straight line (a
+  third added for streets, walking at 5 km/h, past 2 km a drive at
+  25 km/h), not a route: a river, a hill or a one-way street can make the
+  real way much longer. A routing service would fix it but sends every
+  place to it, and Google's costs money. Navigate opens Google Maps with
+  the place's location (or name) and Google id, only when tapped.
 - Distance sorting needs places with a location (Find by name, or a pin);
   places without one sort under "No location".
 - The map is MapLibre, about 1.7 MB in src/vendor/, cached with the app.
