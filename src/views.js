@@ -77,6 +77,7 @@
     saveDoc(doc);
     render();
     if (window.Tripboard.sync) window.Tripboard.sync.soon();
+    if (window.Tripboard.share) window.Tripboard.share.soon();
   }
 
   // A short note at the bottom, with Undo when the change can be taken back.
@@ -840,6 +841,7 @@
   });
 
   // ---------- Sharing ----------
+  const SHARE = window.Tripboard.share;
   // A trip's share settings: what everyone gets, and anyone set apart.
   const SECTION_LABEL = () => [["expenses", i18n.t("Expenses")], ["files", i18n.t("Files")]];
   function personName(trip, m) {
@@ -897,27 +899,111 @@
             roleSeg(m.role || "", [["", i18n.t("As everyone")], ["editor", i18n.t("Edit")], ["viewer", i18n.t("Only view")]], (role) => set((x) => { if (role) x.role = role; else delete x.role; }))),
           el("fieldset.field", {}, el("legend", { text: i18n.t("Sees") }),
             sectionChips(a.hide, (k) => set((x) => { x.hide = toggle(a.hide, k); })),
-            a.own.hide ? el("div", {}, el("button.btn.quiet", { type: "button", text: i18n.t("Same as everyone"), onclick: () => set((x) => { delete x.hide; }) })) : null))));
+            a.own.hide ? el("div", {}, el("button.btn.quiet", { type: "button", text: i18n.t("Same as everyone"), onclick: () => set((x) => { delete x.hide; }) })) : null),
+          el("div", {}, removeButton(trip, m)))));
     });
     main.append(el("section.panel", {},
       el("div.group-head", {}, el("h2", { text: i18n.t("People") }), el("span.count", { text: String(people.length) })),
       el("ul.people", {}, rows),
-      people.length < 2 ? el("p.hint.dim", { text: i18n.t("No one else is on this trip yet. People show up here once they sync it.") }) : null,
+      people.length < 2 ? el("p.hint.dim", { text: i18n.t("No one else is on this trip yet. Invite people with a link.") }) : null,
       !manage ? el("p.hint.dim", { text: i18n.t("Only the trip's owner can change these.") }) : null));
 
+    const shared = SHARE.shared(trip.id);
+    if (!SHARE.enabled()) {
+      main.prepend(el("section.panel.share-note", {}, el("p", { text: i18n.t("Inviting people needs the sharing server, which isn't set up yet. You can choose the settings now; they apply once it is.") })));
+    } else if (manage) {
+      main.prepend(invitePanel(trip, shared));
+    }
+    if (shared) {
+      const own = shared.role === "owner";
+      const btn = el("button.btn.danger", { type: "button" });
+      armConfirm(btn, own ? i18n.t("Stop sharing") : i18n.t("Leave this trip"), async () => {
+        try { if (own) await SHARE.stop(trip.id); else await SHARE.leave(trip.id); }
+        catch (e) { toast(e.message); return; }
+        toast(own ? i18n.t("{name} isn't shared any more. Your copy stays.", { name: trip.name }) : i18n.t("You left {name}.", { name: trip.name }));
+        if (own) render();
+      });
+      main.append(el("section.panel", {}, el("div", {}, btn),
+        el("p.hint.dim", { text: own ? i18n.t("Everyone else loses the trip. Your copy stays here.") : i18n.t("The trip leaves this device. Your other devices keep their copy until they sync.") })));
+    }
     main.append(el("section.panel.share-note", {},
-      el("h2", { text: i18n.t("Before you rely on it") }),
-      el("p", { text: i18n.t("Inviting people comes in a later version. For now a trip syncs only between devices that use your sync repo.") }),
-      el("p", { text: i18n.t("The app follows these settings, but they aren't a lock: anyone who can open the sync repo can read the whole trip, files and expenses too.") })));
+      el("h2", { text: i18n.t("Who can see what") }),
+      shared ? el("p", { text: i18n.t("The sharing server checks these for everyone else: someone who can only view can't change the trip, and a section someone doesn't see never reaches their device.") }) : null,
+      el("p", { text: i18n.t("Your own sync repo keeps the whole trip, and each person's devices keep what they see.") })));
   }
 
-  // You join each shared trip you have, by your id and name.
-  function joinTrips() {
-    const me = SET.get().me;
-    let changed = false;
-    for (const t of doc.trips) if (M.join(t, me)) { t.updatedAt = new Date().toISOString(); changed = true; }
-    if (changed) save();
+  // Removing someone: they leave the trip's people, and the server ends
+  // their key at the next sync.
+  function removeButton(trip, m) {
+    if (!SHARE.shared(trip.id)) return null;
+    const btn = el("button.btn.quiet.danger-text", { type: "button" });
+    armConfirm(btn, i18n.t("Remove from trip"), () => {
+      view.sharePerson = null;
+      changeShare(trip, (t) => { t.members = t.members.filter((x) => x.id !== m.id); });
+      toast(i18n.t("Removed {name}.", { name: m.name || i18n.t("Someone") }));
+    });
+    return btn;
   }
+  // A step that can't be taken back asks for a second tap.
+  function armConfirm(btn, label, act) {
+    btn.textContent = label;
+    btn.onclick = () => {
+      if (btn.dataset.armed) { delete btn.dataset.armed; act(); return; }
+      btn.dataset.armed = "1";
+      btn.textContent = i18n.t("Tap again to confirm");
+      setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 3000);
+    };
+  }
+
+  const invites = {};
+  function invitePanel(trip, shared) {
+    const box = el("section.panel");
+    const inv = invites[trip.id];
+    const make = async (btn) => {
+      btn.disabled = true;
+      try { invites[trip.id] = await SHARE.invite(trip); }
+      catch (e) { toast(e.message); }
+      render();
+    };
+    box.append(el("h2", { text: i18n.t("Invite people") }));
+    if (!inv) {
+      box.append(el("p.hint.dim", { text: shared ? i18n.t("Make a link to add more people. A new link stops the old one.") : i18n.t("Make a link and send it to the people you travel with. The trip goes to the sharing server, and they join as Everyone below.") }),
+        el("div", {}, el("button.btn.primary", { type: "button", text: shared ? i18n.t("New invite link") : i18n.t("Make an invite link"), onclick: (e) => make(e.currentTarget) })));
+      return box;
+    }
+    const field = el("input.link-field", { readOnly: true, value: inv.link, "aria-label": i18n.t("Invite link"), onfocus: (e) => e.target.select() });
+    const copy = async () => {
+      try { await navigator.clipboard.writeText(inv.link); toast(i18n.t("Link copied.")); } catch (e) { field.select(); }
+    };
+    box.append(field,
+      el("div.loc-actions", {},
+        navigator.share ? el("button.btn.primary", { type: "button", text: i18n.t("Send…"), onclick: () => navigator.share({ title: trip.name, url: inv.link }).catch(() => {}) }) : null,
+        el("button.btn", { type: "button", text: i18n.t("Copy link"), onclick: copy }),
+        el("button.btn.quiet", { type: "button", text: i18n.t("Stop this link"), onclick: async () => {
+          try { await SHARE.stopLink(trip.id); delete invites[trip.id]; toast(i18n.t("The link doesn't work any more.")); render(); } catch (e) { toast(e.message); } } })),
+      el("p.hint.dim", { text: i18n.t("Anyone with the link can join until {date}. Send it only to people you want on the trip.", { date: i18n.date(new Date(inv.expires)) }) }));
+    return box;
+  }
+
+  // ---------- Joining from a link ----------
+  function renderJoin(main, tripId, code) {
+    $("title").textContent = i18n.t("Join a trip");
+    if (findTrip(tripId) && SHARE.shared(tripId)) { location.replace("#/trip/" + tripId); return; }
+    if (!SHARE.enabled()) { main.append(el("div.empty", {}, el("p", { text: i18n.t("Sharing isn't set up in this copy of the app.") }))); return; }
+    const me = SET.get().me;
+    const name = el("input", { value: me.name, autocomplete: "name", maxlength: "60", placeholder: i18n.t("Your name") });
+    const go = el("button.btn.primary", { type: "button", text: i18n.t("Join"), onclick: async () => {
+      go.disabled = true;
+      if (name.value.trim() !== me.name) SET.setMe({ name: name.value });
+      try { await SHARE.join(tripId, code); location.replace("#/trip/" + tripId); }
+      catch (e) { go.disabled = false; toast(e.message); }
+    } });
+    main.append(el("section.panel", {},
+      el("p", { text: i18n.t("Someone invited you to a trip. Joining brings it to this device, and the people on it see your name and what you add.") }),
+      el("label.field", {}, i18n.t("Your name"), name),
+      el("div", {}, go)));
+  }
+
 
   // ---------- The map ----------
   const TM = window.Tripboard.map;
@@ -1452,6 +1538,7 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
+    const jm = /^#\/join\/([\w-]+)\/([\w-]+)/.exec(location.hash);
     const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
@@ -1478,11 +1565,12 @@
     main.dataset.trip = view.trip + view.mode;
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
-    document.body.classList.toggle("on-home", !trip && !settings);
+    document.body.classList.toggle("on-home", !trip && !settings && !jm);
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip || !mayEdit(trip) || view.mode === "share";
     $("fab").hidden = !trip || !mayEdit(trip) || view.mode === "share";
-    if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
+    if (jm) { $("back").hidden = false; renderJoin(main, jm[1], jm[2]); }
+    else if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
     else if (trip && view.mode === "expenses") renderExpenses(main, trip);
     else if (trip && view.mode === "files") renderFiles(main, trip);
     else if (trip && view.mode === "share") renderShare(main, trip);
@@ -1513,7 +1601,6 @@
       : openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);
     render();
-    joinTrips();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();
     const T = window.Tripboard;
@@ -1521,6 +1608,8 @@
       T.sync.onStatus = () => { if (syncPaint) syncPaint(); };
       T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
     }
+    SHARE.onChange = () => { if (view.mode === "share") render(); };
+    SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, gone });
   }
 
   // Sync's side: a doc it merged comes in as it is (already stamped by
@@ -1532,7 +1621,15 @@
     lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
-    joinTrips();
+  }
+  // A shared trip you're no longer on leaves this device.
+  function gone(id) {
+    const t = findTrip(id);
+    if (!t) return;
+    doc.trips = doc.trips.filter((x) => x !== t);
+    if (view.trip === id) location.hash = "#/";
+    save();
+    toast(i18n.t("You're no longer on {name}.", { name: t.name }));
   }
   function coverChanged(id) {
     if (covers.get(id)) URL.revokeObjectURL(covers.get(id));

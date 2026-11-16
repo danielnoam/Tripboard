@@ -1,0 +1,16 @@
+# The sharing server (server/worker.js). Deployed by .github/workflows/server.yml,
+# which fills in the two ids from the repo's Actions variables.
+name = "tripboard"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tripboard"
+database_id = "TRIPBOARD_D1_ID"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "FILES"
+id = "TRIPBOARD_KV_ID"

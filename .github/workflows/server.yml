@@ -1,0 +1,55 @@
+# Deploys the sharing server (server/) to Cloudflare. It runs after a merge
+# that changes server/, or by hand. It needs, in the repo's settings:
+#   secrets   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+#   variables TRIPBOARD_D1_ID, TRIPBOARD_KV_ID
+# (server/README.md says where each comes from). Without them it skips.
+name: Sharing server
+
+on:
+  push:
+    branches: [main]
+    paths: ["server/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+  deploy:
+    needs: tests
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.TRIPBOARD_D1_ID }}
+      KV_ID: ${{ vars.TRIPBOARD_KV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the setup
+        id: ready
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$D1_ID" ] || [ -z "$KV_ID" ]; then
+            echo "::notice::Sharing server not set up yet (see server/README.md); skipping."
+            echo "go=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fill in the ids
+        if: steps.ready.outputs.go == 'yes'
+        working-directory: server
+        run: sed -i "s/TRIPBOARD_D1_ID/$D1_ID/; s/TRIPBOARD_KV_ID/$KV_ID/" wrangler.toml
+      - name: Database changes
+        if: steps.ready.outputs.go == 'yes'
+        working-directory: server
+        run: npx --yes wrangler@4 d1 migrations apply tripboard --remote
+      - name: Deploy
+        if: steps.ready.outputs.go == 'yes'
+        working-directory: server
+        run: npx --yes wrangler@4 deploy

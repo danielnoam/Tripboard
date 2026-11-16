@@ -69,6 +69,11 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 What the app gives up on purpose, said plainly. A change that adds one
 adds a line here.
 
+- Shared trips live on the sharing server (server/), readable by whoever
+  runs its Cloudflare account; they aren't end-to-end encrypted. The
+  server enforces who may edit and who sees expenses and files, but the
+  owner's own sync repo still holds the whole trip.
+
 - Trips live on this device only (IndexedDB) until sync is built: a
   cleared browser or a new phone starts empty.
 - Distance sorting needs places with a location (Find by name, or a pin);

@@ -460,3 +460,5 @@ details[open] > summary .srow-chev { transform: rotate(90deg); }
 .share-page .seg { max-width: 420px; }
 [dir="rtl"] details[open] > summary .srow-chev { transform: rotate(-90deg); }
 .sheet button:disabled:not(.attached-file) { opacity: 0.5; }
+.link-field { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit; font-size: 14px; }
+.btn.danger-text { color: var(--danger); }

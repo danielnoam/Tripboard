@@ -16,9 +16,10 @@ moves to DROPPED.md with his reason.
 
 ## With other people
 
-- **Sharing a trip and editing it together.** The data is ready
-  (members, roles, who changed what, who paid); the shared store isn't.
-  The options and a recommendation are in docs/SHARING.md.
+- **Turn on the sharing server.** Built (server/); waits for Daniel's
+  Cloudflare setup (server/README.md), then its address goes in
+  src/share.js and the CSP.
+- **End-to-end encrypted sharing**, if Tripboard ever goes public.
 - **Publishing a trip.** A read-only copy others can open (and later
   copy, which is where community trips start).
 

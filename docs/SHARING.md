@@ -32,7 +32,28 @@ there's no store that more than one person can reach.
 - **Joining.** Opening a trip that has members adds you to them
   (`model.join`), so the sharing page lists everyone who synced it.
 
-## What's missing, and the options
+## The sharing server (2026-11-16)
+
+Daniel chose option 2 below: a Cloudflare Worker on the free plan
+(server/, set up as server/README.md says). Peer to peer was ruled out:
+two phones rarely sync while both are online, it still needs a relay,
+and nothing could keep a hidden section from a peer.
+
+- The owner makes an invite link (14 days, one at a time, can be
+  stopped). Joining from it gives that device its own key; no accounts.
+- Each device syncs a shared trip with the server, beside GitHub sync,
+  with its own agreed copy and version (src/share.js).
+- The server checks every write: viewers can't write, only the owner
+  changes the people or the share settings, and a hidden section is never
+  sent and what's sent for it is ignored. Taking someone off the people
+  ends their key; their device drops the trip at its next sync.
+- An id that already has a key on a trip can't join it again, so a link
+  can't be used to become someone. The cost: a person's second device
+  gets a shared trip through their GitHub sync, not its own key.
+- Not end-to-end encrypted: the server (and whoever runs the Cloudflare
+  account) can read shared trips. A later step if it ever goes public.
+
+## The options that were weighed
 
 The missing piece is a place that every member's device can read and
 write, and that checks roles.
@@ -52,10 +73,6 @@ write, and that checks roles.
 3. **Live editing (CRDTs, websockets).** This isn't needed. A
    few-seconds-later merge per record is fine for planning a trip.
 
-Recommendation: start with 2 when sharing is built. Keep 1 in mind as a
-quick try for two people who both use GitHub.
-
 ## Still to decide
 
-- How invites work, and what a viewer sees.
 - Publishing (a read-only public copy). It can reuse the bundle as is.
