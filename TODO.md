@@ -4,6 +4,26 @@ What's planned, roughly in no order yet. When something ships it leaves
 this list (and gets a line in `changes/`); when Daniel turns it down it
 moves to DROPPED.md with his reason.
 
+## Next up (mockups shown 2026-11-16, waiting on Daniel's OK)
+
+Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW,
+"mockups, not built yet").
+
+- **Today view.** While a trip is under way, a sun icon first in the pill
+  opens today's places in time order, with the gap between each one
+  ("about 15 min walk · 1.1 km") and Navigate on the next place. The times
+  are estimates from straight-line distance unless a routing service is
+  added (Google's costs money).
+- **Offline trips.** "Save for offline" in Edit trip (Only on Wi-Fi, a
+  progress bar, Update and Remove). It saves map tiles around the trip's
+  places down to street level (about 40 MB a city), plus places, covers and
+  synced files. A saved trip says "Ready offline" in its bar. OpenFreeMap
+  only: Google's terms don't allow saving its tiles.
+- **Android app with Share into a trip.** In Google Maps, Share → Tripboard
+  asks which trip, then opens Add a place already filled in. Needs Daniel's
+  signing key as GitHub secrets (ANDROID_KEYSTORE_B64 / PASSWORD) and
+  android.yml turned back on.
+
 ## Data
 
 - **Turn on Google Drive backups.** Built (src/drive.js); waits for
