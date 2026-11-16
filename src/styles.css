@@ -462,3 +462,11 @@ details[open] > summary .srow-chev { transform: rotate(90deg); }
 .sheet button:disabled:not(.attached-file) { opacity: 0.5; }
 .link-field { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit; font-size: 14px; }
 .btn.danger-text { color: var(--danger); }
+
+/* Google Drive's backups */
+.drive-list { list-style: none; margin: 0; padding: 0; }
+.drive-list li { display: flex; align-items: center; gap: var(--s-2); padding-block: var(--s-2); border-block-end: 1px solid var(--line); }
+.drive-list li:last-child { border-block-end: 0; }
+.drive-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.drive-text .dim { font-size: var(--fs-small); }
+.drive-btns { display: flex; gap: var(--s-1); flex-shrink: 0; }

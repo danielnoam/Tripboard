@@ -1159,7 +1159,8 @@
     return new Blob([bytes], { type });
   }
   const fileName = (s) => (s.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").toLowerCase() || "trips");
-  async function saveBackup(tripIds) {
+  // A backup: the trips with their covers and files, as data addresses.
+  async function backupData(tripIds) {
     const data = M.backupOf(doc, tripIds);
     for (const t of data.trips) {
       const blob = t.cover ? await store.cover(t.id) : null;
@@ -1169,6 +1170,10 @@
       const blob = await store.file(f.id);
       if (blob) data.blobs[f.id] = await toDataUrl(blob.type ? blob : new Blob([blob], { type: f.type }));
     }
+    return data;
+  }
+  async function saveBackup(tripIds) {
+    const data = await backupData(tripIds);
     const name = (data.trips.length === 1 ? fileName(data.trips[0].name) : "tripboard") + "-" + today() + ".json";
     const a = el("a", { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" })), download: name });
     document.body.append(a);
@@ -1178,9 +1183,17 @@
     toast(i18n.t("Saved {name}.", { name: name }));
   }
   async function restoreBackup(file) {
-    let data, r;
-    try { data = JSON.parse(await file.text()); r = M.mergeBackup(doc, data); }
-    catch (e) { toast(e instanceof SyntaxError ? i18n.t("That file isn't a Tripboard backup.") : e.message); return; }
+    let data;
+    try { data = JSON.parse(await file.text()); }
+    catch (e) { toast(i18n.t("That file isn't a Tripboard backup.")); return; }
+    await restoreData(data);
+  }
+  // Adds the backup's trips here, and replaces a trip that's already here;
+  // Undo takes it back.
+  async function restoreData(data) {
+    let r;
+    try { r = M.mergeBackup(doc, data); }
+    catch (e) { toast(e.message); return false; }
     for (const id of r.ids) {
       const url = data.covers && data.covers[id];
       if (url) { await store.setCover(id, fromDataUrl(url)); if (covers.get(id)) URL.revokeObjectURL(covers.get(id)); covers.delete(id); }
@@ -1193,6 +1206,7 @@
     }
     const n = r.added + r.replaced;
     undoable((r.replaced ? i18n.tn(n, "Restored 1 trip ({replaced} replaced).", "Restored {n} trips ({replaced} replaced).", { replaced: r.replaced }) : i18n.tn(n, "Restored 1 trip.", "Restored {n} trips.")), () => { doc = r.doc; });
+    return true;
   }
 
   // ---------- Settings ----------
@@ -1240,6 +1254,7 @@
   // Everything search can find: each page, and what's on it.
   function settingsIndex() {
     const out = [
+      ...(driveOn() ? [{ ico: "cloud", title: i18n.t("Google Drive"), where: i18n.t("Settings"), href: "#/settings/drive", words: "drive google backup backups restore automatic cloud copy" }] : []),
       { ico: "refresh", title: i18n.t("GitHub sync"), where: i18n.t("Settings"), href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
       { ico: "user", title: i18n.t("You"), where: i18n.t("Settings"), href: "#/settings/you", words: "name me profile person shared trips paid by who" },
       { ico: "database", title: i18n.t("Storage"), where: i18n.t("Settings"), href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
@@ -1276,6 +1291,7 @@
   function renderSettings(main, page) {
     if (page === "map" || page === "search") return renderService(main, page);
     if (page === "services") return renderServices(main);
+    if (page === "drive") return renderDrive(main);
     if (page === "sync") return renderSync(main);
     if (page === "you") return renderYou(main);
     if (page === "storage") return renderStorage(main);
@@ -1289,6 +1305,7 @@
     const results = el("div.settings-results");
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
     const home = el("div.sgroup", {}, el("div.sgroup-card", {},
+      driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
       srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
       srow("#/settings/you", "user", i18n.t("You"), { text: cfg.me.name || i18n.t("Your name, for shared trips") }),
       srow("#/settings/storage", "database", i18n.t("Storage"), { text: i18n.t("Space used, backup and restore") }),
@@ -1516,6 +1533,133 @@
     syncPaint();
   }
 
+  // ---------- Google Drive backups (src/drive.js) ----------
+  // Dated copies of every trip beside GitHub sync, not a second sync: a
+  // backup never merges on its own. Restoring one is the same as restoring
+  // a backup file, and Undo takes it back.
+  const DRIVE = window.Tripboard.drive;
+  const driveOn = () => !!(DRIVE && DRIVE.available);
+  let driveList = null, driveBusy = false;
+  const deviceName = () => { const P = window.Keel.platform || {}; return P.native ? (P.os === "ios" ? "iPhone" : "Android") : P.desktop ? (P.desktopOs === "linux" ? "Linux" : "Windows") : "Browser"; };
+  const when = (at) => new Date(at).toLocaleString(i18n.lang, { dateStyle: "medium", timeStyle: "short" });
+  function driveSummary() {
+    if (!DRIVE.on) return { text: i18n.t("Off. Dated copies of your trips") };
+    if (driveBusy) return { text: i18n.t("Backing up…") };
+    if (DRIVE.auto && DRIVE.due && !DRIVE.signedIn) return { text: i18n.t("A backup is due. Open to back up"), tone: "warn" };
+    const last = DRIVE.last;
+    return { text: last ? i18n.t("Last backup {when}", { when: when(last.at) }) : i18n.t("No backup yet") };
+  }
+  function driveError(e) {
+    if (e && e.code === "cancelled") return;
+    toast((e && e.message) || i18n.t("Google Drive didn't answer. Try again."));
+  }
+  const drivePaint = () => { if (/^#\/settings(\/drive)?$/.test(location.hash)) render(); };
+  async function loadDriveList(ask) {
+    if (!DRIVE.on || (!ask && !DRIVE.signedIn)) return;
+    try {
+      if (ask) await DRIVE.getToken(true, "list");
+      driveList = await DRIVE.list();
+    } catch (e) { if (ask) driveError(e); }
+    drivePaint();
+  }
+  async function connectDrive() {
+    try {
+      const email = await DRIVE.connect();
+      toast(email ? i18n.t("Google Drive connected as {email}.", { email }) : i18n.t("Google Drive connected."));
+      await loadDriveList(false);
+    } catch (e) { driveError(e); }
+    drivePaint();
+  }
+  // `quiet`: the automatic one, which speaks only when it fails.
+  async function backupToDrive(quiet) {
+    if (!DRIVE.on || driveBusy) return;
+    if (quiet && !doc.trips.length) return;
+    driveBusy = true;
+    drivePaint();
+    try {
+      if (!quiet) await DRIVE.getToken(true, "backup");
+      const data = await backupData();
+      await DRIVE.upload(JSON.stringify(data), deviceName());
+      driveList = await DRIVE.list().catch(() => driveList);
+      if (!quiet) toast(i18n.t("Backed up to Google Drive."));
+    } catch (e) {
+      if (!quiet || e.code !== "signin") driveError(e);
+    } finally {
+      driveBusy = false;
+      drivePaint();
+    }
+  }
+  // A backup that's due goes up when a token is at hand without asking.
+  // A browser's lasts an hour from signing in, so there it often waits for
+  // a tap (the Settings row says so).
+  function maybeDriveBackup() {
+    if (!driveOn() || !DRIVE.on || !DRIVE.auto || !DRIVE.due || !DRIVE.signedIn || document.visibilityState !== "visible") return;
+    backupToDrive(true);
+  }
+  async function restoreDrive(f) {
+    try {
+      toast(i18n.t("Restoring…"));
+      const data = await DRIVE.download(f.id);
+      await restoreData(data);
+    } catch (e) { driveError(e); }
+  }
+  function renderDrive(main) {
+    $("title").textContent = i18n.t("Google Drive");
+    if (!driveOn()) {
+      main.append(el("p.dim.hint.page-hint", { text: i18n.t("Google Drive backups aren't set up in this copy of Tripboard yet.") }));
+      return;
+    }
+    if (!DRIVE.on) {
+      main.append(el("p.dim.hint.page-hint", { text: i18n.t("Puts a dated copy of all your trips, with their photos and files, in a Tripboard folder in your Google Drive. The newest three are kept.") }),
+        el("section.panel", {}, el("div.loc-actions", {}, el("button.btn", { type: "button", text: i18n.t("Connect Google Drive"), onclick: connectDrive }))),
+        el("p.dim.hint", { text: i18n.t("Tripboard can see only the files it puts there, nothing else in your Drive. Backups go from this device straight to Google.") }));
+      return;
+    }
+    const last = DRIVE.last;
+    const line = driveBusy ? i18n.t("Backing up…") : last ? i18n.t("Last backup {when}.", { when: when(last.at) }) : i18n.t("No backup yet.");
+    const often = (d) => (d === 1 ? i18n.t("Every day") : d === 7 ? i18n.t("Every week") : d === 30 ? i18n.t("Every month") : i18n.tn(d, "Every day", "Every {n} days"));
+    const auto = el("select", { onchange: (e) => { const d = Number(e.target.value); DRIVE.auto = d > 0; if (d) DRIVE.every = d; render(); } },
+      el("option", { value: "0", selected: !DRIVE.auto, text: i18n.t("Off") }),
+      DRIVE.EVERY.map((d) => el("option", { value: String(d), selected: DRIVE.auto && DRIVE.every === d, text: often(d) })));
+    const disconnect = el("button.btn.danger", { type: "button" });
+    armConfirm(disconnect, i18n.t("Disconnect"), async () => {
+      await DRIVE.disconnect();
+      driveList = null;
+      render();
+      toast(i18n.t("Google Drive disconnected. The backups stay in your Drive."));
+    });
+    main.append(el("section.panel", {}, el("h2", { text: DRIVE.email || i18n.t("Google Drive") }),
+      el("p", { text: line }),
+      el("div.loc-actions", {}, el("button.btn", { type: "button", text: i18n.t("Back up now"), disabled: driveBusy || !doc.trips.length, onclick: () => backupToDrive(false) }), disconnect)),
+    el("section.panel", {},
+      el("label.field", {}, i18n.t("Back up by itself"), auto),
+      el("p.hint.dim", { text: window.Keel.platform && window.Keel.platform.bundled ? i18n.t("When one is due, it goes up the next time Tripboard opens.")
+        : i18n.t("When one is due, it goes up the next time Tripboard opens. In a browser Google's sign-in lasts an hour, so it may ask you to tap Back up now.") })),
+    driveBackupsPanel());
+    if (!driveList) loadDriveList(false);
+  }
+  function driveBackupsPanel() {
+    const box = el("section.panel", {}, el("h2", { text: i18n.t("Backups") }));
+    if (!driveList) {
+      box.append(el("p.hint.dim", { text: DRIVE.signedIn ? i18n.t("Loading…") : i18n.t("Google asks again before showing them.") }),
+        DRIVE.signedIn ? null : el("div.loc-actions", {}, el("button.btn.quiet", { type: "button", text: i18n.t("Show backups"), onclick: () => loadDriveList(true) })));
+      return box;
+    }
+    if (!driveList.length) { box.append(el("p.hint.dim", { text: i18n.t("None yet.") })); return box; }
+    box.append(el("ul.drive-list", {}, driveList.map((f) => {
+      const del = el("button.btn.quiet", { type: "button" });
+      armConfirm(del, i18n.t("Delete"), async () => {
+        try { await DRIVE.remove(f.id); driveList = driveList.filter((x) => x.id !== f.id); toast(i18n.t("Backup deleted.")); }
+        catch (e) { driveError(e); }
+        render();
+      });
+      return el("li", {},
+        el("span.drive-text", {}, el("span", { text: when(f.at) }), el("span.dim", { text: [mb(f.size), f.from ? i18n.t("from {device}", { device: f.from }) : ""].filter(Boolean).join(" · ") })),
+        el("span.drive-btns", {}, el("button.btn.quiet", { type: "button", text: i18n.t("Restore"), onclick: () => restoreDrive(f) }), del));
+    })), el("p.hint.dim", { text: i18n.t("Restoring adds the backup's trips here, and replaces a trip that's already here. Undo takes it back.") }));
+    return box;
+  }
+
   async function testProvider(id, status) {
     status.textContent = i18n.t("Testing…");
     const conf = SET.get().providers[id];
@@ -1609,6 +1753,14 @@
       T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
     }
     SHARE.onChange = () => { if (view.mode === "share") render(); };
+    if (driveOn()) {
+      // A browser that had to leave for Google's page comes back here.
+      if (DRIVE.resume === "connect") setTimeout(connectDrive, 1500);
+      else if (DRIVE.resume === "backup") setTimeout(() => backupToDrive(false), 3000);
+      else if (DRIVE.resume === "list") { location.hash = "#/settings/drive"; setTimeout(() => loadDriveList(false), 1000); }
+      setTimeout(maybeDriveBackup, 20000);
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(maybeDriveBackup, 5000); });
+    }
     SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, unshared });
   }
 
