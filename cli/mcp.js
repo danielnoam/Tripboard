@@ -16,7 +16,7 @@ const day = { type: "string", description: "A date, YYYY-MM-DD." };
 const tripArg = { type: "string", description: "The trip's id or name (or part of it)." };
 const placeFields = {
   name: { type: "string" },
-  category: { type: "string", enum: M.CATEGORIES.map((c) => c[0]) },
+  category: { type: "string", description: "A category id: " + M.CATEGORIES.map((c) => c[0]).join(", ") + ", or one of your own from categories.json in the sync repo." },
   importance: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]), description: "must (must see), want (want to), maybe." },
   day, endDay: { type: "string", description: "YYYY-MM-DD, the last day of a place that lasts several days (a stay); after day." }, time: { type: "string", description: "HH:MM, needs a day; the same on each of its days." }, endTime: { type: "string", description: "HH:MM, after time." },
   note: { type: "string" }, lat: { type: "number" }, lng: { type: "number" }, address: { type: "string" },

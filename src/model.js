@@ -30,6 +30,45 @@
     ["other", i18n.t("Other")],
   ];
   const CATEGORY = new Map(CATEGORIES);
+  const isCatId = (s) => typeof s === "string" && /^[\w-]{1,40}$/.test(s);
+  // Your categories (Settings), as [[id, name]]: the defaults until you
+  // change them. A default you haven't renamed keeps its translated name;
+  // "other" is always there, last unless you moved it.
+  function catList(custom) {
+    if (!Array.isArray(custom) || !custom.length) return CATEGORIES.slice();
+    const seen = new Set();
+    const out = [];
+    for (const c of custom) {
+      if (!c || !isCatId(c.id) || seen.has(c.id)) continue;
+      const name = text(c.name).slice(0, 40) || CATEGORY.get(c.id);
+      if (!name) continue;
+      seen.add(c.id);
+      out.push([c.id, name]);
+    }
+    if (!seen.has("other")) out.push(["other", CATEGORY.get("other")]);
+    return out;
+  }
+  // A category's name: yours, then the one the trip carries, then Other.
+  const catName = (cats, trip, id) => (cats.find(([x]) => x === id) || [])[1] || (trip && trip.cats && trip.cats[id]) || CATEGORY.get(id) || CATEGORY.get("other");
+  // Each trip carries the names of the categories its places use that
+  // aren't the untouched defaults. Returns the doc, with only the trips
+  // whose names changed copied.
+  function carryCats(doc, cats) {
+    const trips = doc.trips.map((t) => {
+      const used = new Set(doc.places.filter((p) => p.trip === t.id).map((p) => p.category));
+      const want = {};
+      for (const id of [...used].sort()) {
+        const mine = cats.find(([x]) => x === id);
+        const name = mine ? mine[1] : t.cats && t.cats[id];
+        if (name && name !== CATEGORY.get(id)) want[id] = name;
+      }
+      if (JSON.stringify(want) === JSON.stringify(t.cats || {})) return t;
+      const next = { ...t };
+      if (Object.keys(want).length) next.cats = want; else delete next.cats;
+      return next;
+    });
+    return trips.some((t, i) => t !== doc.trips[i]) ? { ...doc, trips } : doc;
+  }
   // Highest first. Importance is both a sort and a filter on the board.
   const IMPORTANCE = [["must", i18n.t("Must see")], ["want", i18n.t("Want to")], ["maybe", i18n.t("Maybe")]];
   const IMPORTANCE_LABEL = new Map(IMPORTANCE);
@@ -49,7 +88,7 @@
   const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "by", "createdAt", "updatedAt"]);
   const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
-  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "share", "by", "createdAt", "updatedAt"]);
+  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
     "lat", "lng", "address", "placeId", "geoAt", "visited", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
@@ -101,6 +140,11 @@
       out.share = { role: sh.role === "viewer" ? "viewer" : "editor", hide: SECTIONS.filter((x) => (sh.hide || []).includes(x)) };
     }
     if (isPersonId(t.by)) out.by = t.by;
+    // The names of your own categories its places use, so a trip you share
+    // (or restore) shows them by name where that list isn't.
+    const cats = {};
+    if (t.cats && typeof t.cats === "object") for (const [id, name] of Object.entries(t.cats)) if (isCatId(id) && text(name)) cats[id] = text(name).slice(0, 40);
+    if (Object.keys(cats).length) out.cats = cats;
     return keepUnknown(t, out, KNOWN_TRIP);
   }
 
@@ -163,7 +207,7 @@
     p = p || {};
     const out = {
       id: text(p.id) || newId(), trip: text(p.trip), name: text(p.name) || "Untitled place",
-      category: CATEGORY.has(p.category) ? p.category : "other",
+      category: isCatId(p.category) ? p.category : "other",
       importance: RANK[p.importance] != null ? p.importance : "want",
       createdAt: p.createdAt || now(), updatedAt: p.updatedAt || p.createdAt || now(),
     };
@@ -330,10 +374,15 @@
   //   category    one group per category that has places
   //   importance  Must see, Want to, Maybe
   //   distance    one list, nearest to `from` first, then "No location"
-  function board(trip, places, sort, { only, from } = {}) {
+  function board(trip, places, sort, { only, from, cats } = {}) {
     const shown = only && only.length ? places.filter((p) => only.includes(p.importance)) : places.slice();
     if (sort === "category") {
-      return CATEGORIES.map(([id, title]) => ({ id, title, places: shown.filter((p) => p.category === id).sort(byImportance) }))
+      const list = cats || CATEGORIES;
+      // A category that isn't in your list (someone else's, on a shared
+      // trip) gets its own group, under the name the trip carries.
+      const extra = [...new Set(shown.map((p) => p.category))].filter((id) => !list.some(([x]) => x === id))
+        .map((id) => [id, catName(list, trip, id)]);
+      return list.concat(extra).map(([id, title]) => ({ id, title, places: shown.filter((p) => p.category === id).sort(byImportance) }))
         .filter((g) => g.places.length);
     }
     if (sort === "importance") {
@@ -424,7 +473,7 @@
 
   const api = {
     sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
-    placeDays, onDay, addDays, daySpan, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
+    placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,
   };

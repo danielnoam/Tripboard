@@ -5,7 +5,8 @@
 // The repo holds one file per trip, trips/<id>.json (a bundle), and its
 // cover photo, covers/<id>.jpg, and each file kept with a trip,
 // files/<trip id>/<file id> (named by id only; its name is in the bundle),
-// me.json, the person id all your devices use, and shares.json, the keys
+// me.json, the person id all your devices use, categories.json, your own
+// place categories (the newer list wins), and shares.json, the keys
 // of the shared trips you're on (src/share.js). A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
@@ -87,6 +88,19 @@
       }
     } else writes.push({ path: "me.json", text: text({ id: me.id }) });
     for (const old of me.was || []) doc = T.model.renamePerson(doc, old, me.id);
+
+    // Your categories: the newer list wins, whichever device it's on.
+    const myCats = () => T.settings.get().categories;
+    if (remote.has("categories.json") && state.catsSha !== remote.get("categories.json")) {
+      const got = await gh.getJson("categories.json");
+      if (got && got.data && T.settings.adoptCategories(got.data) && T.views) T.views.render();
+      state.catsSha = remote.get("categories.json");
+      state.catsAt = (got && got.data && got.data.at) || "";
+    }
+    if (myCats() && myCats().at !== state.catsAt && (!state.catsAt || myCats().at > state.catsAt)) {
+      writes.push({ path: "categories.json", text: text(myCats()) });
+      state.catsAt = myCats().at;
+    }
 
     // Shared trips' keys travel to your other devices in shares.json, so
     // each opens them as you (src/share.js). Your own repo only.
