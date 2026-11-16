@@ -4,16 +4,11 @@ What's planned, roughly in no order yet. When something ships it leaves
 this list (and gets a line in `changes/`); when Daniel turns it down it
 moves to DROPPED.md with his reason.
 
-## Next up (mockups shown 2026-11-16, waiting on Daniel's OK)
+## Next up (mockups OK'd 2026-11-16)
 
 Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW,
 "mockups, not built yet").
 
-- **Today view.** While a trip is under way, a sun icon first in the pill
-  opens today's places in time order, with the gap between each one
-  ("about 15 min walk · 1.1 km") and Navigate on the next place. The times
-  are estimates from straight-line distance unless a routing service is
-  added (Google's costs money).
 - **Offline trips.** "Save for offline" in Edit trip (Only on Wi-Fi, a
   progress bar, Update and Remove). It saves map tiles around the trip's
   places down to street level (about 40 MB a city), plus places, covers and

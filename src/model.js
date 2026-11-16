@@ -449,6 +449,27 @@
     return places.filter((p) => onDay(p, day) && p.lat != null).sort(byTime);
   }
 
+  // Today's places in the order they're planned: timed ones by time, then
+  // the rest by importance. Multi-day places (a stay) are on each of their days.
+  function dayPlan(places, day) {
+    const list = places.filter((p) => onDay(p, day));
+    return list.filter((p) => p.time).sort(byTime).concat(list.filter((p) => !p.time).sort(byImportance));
+  }
+  // A guess at getting from a to b, from the straight line between them (no
+  // routing service): streets add about a third, walking is 5 km/h, and past
+  // 2 km it's a drive in town at 25 km/h. Minutes round to 5. → { km, mode, min }
+  // or null when either has no location.
+  const WALK_KM = 2;
+  function leg(a, b) {
+    if (!a || !b || a.lat == null || b.lat == null) return null;
+    const km = distanceKm(a, b);
+    const mode = km <= WALK_KM ? "walk" : "drive";
+    const min = Math.max(5, Math.round((km * 1.3) / (mode === "walk" ? 5 : 25) * 60 / 5) * 5);
+    return { km, mode, min };
+  }
+  // The first place of the day not yet marked as been to.
+  const nextOf = (plan) => plan.find((p) => !p.visited) || null;
+
   // What a trip's expenses add up to: one total per currency, the biggest
   // first (no exchange rates, so currencies aren't added together).
   function expenseTotals(list) {
@@ -475,7 +496,7 @@
     sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,
+    slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.model = api; }

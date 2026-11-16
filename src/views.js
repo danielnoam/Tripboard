@@ -240,7 +240,7 @@
       main.append(el("ul.trips", {}, trips.map((t) => {
         const n = placesOf(t.id).length;
         const when = whenLabel(t);
-        return el("li", {}, el("a.trip-card", { href: "#/trip/" + t.id },
+        return el("li", {}, el("a.trip-card", { href: "#/trip/" + t.id + (M.tripStatus(t, today()) === "now" ? "/today" : "") },
           coverBox(t, "trip-cover"),
           el("div.trip-text", {},
             el("strong", { text: t.name }),
@@ -305,11 +305,90 @@
     bar.hidden = !trip;
     document.body.classList.toggle("with-tabbar", !!trip);
     if (!trip) return;
-    const tabs = [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
-      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => sees(trip, mode));
+    const tabs = [["today", "sun", i18n.t("Today"), "/today"], ["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
+      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
     bar.replaceChildren(...tabs.map(([mode, ico, label, path]) =>
       el("a.tab", { href: "#/trip/" + trip.id + path, "aria-label": label, title: label, "aria-current": view.mode === mode ? "page" : "false",
         onclick: () => { view.pick = null; } }, icon(ico))));
+  }
+
+  // ---------- Today ----------
+  // While a trip is under way: today's places in order, the way between
+  // each two (a guess from the straight line, M.leg), and Navigate on the
+  // first one not yet been to.
+  const underWay = (trip) => M.tripStatus(trip, today()) === "now";
+  function distLabel(km) {
+    const m = km < 1;
+    return new Intl.NumberFormat(i18n.lang, { style: "unit", unit: m ? "meter" : "kilometer", unitDisplay: "short", maximumFractionDigits: m ? 0 : 1 })
+      .format(m ? Math.max(10, Math.round(km * 100) * 10) : km);
+  }
+  function legLabel(l) {
+    const dist = distLabel(l.km);
+    if (l.km > 50) return dist;
+    const time = l.min < 60 ? i18n.t("{n} min", { n: l.min }) : i18n.t("{h} h {m} min", { h: Math.floor(l.min / 60), m: l.min % 60 });
+    return l.mode === "walk" ? i18n.t("about {time} walk · {dist}", { time, dist }) : i18n.t("about {time} drive · {dist}", { time, dist });
+  }
+  // Google Maps' directions to a place, from wherever the phone is.
+  function directions(p, mode) {
+    const at = p.lat != null ? p.lat.toFixed(6) + "," + p.lng.toFixed(6) : "";
+    return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(at || p.name)
+      + (p.placeId ? "&destination_place_id=" + encodeURIComponent(p.placeId) : "")
+      + (mode ? "&travelmode=" + (mode === "walk" ? "walking" : "driving") : "");
+  }
+
+  function renderToday(main, trip) {
+    $("title").textContent = trip.name;
+    const day = today();
+    const all = placesOf(trip.id);
+    const plan = M.dayPlan(all, day);
+    const next = M.nextOf(plan);
+    const done = plan.filter((p) => p.visited).length;
+    const total = trip.end ? M.dayIndex(trip, trip.end) : null;
+    main.append(el("header.today-head", {},
+      el("div", {},
+        el("p.today-kicker", { text: total ? i18n.t("Today · day {n} of {total}", { n: M.dayIndex(trip, day), total }) : i18n.t("Today") }),
+        el("h2.today-date", { text: fmt({ weekday: "long", day: "numeric", month: "long" }).format(asDate(day)) })),
+      plan.length ? el("span.dim.today-done", { text: i18n.t("{n} of {total} done", { n: done, total: plan.length }) }) : null));
+
+    if (!plan.length) {
+      main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned for today.") }),
+        el("p.dim", { text: mayEdit(trip) ? i18n.t("Add a place for today with +, or give one today's date on the Plan.") : i18n.t("The whole trip is on the Plan.") })));
+    } else {
+      const list = el("ol.today");
+      plan.forEach((p, i) => {
+        if (i) {
+          const l = M.leg(plan[i - 1], p);
+          list.append(el("li.leg", { "aria-hidden": l ? null : "true" }, l ? legLabel(l) : ""));
+        }
+        const isNext = p === next;
+        const meta = [M.catName(cats(), trip, p.category)];
+        if (p.endDay) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) + 1 }));
+        if (p.time) meta.push(timeLabel(p));
+        const toHere = isNext && i ? M.leg(plan[i - 1], p) : null;
+        list.append(el("li.card.imp-" + p.importance + (p.visited ? ".visited" : "") + (isNext ? ".next" : ""), { "data-id": p.id },
+          el("div.card-row", {},
+            el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
+              onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
+            el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
+              el("span.card-name", { text: p.name }),
+              el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), " · " + meta.join(" · ")),
+              p.note ? el("span.card-note", { text: p.note }) : null)),
+          isNext ? el("div.next-row", {},
+            el("span.next-label", { text: i18n.t("Next") }),
+            el("a.btn.primary", { href: directions(p, toHere && toHere.mode), target: "_blank", rel: "noopener noreferrer", text: i18n.t("Navigate"),
+              "aria-label": i18n.t("Navigate to {name}", { name: p.name }) })) : null));
+      });
+      main.append(list);
+      if (plan.some((p) => p.lat != null)) main.append(el("p.hint.dim", { text: i18n.t("Times are guesses from the straight line between places.") }));
+    }
+
+    const tomorrow = M.addDays(day, 1);
+    const later = trip.end && tomorrow <= trip.end ? M.dayPlan(all, tomorrow) : [];
+    if (later.length) {
+      main.append(el("a.panel.tomorrow", { href: "#/trip/" + trip.id },
+        el("span.tomorrow-head", {}, el("h2", { text: i18n.t("Tomorrow") }), el("span.dim", { text: String(later.length) })),
+        el("p.dim", { text: later.map((p) => p.name).join(", ") })));
+    }
   }
 
   // ---------- Expenses ----------
@@ -1879,10 +1958,11 @@
     const settings = !!sm;
     $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
     const jm = /^#\/join\/([\w-]+)\/([\w-]+)/.exec(location.hash);
-    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share))?/.exec(location.hash);
+    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
     if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { location.replace("#/trip/" + trip.id); return; }
+    if (trip && m[2] === "today" && !underWay(trip)) { location.replace("#/trip/" + trip.id); return; }
     if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
@@ -1915,9 +1995,11 @@
     else if (trip && view.mode === "expenses") renderExpenses(main, trip);
     else if (trip && view.mode === "files") renderFiles(main, trip);
     else if (trip && view.mode === "share") renderShare(main, trip);
+    else if (trip && view.mode === "today") renderToday(main, trip);
     else if (trip) renderBoard(main, trip); else renderHome(main);
     $("fab").setAttribute("aria-label", view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add files") : i18n.t("Add a place"));
     if (view.mode !== "share") main.classList.remove("share-page");
+    main.classList.toggle("today-page", !!trip && view.mode === "today");
     if (view.mode !== "files") { main.ondragover = main.ondragleave = main.ondrop = null; main.classList.remove("file-over"); }
     window.scrollTo(0, y);
   }
@@ -1942,7 +2024,7 @@
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
       : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
-      : openPlace(null, findTrip(view.trip), null, e.currentTarget));
+      : openPlace(null, findTrip(view.trip), view.mode === "today" ? { day: today() } : null, e.currentTarget));
     window.addEventListener("hashchange", render);
     radioKeys();
     render();
