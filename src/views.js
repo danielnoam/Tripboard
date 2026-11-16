@@ -123,6 +123,78 @@
     return box;
   }
 
+  // ---------- Importing a Google Maps list (src/listimport.js) ----------
+  // The places come in at once (Undo takes them all back); the ones without
+  // a location are then looked up by name with Find by name, one at a time.
+  async function importList(trip, items) {
+    const have = new Set(placesOf(trip.id).map((p) => p.name.toLowerCase()));
+    const stamp = new Date().toISOString();
+    const fresh = [];
+    for (const it of items) {
+      if (have.has(it.name.toLowerCase())) continue;
+      have.add(it.name.toLowerCase());
+      const p = { id: M.newId(), trip: trip.id, name: it.name, category: "other", importance: "want", createdAt: stamp, updatedAt: stamp };
+      if (it.note) p.note = it.note;
+      if (it.lat != null) Object.assign(p, { lat: it.lat, lng: it.lng });
+      fresh.push(p);
+    }
+    if (!fresh.length) { toast(items.length ? i18n.t("Those places are all in this trip already.") : i18n.t("No places found in that.")); return; }
+    undoable(i18n.tn(fresh.length, "Imported 1 place.", "Imported {n} places."), () => { doc.places.push(...fresh); });
+    await locateImported(trip, fresh.filter((p) => p.lat == null).map((p) => p.id));
+  }
+  async function locateImported(trip, ids) {
+    if (!ids.length || navigator.onLine === false) return;
+    const prov = SET.get().providers;
+    const known = cats().map(([id]) => id);
+    let found = 0;
+    for (const [i, id] of ids.entries()) {
+      const p = doc.places.find((x) => x.id === id);
+      if (!p) continue;
+      toast(i18n.t("Finding {name} on the map ({at} of {total})…", { name: p.name, at: i + 1, total: ids.length }));
+      const near = placesOf(trip.id).filter((x) => x.lat != null);
+      try {
+        const got = await PL.search(p.name + (trip.destinations[0] && !near.length ? ", " + trip.destinations[0] : ""),
+          { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key }, near });
+        const r = got.results[0];
+        const cur = doc.places.find((x) => x.id === id);
+        if (r && cur && cur.lat == null) {
+          Object.assign(cur, { lat: r.lat, lng: r.lng, updatedAt: new Date().toISOString() });
+          if (r.source === "google") Object.assign(cur, { placeId: r.placeId, geoAt: new Date().toISOString().slice(0, 10) });
+          else if (r.address) cur.address = r.address;
+          if (r.category && known.includes(r.category) && cur.category === "other") cur.category = r.category;
+          found++;
+          save();
+        }
+      } catch (e) { /* stays without a location */ }
+      // OpenStreetMap asks for about one search a second.
+      await new Promise((ok) => setTimeout(ok, 1100));
+    }
+    toast(found === ids.length ? i18n.tn(found, "Found 1 place on the map.", "Found all {n} places on the map.")
+      : i18n.t("Found {found} of {total} on the map. The rest have no location yet; Find by name or Pin on map in each one.", { found, total: ids.length }));
+  }
+  $("tripImportFile").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    const trip = editingTrip;
+    if (!file || !trip) return;
+    if (/\.kmz$/i.test(file.name)) { toast(i18n.t("That's a KMZ. In My Maps, tick Export to a .KML file and try again.")); return; }
+    const items = window.Tripboard.listImport.parse(await file.text(), file.name);
+    await closeSheet($("tripSheet"));
+    await importList(trip, items);
+  });
+  $("tripImportGo").addEventListener("click", async () => {
+    const trip = editingTrip, btn = $("tripImportGo");
+    const url = $("tripImportLink").value.trim();
+    if (!trip || !url) return;
+    btn.disabled = true;
+    try {
+      const got = await SHARE.googleList(url);
+      await closeSheet($("tripSheet"));
+      await importList(trip, got.places || []);
+    } catch (err) { toast(err.message); }
+    finally { btn.disabled = false; }
+  });
+
   // ---------- Home ----------
   function renderHome(main) {
     $("title").textContent = "Tripboard";
@@ -659,6 +731,9 @@
     $("tripDelete").hidden = !trip;
     $("tripFileRow").hidden = !trip;
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
+    $("tripImportRow").hidden = !trip;
+    $("tripImportLinkRow").hidden = !SHARE.enabled();
+    $("tripImportLink").value = "";
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
     openSheet($("tripSheet"), from, !!trip);
   }

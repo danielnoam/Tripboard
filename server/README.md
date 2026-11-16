@@ -5,6 +5,11 @@ with a D1 database (trips, keys, invite links) and a KV namespace (file
 bytes and covers). How it works, and what it checks, is at the top of
 `worker.js`. `node test/server.test.js` runs it against SQLite.
 
+It also reads a shared Google Maps list's places from its link
+(`googlelist.js`, `POST /google-list`), for the trip sheet's import. That
+uses Google Maps' undocumented list data, so it may stop working when
+Google changes it; the file import in the app doesn't depend on it.
+
 Cloudflare's free plan covers it: no card is needed for Workers, D1 or
 KV. Its limits that matter here: 100,000 requests a day, 5 GB of
 database, 1 GB of KV and 1,000 KV writes a day (one per file or cover

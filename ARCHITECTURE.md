@@ -17,6 +17,7 @@ src/merge.js         a trip as a bundle (one file), and how two copies of it mer
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
+src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
 src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
@@ -77,6 +78,13 @@ adds a line here.
   sees only the files it made. In a browser the sign-in token lasts an
   hour and is kept in localStorage for that hour; connect-src allows
   www.googleapis.com and oauth2.googleapis.com for it.
+- Importing a Google Maps list by its link goes through the sharing
+  server (server/googlelist.js), which reads the undocumented data Google
+  Maps' own page loads. It isn't allowed by Google's terms for automated
+  use and can stop working whenever Google changes it; the file import is
+  the steady route. The server sees the link and the list's places, and
+  allows 60 lists a day per address. Imported locations are kept like a
+  pin; places looked up afterwards follow Find by name's rules.
 - Shared trips live on the sharing server (server/), readable by whoever
   runs its Cloudflare account; they aren't end-to-end encrypted. The
   server enforces who may edit and who sees expenses and files, but the

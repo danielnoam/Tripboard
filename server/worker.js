@@ -27,12 +27,17 @@
 //   DELETE /trips/:id/me               leave the trip
 //   GET|PUT /trips/:id/files/:fileId  the bytes of a file in the trip
 //   GET|PUT /trips/:id/cover          the cover photo
+//   POST   /google-list               { url } -> { title, places } (googlelist.js;
+//                                     unofficial, 60 a day per address)
+
+import * as GL from "./googlelist.js";
 
 const SECTIONS = ["expenses", "files"];
 const MAX_BUNDLE = 2e6;
 const MAX_FILE = 25e6;
 const INVITE_DAYS = 14;
 const CREATES_PER_DAY = 30;
+const LISTS_PER_DAY = 60;
 const isId = (v) => typeof v === "string" && /^[\w-]{1,40}$/.test(v);
 
 // What a person gets on a trip: the owner everything; anyone else their
@@ -92,6 +97,7 @@ export async function handle(req, env) {
   const parts = url.pathname.split("/").filter(Boolean);
   const db = env.DB;
   try {
+    if (parts[0] === "google-list" && req.method === "POST") return await googleList(req, env);
     if (parts[0] !== "trips") return fail(404, "Not here.");
     const tripId = parts[1];
     const sub = parts[2] || "";
@@ -162,6 +168,16 @@ export async function handle(req, env) {
     if (e.status) return fail(e.status, e.message);
     return fail(500, "Something went wrong on the server.");
   }
+}
+
+async function googleList(req, env) {
+  const { url } = await readJson(req);
+  const ip = "list:" + (req.headers.get("CF-Connecting-IP") || "?");
+  const day = now().slice(0, 10);
+  const c = await env.DB.prepare("SELECT n FROM creates WHERE ip = ? AND day = ?").bind(ip, day).first();
+  if (c && c.n >= LISTS_PER_DAY) return fail(429, "Too many lists today. Try tomorrow.");
+  await env.DB.prepare("INSERT INTO creates (ip, day, n) VALUES (?, ?, 1) ON CONFLICT (ip, day) DO UPDATE SET n = n + 1").bind(ip, day).run();
+  return json(await GL.places(String(url || ""), env.FETCH || fetch));
 }
 
 async function create(req, env) {
