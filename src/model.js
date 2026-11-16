@@ -492,11 +492,19 @@
     return out;
   }
 
+  // A finger's move from (0,0) to (dx,dy) in ms: a swipe to the next tab
+  // (+1), the one before (-1), or neither (0). Mostly sideways, far enough
+  // and quick; in a right-to-left language the tabs run the other way.
+  function swipeStep(dx, dy, ms, rtl) {
+    if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy) || ms > 700) return 0;
+    return (dx < 0) !== !!rtl ? 1 : -1;
+  }
+
   const api = {
     sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS,
+    slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.model = api; }

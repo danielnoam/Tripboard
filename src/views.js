@@ -333,15 +333,15 @@
   }
 
   // Plan, Expenses and Files: a trip's lists (the map is the button at the top).
+  const tripTabs = (trip) => [["today", "sun", i18n.t("Today"), "/today"], ["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
+    ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
   // A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as icons.
   function paintTripBar(trip) {
     const bar = $("tripBar");
     $("bottomBar").hidden = !trip;
     document.body.classList.toggle("with-tabbar", !!trip);
     if (!trip) return;
-    const tabs = [["today", "sun", i18n.t("Today"), "/today"], ["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
-      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
-    bar.replaceChildren(...tabs.map(([mode, ico, label, path]) =>
+    bar.replaceChildren(...tripTabs(trip).map(([mode, ico, label, path]) =>
       el("a.tab", { href: "#/trip/" + trip.id + path, "aria-label": label, title: label, "aria-current": view.mode === mode ? "page" : "false",
         onclick: () => { view.pick = null; } }, icon(ico))));
   }
@@ -2180,6 +2180,46 @@
     window.scrollTo(0, y);
   }
 
+  // Swiping sideways moves between a trip's tabs: on the bottom bar always,
+  // on the page everywhere but the map, which needs the finger to pan. Not
+  // from a screen edge (the system's back), over a dialog, a field, a row
+  // that scrolls sideways, or while text is selected.
+  function wireSwipe() {
+    let s = null;
+    const sideways = (n) => {
+      for (; n && n !== document.body; n = n.parentElement) {
+        if (n.scrollWidth > n.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+      }
+      return false;
+    };
+    document.addEventListener("touchstart", (e) => {
+      s = null;
+      const t = e.touches[0], at = e.target;
+      if (e.touches.length > 1 || !view.trip || view.mode === "share" || document.querySelector("dialog[open]")) return;
+      if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+      const onBar = !!at.closest("#bottomBar");
+      if (!onBar && (view.mode === "map" || at.closest("#mapView") || at.closest("input, textarea, select, [contenteditable]") || sideways(at))) return;
+      s = { x: t.clientX, y: t.clientY, at: e.timeStamp };
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) s = null; }, { passive: true });
+    document.addEventListener("touchcancel", () => { s = null; }, { passive: true });
+    document.addEventListener("touchend", (e) => {
+      if (!s) return;
+      const t = e.changedTouches[0];
+      const step = M.swipeStep(t.clientX - s.x, t.clientY - s.y, e.timeStamp - s.at, i18n.dir === "rtl");
+      s = null;
+      const sel = window.getSelection();
+      if (!step || (sel && !sel.isCollapsed)) return;
+      const trip = findTrip(view.trip);
+      const tabs = trip ? tripTabs(trip) : [];
+      const i = tabs.findIndex(([mode]) => mode === view.mode);
+      const next = i < 0 ? null : tabs[i + step];
+      if (!next) return;
+      view.pick = null;
+      location.hash = "#/trip/" + trip.id + next[3];
+    }, { passive: true });
+  }
+
   // The token leaves the address bar before anything else happens.
   function takeSetupLink() {
     if (!/^#t=/.test(location.hash)) return false;
@@ -2212,6 +2252,7 @@
       : openPlace(null, findTrip(view.trip), view.mode === "today" ? { day: today() } : null, e.currentTarget));
     window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
+    wireSwipe();
     if (!takeSetupLink()) render();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();

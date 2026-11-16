@@ -283,4 +283,14 @@ test("your categories: defaults until changed, Other always there, unknown ones 
   assert.deepStrictEqual(g.map((x) => [x.id, x.title]), [["sight", "Sights"], ["food", "Food & drink"], ["cMarkets", "Markets"]]);
 });
 
+test("a swipe: sideways, far and quick enough; the other way in right to left", () => {
+  assert.strictEqual(M.swipeStep(-80, 10, 200, false), 1);
+  assert.strictEqual(M.swipeStep(80, 10, 200, false), -1);
+  assert.strictEqual(M.swipeStep(-80, 10, 200, true), -1);
+  assert.strictEqual(M.swipeStep(80, 10, 200, true), 1);
+  assert.strictEqual(M.swipeStep(-40, 0, 200, false), 0, "too short");
+  assert.strictEqual(M.swipeStep(-80, 50, 200, false), 0, "too steep: a scroll");
+  assert.strictEqual(M.swipeStep(-80, 0, 900, false), 0, "too slow: a long press or a selection");
+});
+
 console.log(passed + " passed");
