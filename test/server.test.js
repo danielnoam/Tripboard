@@ -167,5 +167,31 @@ function fakeEnv() {
     assert.strictEqual((await call("POST", "/trips", { bundle: { ...bundle(), trip: { ...bundle().trip, id: "t99" } }, person: { id: "ana" } })).status, 429);
   });
 
+  await test("a Google Maps list from its share link: the short link followed, the places read, other hosts refused", async () => {
+    const GL = await import("../server/googlelist.js");
+    const answer = ")]}'\n" + JSON.stringify([[null, null, null, null, "Lisbon eats", null, null, null, [
+      [null, [null, null, null, null, "R. da Bica 1", [null, null, 38.7101, -9.1463]], "Time Out Market", "Go hungry"],
+      [null, [null, null, null, null, "", [null, null, 38.7139, -9.1334]], "Feira da Ladra", ""],
+      [null, null, "", ""],
+    ]]]);
+    const seen = [];
+    env.FETCH = async (u) => {
+      seen.push(u);
+      if (u.startsWith("https://maps.app.goo.gl/")) return new Response(null, { status: 302, headers: { Location: "https://www.google.com/maps/@/data=!3m1!4b1!4m3!11m2!2sAbCdEfGh12345!3e3" } });
+      if (u.includes("entitylist/getlist")) return new Response(answer);
+      return new Response("no", { status: 404 });
+    };
+    const r = await W.handle(new Request("https://share.test/google-list", { method: "POST", body: JSON.stringify({ url: "https://maps.app.goo.gl/xyz123" }) }), env);
+    const got = await r.json();
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(got, { title: "Lisbon eats", places: [
+      { name: "Time Out Market", lat: 38.7101, lng: -9.1463, note: "Go hungry" }, { name: "Feira da Ladra", lat: 38.7139, lng: -9.1334 }] });
+    assert.ok(seen[1].includes(encodeURIComponent("!1sAbCdEfGh12345")));
+    const bad = await W.handle(new Request("https://share.test/google-list", { method: "POST", body: JSON.stringify({ url: "https://evil.example/maps" }) }), env);
+    assert.strictEqual(bad.status, 400);
+    assert.strictEqual(GL.listId("https://www.google.com/maps/placelists/list/ZZ99yyXX11"), "ZZ99yyXX11");
+    delete env.FETCH;
+  });
+
   console.log(passed + " passed");
 })();

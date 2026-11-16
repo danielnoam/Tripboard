@@ -87,6 +87,8 @@
     const base = /^(localhost|127\.)/.test(location.hostname) ? location.origin + location.pathname : APP_URL;
     return { link: base + "#/join/" + trip.id + "/" + r.data.code, expires: r.data.expires };
   };
+  // A shared Google Maps list's places, read by the server (server/googlelist.js).
+  S.googleList = async (url) => (await call("POST", "/google-list", { body: { url } })).data;
   S.stopLink = async (id) => { await call("DELETE", "/trips/" + id + "/invite", { key: state[id].key }); };
 
   // Joins a trip from an invite link; the trip comes to this device.

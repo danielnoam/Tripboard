@@ -58,6 +58,15 @@
           </div>
         </div>
       </div>
+      <div class="field" id="tripImportRow" hidden>
+        <span data-t>Import places from Google Maps</span>
+        <div><label class="btn"><span data-t>Choose a file</span><input id="tripImportFile" type="file" accept=".csv,.kml,.json,.geojson,text/csv,application/json,application/vnd.google-earth.kml+xml" class="visually-hidden"></label></div>
+        <p class="hint dim" data-t>A list from Google Takeout (Saved, as CSV), a map from My Maps (Export to KML), or Saved Places.json.</p>
+        <div class="link-row" id="tripImportLinkRow" hidden>
+          <input id="tripImportLink" type="url" inputmode="url" autocomplete="off" placeholder="https://maps.app.goo.gl/…" aria-label="A shared Google Maps list's link" data-t-attr="aria-label">
+          <button class="btn" id="tripImportGo" type="button" data-t>Import</button>
+        </div>
+      </div>
       <div class="field" id="tripFileRow" hidden>
         <span data-t>Backup</span>
         <div><button class="btn" id="tripExport" type="button" data-t>Save this trip as a file</button></div>
@@ -209,6 +218,7 @@
   <script src="src/keel/drive.js?v=0.1.0"></script>
   <script src="src/drive.js?v=0.1.0"></script>
   <script src="src/places.js?v=0.1.0"></script>
+  <script src="src/listimport.js?v=0.1.0"></script>
   <script src="src/map.js?v=0.1.0"></script>
   <script src="src/icons.js?v=0.1.0"></script>
   <script src="src/views.js?v=0.1.0"></script>
