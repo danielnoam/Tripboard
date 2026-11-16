@@ -23,6 +23,7 @@
     { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
   ];
   let lib = null, map = null, applied = "", google = null;
+  const still = () => document.documentElement.dataset.motion === "off";
   const pins = new Map();
   const T = { onPin: null, onTap: null, get ready() { return !!map; } };
 
@@ -75,7 +76,7 @@
         version: 8,
         sources: { google: { type: "raster", tileSize: 256, maxzoom: 22,
           tiles: ["https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=" + session + "&key=" + encodeURIComponent(o.key)] } },
-        layers: [{ id: "google", type: "raster", source: "google" }],
+        layers: [{ id: "google", type: "raster", source: "google", ...(still() ? { paint: { "raster-fade-duration": 0 } } : {}) }],
         __google: { session, key: o.key },
       };
     },
@@ -146,6 +147,8 @@
     map = new lib.Map({
       container, style: r.style, center: [10, 25], zoom: 1.2,
       attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false,
+      // With motion off: zooms and moves jump, a flick doesn't glide on, labels don't fade in.
+      ...(still() ? { reduceMotion: true, fadeDuration: 0 } : {}),
     });
     map.touchZoomRotate.disableRotation();
     map.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
@@ -219,7 +222,7 @@
     for (const p of at) b.extend([p.lng, p.lat]);
     map.fitBounds(b, { padding: { top: 110, bottom: 160, left: 40, right: 40 }, maxZoom: 15, duration: 0 });
   };
-  T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(document.documentElement.dataset.motion === "off" ? { duration: 0 } : {}) });
+  T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(still() ? { duration: 0 } : {}) });
   T.resize = () => map && map.resize();
 
   window.Tripboard = window.Tripboard || {};
