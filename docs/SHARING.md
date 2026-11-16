@@ -48,8 +48,13 @@ and nothing could keep a hidden section from a peer.
   sent and what's sent for it is ignored. Taking someone off the people
   ends their key; their device drops the trip at its next sync.
 - An id that already has a key on a trip can't join it again, so a link
-  can't be used to become someone. The cost: a person's second device
-  gets a shared trip through their GitHub sync, not its own key.
+  can't be used to become someone. A person's other devices get the
+  trip's key through their GitHub sync (shares.json in their own repo)
+  and open it as them. Without GitHub sync a shared trip is on one device
+  ("Add another device" is in TODO.md's ideas).
+- Leaving, being taken off, or the owner stopping sharing never deletes
+  anyone's copy: it becomes their own trip, which stops syncing with the
+  others.
 - Not end-to-end encrypted: the server (and whoever runs the Cloudflare
   account) can read shared trips. A later step if it ever goes public.
 

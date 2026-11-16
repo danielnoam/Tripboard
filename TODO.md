@@ -27,3 +27,10 @@ moves to DROPPED.md with his reason.
 
 - Community trips.
 - Ratings pulled in for places (likely Google).
+
+## Ideas
+
+- **"Add another device" for a shared trip** (Daniel, 2026-11-16: not
+  now). A one-time link tied to a person, so a device without GitHub
+  sync opens a shared trip as that same person. Today a person's other
+  devices get the trip's key only through GitHub sync (shares.json).
