@@ -21,6 +21,7 @@ Keel.i18n.strings("he", {
   "Save this trip as a file": "שמירת הטיול כקובץ",
   "Delete trip": "מחיקת הטיול",
   "Cancel": "ביטול",
+  "Back": "חזרה",
   "Create trip": "יצירת טיול",
   "File": "קובץ",
   "Open": "פתיחה",

@@ -35,9 +35,12 @@
   <nav class="tabbar" id="tripBar" aria-label="Show" data-t-attr="aria-label" hidden></nav>
   <button class="fab" id="fab" type="button" aria-label="Add a place" hidden data-t-attr="aria-label"></button>
 
-  <dialog class="sheet" id="tripSheet" aria-labelledby="tripSheetTitle">
+  <dialog class="sheet page" id="tripSheet" aria-labelledby="tripSheetTitle">
     <form class="sheet-body" id="tripForm" novalidate>
-      <h2 id="tripSheetTitle" data-t>New trip</h2>
+      <div class="page-bar">
+        <button class="icon-btn page-back" type="button" data-close aria-label="Back" data-t-attr="aria-label"></button>
+        <h2 id="tripSheetTitle" data-t>New trip</h2>
+      </div>
       <label class="field"><span data-t>Name</span>
         <input name="name" type="text" autocomplete="off" maxlength="120" placeholder="Japan in autumn" required data-t-attr="placeholder">
       </label>
@@ -75,7 +78,6 @@
       <div class="sheet-actions">
         <button class="btn danger" id="tripDelete" type="button" hidden data-t>Delete trip</button>
         <span class="grow"></span>
-        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
         <button class="btn primary" type="submit" id="tripSave" data-t>Create trip</button>
       </div>
     </form>
@@ -156,9 +158,12 @@
     </form>
   </dialog>
 
-  <dialog class="sheet" id="placeSheet" aria-labelledby="placeSheetTitle">
+  <dialog class="sheet page" id="placeSheet" aria-labelledby="placeSheetTitle">
     <form class="sheet-body" id="placeForm" novalidate>
-      <h2 id="placeSheetTitle" data-t>Add a place</h2>
+      <div class="page-bar">
+        <button class="icon-btn page-back" type="button" data-close aria-label="Back" data-t-attr="aria-label"></button>
+        <h2 id="placeSheetTitle" data-t>Add a place</h2>
+      </div>
       <label class="field"><span data-t>Name</span>
         <input name="name" type="text" autocomplete="off" maxlength="160" placeholder="Fushimi Inari" required>
       </label>
@@ -200,7 +205,6 @@
       <div class="sheet-actions">
         <button class="btn danger" id="placeDelete" type="button" hidden data-t>Delete</button>
         <span class="grow"></span>
-        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
         <button class="btn primary" type="submit" id="placeSave" data-t>Add place</button>
       </div>
     </form>

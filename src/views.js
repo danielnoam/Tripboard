@@ -1893,6 +1893,7 @@
     doc = M.sanitizeDoc(doc);
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
+    for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"));
     $("editTrip").append(icon("pencil"));
     $("shareTrip").append(icon("users"));
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
