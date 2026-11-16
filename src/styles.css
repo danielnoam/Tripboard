@@ -234,33 +234,27 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 .tick[aria-pressed="true"] { color: var(--on-accent); }
 .tick[aria-pressed="true"] .icon { background: var(--accent); border-color: var(--accent); }
 
-.fab {
-  position: fixed; z-index: 6;
-  inset-inline-end: calc(var(--safe-end) + var(--space-3)); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
-  display: grid; place-items: center; width: 56px; height: 56px; padding: 0;
-  border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-}
-.fab .icon { width: 26px; height: 26px; }
-.fab[hidden] { display: none; }
-
-/* A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as
-   icons. The + sits beside it; the toast and the map's panel above it. */
-.tabbar {
+/* A trip's bar at the bottom: one floating pill with the tabs (Today,
+   Plan, Map, Expenses, Files, as icons) and, at its inline end, the +
+   for what the tab adds. The toast and the map's panel sit above it. */
+.bottombar {
   position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
-  display: flex; gap: 2px; padding: 4px;
+  display: flex; align-items: center; gap: 4px; padding: 4px; max-width: calc(100vw - 2 * var(--space-3));
   border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
 }
-.tabbar[hidden] { display: none; }
+.bottombar[hidden] { display: none; }
+.tabbar { display: flex; gap: 2px; }
 .tabbar .tab { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 999px; color: var(--text-dim); }
 .tabbar .tab .icon { width: 22px; height: 22px; }
 .tabbar .tab[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
 .tabbar .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-/* On a phone the pill centres in the room left of the + (on the right, or the left in Hebrew). */
-@media (max-width: 480px) {
-  .tabbar { left: calc(50% - 36px); }
-  [dir="rtl"] .tabbar { left: calc(50% + 36px); }
+.fab {
+  display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; margin-inline-start: 6px;
+  border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent);
 }
+.fab .icon { width: 24px; height: 24px; }
+.fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fab[hidden] { display: none; }
 body.with-tabbar main { padding-bottom: calc(env(safe-area-inset-bottom) + 120px); }
 body.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); }
 body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); right: var(--space-3); }
@@ -331,7 +325,7 @@ body.on-map .bar { width: 100%; max-width: none; }
 .map-days:not([hidden]) ~ .map-note { top: 60px; }
 .pin.numbered { width: 28px; height: 28px; color: var(--on-accent); font-size: 13px; font-weight: 700; line-height: 1; display: grid; place-items: center; }
 .toast {
-  position: fixed; z-index: 30; inset-inline: var(--space-3) calc(var(--space-3) + 72px); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+  position: fixed; z-index: 30; inset-inline: var(--space-3); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
   display: flex; align-items: center; gap: var(--space-2); max-width: 420px; padding-block: 6px; padding-inline: var(--space-3) 6px;
   border-radius: var(--radius); background: var(--text); color: var(--bg); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
 }
@@ -339,10 +333,6 @@ body.on-map .bar { width: 100%; max-width: none; }
 .toast span { flex: 1; min-width: 0; }
 .toast .btn { color: var(--bg); font-weight: 700; }
 body.on-map .toast { bottom: auto; top: 108px; }
-/* Over the map everything keeps screen sides (MapLibre's controls don't
-   flip): its panel leaves the right for +, so + stays on the right in
-   Hebrew too. */
-:root[dir="rtl"] body.on-map .fab { inset-inline-end: auto; right: calc(env(safe-area-inset-right) + var(--space-3)); }
 .map-days .chip::before { display: none; }
 .map-note {
   position: absolute; top: var(--space-2); left: var(--space-3); right: 64px; margin: 0;

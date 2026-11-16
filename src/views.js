@@ -302,7 +302,7 @@
   // A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as icons.
   function paintTripBar(trip) {
     const bar = $("tripBar");
-    bar.hidden = !trip;
+    $("bottomBar").hidden = !trip;
     document.body.classList.toggle("with-tabbar", !!trip);
     if (!trip) return;
     const tabs = [["today", "sun", i18n.t("Today"), "/today"], ["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
