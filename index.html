@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-motion="off">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.github.com https://tiles.openfreemap.org https://nominatim.openstreetmap.org https://places.googleapis.com https://tile.googleapis.com https://api.maptiler.com https://www.googleapis.com https://oauth2.googleapis.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
@@ -17,6 +17,7 @@
   <header class="bar">
     <button class="icon-btn" id="back" type="button" aria-label="All trips" hidden data-t-attr="aria-label"></button>
     <h1 class="bar-title" id="title">Tripboard</h1>
+    <button class="icon-btn" id="newTrip" type="button" aria-label="New trip" title="New trip" hidden data-t-attr="aria-label,title"></button>
     <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-t-attr="aria-label"></button>
     <button class="icon-btn" id="shareTrip" type="button" aria-label="Sharing" title="Sharing" hidden data-t-attr="aria-label,title"></button>
     <button class="icon-btn" id="editTrip" type="button" aria-label="Edit trip" hidden data-t-attr="aria-label"></button>

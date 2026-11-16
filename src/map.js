@@ -219,7 +219,7 @@
     for (const p of at) b.extend([p.lng, p.lat]);
     map.fitBounds(b, { padding: { top: 110, bottom: 160, left: 40, right: 40 }, maxZoom: 15, duration: 0 });
   };
-  T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13) });
+  T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(document.documentElement.dataset.motion === "off" ? { duration: 0 } : {}) });
   T.resize = () => map && map.resize();
 
   window.Tripboard = window.Tripboard || {};

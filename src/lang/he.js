@@ -105,7 +105,7 @@ Keel.i18n.strings("he", {
   "Undo": "ביטול פעולה",
   "Undone.": "הפעולה בוטלה.",
   "No trips yet.": "עדיין אין טיולים.",
-  "Make one, then add the places you want to see.": "אפשר ליצור טיול ואז להוסיף את המקומות שרוצים לראות.",
+  "Make one with + at the top, then add the places you want to see.": "אפשר ליצור טיול עם + למעלה, ואז להוסיף את המקומות שרוצים לראות.",
   "My trips": "הטיולים שלי",
   "This browser isn't keeping data: trips last until the tab closes.": "הדפדפן הזה לא שומר נתונים: הטיולים יישמרו רק עד סגירת הלשונית.",
   "Version {version}": "גרסה {version}",
