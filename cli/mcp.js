@@ -18,7 +18,7 @@ const placeFields = {
   name: { type: "string" },
   category: { type: "string", enum: M.CATEGORIES.map((c) => c[0]) },
   importance: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]), description: "must (must see), want (want to), maybe." },
-  day, time: { type: "string", description: "HH:MM, needs a day." }, endTime: { type: "string", description: "HH:MM, after time." },
+  day, endDay: { type: "string", description: "YYYY-MM-DD, the last day of a place that lasts several days (a stay); after day." }, time: { type: "string", description: "HH:MM, needs a day; the same on each of its days." }, endTime: { type: "string", description: "HH:MM, after time." },
   note: { type: "string" }, lat: { type: "number" }, lng: { type: "number" }, address: { type: "string" },
   visited: { type: "boolean" },
 };

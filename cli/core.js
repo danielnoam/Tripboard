@@ -118,7 +118,7 @@ function tripView(doc, trip) {
 // The edits both front ends offer, on a doc. Each gives the record it made
 // or changed. Fields are the app's own (see src/model.js); unknown ones
 // are kept, as the app keeps them.
-const PLACE_FIELDS = ["name", "category", "importance", "day", "time", "endTime", "note", "lat", "lng", "address", "visited"];
+const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "visited"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));

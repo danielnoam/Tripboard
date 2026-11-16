@@ -42,6 +42,7 @@
     if (s === "upcoming") { const n = M.daysUntil(t.start, today()); return n === 1 ? i18n.t("Tomorrow") : i18n.t("In {n} days", { n }); }
     return "";
   }
+  const daysLabel = (p) => (p.endDay ? dayLabel(p.day) + " – " + dayLabel(p.endDay) : dayLabel(p.day));
   const timeLabel = (p) => (p.time ? p.time + (p.endTime ? "–" + p.endTime : "") : "");
 
   let doc, store, motion, saveDoc;
@@ -505,16 +506,18 @@
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
   function movePlace(p, groupId, slot) {
-    const before = JSON.stringify([p.day, p.time, p.endTime, p.category, p.importance]);
+    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance]);
     undoable(i18n.t("Moved {name}.", { name: p.name }), () => shift(p, groupId, slot));
-    if (JSON.stringify([p.day, p.time, p.endTime, p.category, p.importance]) === before) $("toast").hidden = true;
+    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance]) === before) $("toast").hidden = true;
   }
   function shift(p, groupId, slot) {
     if (view.sort === "category") p.category = groupId;
     else if (view.sort === "importance") p.importance = groupId;
     else if (view.sort === "time") {
-      if (groupId === "nodate") { delete p.day; delete p.time; delete p.endTime; }
+      if (groupId === "nodate") { delete p.day; delete p.endDay; delete p.time; delete p.endTime; }
       else {
+        // A place over several days moves as a whole: it starts on the day it's dropped on.
+        if (p.endDay) p.endDay = M.addDays(groupId, M.daySpan(p));
         p.day = groupId;
         if (slot === "any") { delete p.time; delete p.endTime; }
         else if (slot && (!p.time || M.slotOf(p) !== slot)) {
@@ -564,7 +567,8 @@
   function cards(trip, list, g) {
     return el("ul.cards", {}, list.map((p) => {
       const meta = view.sort === "category" ? [] : [M.CATEGORY.get(p.category)];
-      if (view.sort !== "time" && p.day) meta.push(dayLabel(p.day));
+      if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
+      else if (p.endDay && g.day) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       if (p.time) meta.push(timeLabel(p));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(g.km.get(p.id) < 1 ? Math.round(g.km.get(p.id) * 1000) + " m" : g.km.get(p.id).toFixed(1) + " km");
@@ -796,6 +800,7 @@
       ...days.map((d) => el("option", { value: d, text: trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, d), date: dayLabel(d) }) : dayLabel(d) })));
     $("daySelect").value = p.day || "";
     $("dayInput").value = p.day || "";
+    paintUntil(days, p.endDay || "");
     f.time.value = p.time || "";
     f.endTime.value = p.endTime || "";
     f.note.value = p.note || "";
@@ -815,12 +820,29 @@
     });
     openSheet($("placeSheet"), from, !!place);
   }
+  // "Until": for a place that lasts several days, the last of them. Offered
+  // once there's a day; the days after it, or any later date.
+  function paintUntil(days, keep) {
+    const dated = !!placeTrip.start;
+    const day = dated ? $("daySelect").value : $("dayInput").value;
+    $("untilField").hidden = !day;
+    $("untilSelect").hidden = !dated;
+    $("untilInput").hidden = dated;
+    $("untilSelect").replaceChildren(el("option", { value: "", text: i18n.t("Just that day") }),
+      ...(days || M.tripDays(placeTrip, placesOf(placeTrip.id))).filter((d) => d > day).map((d) => el("option", { value: d,
+        text: i18n.t("Day {n} · {date}", { n: M.dayIndex(placeTrip, d), date: dayLabel(d) }) })));
+    $("untilSelect").value = keep > day ? keep : "";
+    $("untilInput").min = day ? M.addDays(day, 1) : "";
+    $("untilInput").value = keep > day ? keep : "";
+  }
   async function commitPlace() {
     const f = $("placeForm");
     f.name.removeAttribute("aria-invalid");
     const stamp = new Date().toISOString();
     const day = placeTrip.start ? $("daySelect").value : $("dayInput").value;
+    const until = placeTrip.start ? $("untilSelect").value : $("untilInput").value;
     const p = editingPlace || { id: M.newId(), trip: placeTrip.id, createdAt: stamp };
+    if (day && until > day) p.endDay = until; else delete p.endDay;
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
     if (loc === null) { for (const k of ["lat", "lng", "address", "placeId", "geoAt"]) delete p[k]; }
     else if (loc) {
@@ -836,6 +858,7 @@
     save();
     return p;
   }
+  for (const id of ["daySelect", "dayInput"]) $(id).addEventListener("change", () => paintUntil(null, placeTrip.start ? $("untilSelect").value : $("untilInput").value));
   $("placeForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -1016,7 +1039,7 @@
   // The map's places: the importance filter, and the day picked on the map.
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
-    if (view.mapDay) all = all.filter((p) => p.day === view.mapDay);
+    if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay));
     return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
   }
   function paintDays(trip) {
@@ -1089,7 +1112,7 @@
     const sel = view.sel && all.find((x) => x.id === view.sel);
     if (sel) {
       const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.CATEGORY.get(sel.category)];
-      if (sel.day) meta.push(dayLabel(sel.day));
+      if (sel.day) meta.push(daysLabel(sel));
       if (sel.time) meta.push(timeLabel(sel));
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),

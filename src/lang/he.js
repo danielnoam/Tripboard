@@ -382,4 +382,7 @@ Keel.i18n.strings("he", {
   "When one is due, it goes up the next time Tripboard opens.": "כשמגיע זמן גיבוי, הוא עולה בפעם הבאה ש-Tripboard נפתח.",
   "When one is due, it goes up the next time Tripboard opens. In a browser Google's sign-in lasts an hour, so it may ask you to tap Back up now.": "כשמגיע זמן גיבוי, הוא עולה בפעם הבאה ש-Tripboard נפתח. בדפדפן, הכניסה ל-Google תקפה לשעה, כך שייתכן שיהיה צריך ללחוץ על גיבוי עכשיו.",
   "from {device}": "מ-{device}",
+  "Until": "עד",
+  "Just that day": "רק באותו יום",
+  "{n} of {total} days": "{n} מתוך {total} ימים",
 });

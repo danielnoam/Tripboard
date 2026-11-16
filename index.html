@@ -170,7 +170,10 @@
       <label class="field"><span data-t>Category</span>
         <select name="category" id="categorySelect"></select>
       </label>
-      <label class="field"><span data-t>Day</span>  <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
+      <div class="row">
+        <label class="field"><span data-t>Day</span>  <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
+        <label class="field" id="untilField"><span data-t>Until</span>  <select name="untilSelect" id="untilSelect"></select><input name="untilInput" id="untilInput" type="date" hidden></label>
+      </div>
       <div class="row">
         <label class="field"><span data-t>From</span>  <input name="time" type="time"></label>
         <label class="field"><span data-t>To</span>  <input name="endTime" type="time"></label>

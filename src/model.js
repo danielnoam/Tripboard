@@ -5,8 +5,9 @@
 //
 // A trip: id, name, optional start and end (YYYY-MM-DD), destinations (a
 // list of names), cover (true when an image is stored for it).
-// A place: id, trip, name, category, importance, and optionally day, time
-// and endTime (HH:MM), note, lat and lng, address, placeId (Google's id,
+// A place: id, trip, name, category, importance, and optionally day (and
+// endDay, when it lasts several days: a stay, a festival), time and endTime
+// (HH:MM, the same on each of its days), note, lat and lng, address, placeId (Google's id,
 // the only thing kept from Google), visited.
 // An expense: id, trip, title, amount (a number, in `currency`, an ISO
 // 4217 code), category, and optionally day, place (a place's id), note and
@@ -49,7 +50,7 @@
   const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "share", "by", "createdAt", "updatedAt"]);
-  const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
+  const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
     "lat", "lng", "address", "placeId", "geoAt", "visited", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
   // additions survive an older one saving.
@@ -167,6 +168,7 @@
       createdAt: p.createdAt || now(), updatedAt: p.updatedAt || p.createdAt || now(),
     };
     if (isDay(p.day)) out.day = p.day;
+    if (out.day && isDay(p.endDay) && p.endDay > out.day && dayNum(p.endDay) - dayNum(out.day) < MAX_TRIP_DAYS) out.endDay = p.endDay;
     // A time only means something on a day; an end time only after a start.
     if (out.day && isTime(p.time)) {
       out.time = p.time;
@@ -268,9 +270,21 @@
       if (trip.start) days.add(trip.start);
       if (trip.end) days.add(trip.end);
     }
-    for (const p of places) if (p.day) days.add(p.day);
+    for (const p of places) for (const d of placeDays(p)) days.add(d);
     return [...days].sort();
   }
+  // The days a place is on: none, its day, or its day to its endDay.
+  function placeDays(p) {
+    if (!p.day) return [];
+    if (!p.endDay) return [p.day];
+    const out = [];
+    for (let n = dayNum(p.day); n <= dayNum(p.endDay) && out.length < MAX_TRIP_DAYS; n++) out.push(dayOf(n));
+    return out;
+  }
+  const onDay = (p, day) => !!p.day && day >= p.day && day <= (p.endDay || p.day);
+  // A day moved by n days.
+  const addDays = (day, n) => dayOf(dayNum(day) + n);
+  const daySpan = (p) => (p.day && p.endDay ? dayNum(p.endDay) - dayNum(p.day) : 0);
   const dayIndex = (trip, day) => (trip.start ? dayNum(day) - dayNum(trip.start) + 1 : null);
 
   // Where a trip stands against today, for Home's order and labels.
@@ -337,7 +351,7 @@
       return out;
     }
     const groups = tripDays(trip, places).map((day) => {
-      const list = shown.filter((p) => p.day === day);
+      const list = shown.filter((p) => onDay(p, day));
       const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p) === id).sort(byTime) }))
         .concat([{ id: "any", title: i18n.t("Any time"), places: list.filter((p) => !p.time).sort(byImportance) }])
         .filter((s) => s.places.length);
@@ -383,7 +397,7 @@
 
   // One day's located places in the order they're planned, for the map's route.
   function dayRoute(places, day) {
-    return places.filter((p) => p.day === day && p.lat != null).sort(byTime);
+    return places.filter((p) => onDay(p, day) && p.lat != null).sort(byTime);
   }
 
   // What a trip's expenses add up to: one total per currency, the biggest
@@ -410,7 +424,7 @@
 
   const api = {
     sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
-    CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
+    placeDays, onDay, addDays, daySpan, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,
   };
