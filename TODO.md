@@ -14,11 +14,6 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
   ("about 15 min walk · 1.1 km") and Navigate on the next place. The times
   are estimates from straight-line distance unless a routing service is
   added (Google's costs money).
-- **Offline trips.** "Save for offline" in Edit trip (Only on Wi-Fi, a
-  progress bar, Update and Remove). It saves map tiles around the trip's
-  places down to street level (about 40 MB a city), plus places, covers and
-  synced files. A saved trip says "Ready offline" in its bar. OpenFreeMap
-  only: Google's terms don't allow saving its tiles.
 - **Android app with Share into a trip.** In Google Maps, Share → Tripboard
   asks which trip, then opens Add a place already filled in. Needs Daniel's
   signing key as GitHub secrets (ANDROID_KEYSTORE_B64 / PASSWORD) and

@@ -19,6 +19,7 @@ src/sync.js          GitHub sync: the trips in a private repo of yours, one comm
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
+src/offline.js       a trip saved for no signal: OpenFreeMap's map around its places in the Cache API, the plan of tiles, and the tbo:// protocol the map reads it through (Node-tested)
 src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl-text 1.0.0 (BSD-2, LICENSE.md), rtl.js and its .wasm, loaded by plugin.mjs in the map's worker when a label needs it
@@ -41,6 +42,7 @@ test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
 test/merge.test.js   src/merge.js and the model's stamp()
 test/places.test.js  src/places.js
+test/offline.test.js src/offline.js's tile plan, keys and style rewrite
 test/settings.test.js  src/settings.js
 test/i18n.test.js    every language table has every word the code uses, nothing stale or broken (keel's check)
 test/csp.test.js     the policy and the code under it (keel's check)
@@ -103,6 +105,23 @@ adds a line here.
   style and fonts) and nominatim.openstreetmap.org (Find by name). Opening
   the map tells OpenFreeMap which area is shown; a search sends the typed
   name (and the trip's area) to OpenStreetMap. Nothing else leaves.
+- Saving a trip for offline downloads OpenFreeMap's tiles around each of
+  its places (zoom 14 within 4 km, zoom 11 within 15 km, the trip's area to
+  zoom 8, the world to zoom 2), so OpenFreeMap learns those areas at once,
+  as it would by browsing them. They're kept in the Cache API
+  ("tripboard-offline") on this device only, never synced, and what was
+  saved per trip is in localStorage ("tripboard.offline"). The app asks the
+  browser to keep it (navigator.storage.persist), but a browser can still
+  clear it: Safari clears a website's storage after about 7 days unused
+  unless it's on the home screen. Between the saved rings the map is drawn
+  from coarser tiles. The size shown before saving is a guess (80 KB a
+  tile). "Only on Wi-Fi" can only tell mobile data where the browser says
+  so (Chrome on Android); elsewhere it saves on any connection. Once a trip
+  is saved, the map reads OpenFreeMap through the tbo:// protocol: tiles,
+  glyphs and sprites come from the kept copy first, so a saved area shows
+  its saved tiles until Update now. Google's tiles aren't saved (its
+  terms); MapTiler's terms weren't checked, so it isn't either. With no
+  connection and a saved trip, OpenFreeMap is used whatever Settings picks.
 - MapLibre's worker holds an eval for a right-to-left text plugin that
   Tripboard never loads; test/csp.test.js names it, and the policy has no
   unsafe-eval, so it couldn't run anyway.
