@@ -225,4 +225,16 @@ test("stamp marks who changed a record and who deleted one", () => {
   assert.strictEqual(again.places[0].by, "ana");
 });
 
+test("a place over several days: endDay only after its day, on each of its days, moved as a whole", () => {
+  assert.strictEqual(P({ day: "2026-11-17", endDay: "2026-11-16" }).endDay, undefined);
+  assert.strictEqual(P({ endDay: "2026-11-19" }).endDay, undefined);
+  const hotel = P({ id: "h", name: "Hotel", day: "2026-11-18", endDay: "2026-11-20", lat: 1, lng: 2 });
+  assert.deepStrictEqual(M.placeDays(hotel), ["2026-11-18", "2026-11-19", "2026-11-20"]);
+  const g = M.board(trip, [hotel, P({ id: "x", day: "2026-11-19" })], "time");
+  assert.deepStrictEqual(g.map((d) => [d.id, d.places.map((p) => p.id)]),
+    [["2026-11-17", []], ["2026-11-18", ["h"]], ["2026-11-19", ["h", "x"]], ["2026-11-20", ["h"]], ["nodate", []]]);
+  assert.deepStrictEqual(M.dayRoute([hotel], "2026-11-19").map((p) => p.id), ["h"]);
+  assert.deepStrictEqual([M.daySpan(hotel), M.addDays("2026-11-30", 2)], [2, "2026-12-02"]);
+});
+
 console.log(passed + " passed");
