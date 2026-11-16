@@ -19,7 +19,41 @@
       else n.setAttribute(k, v === true ? "" : v);
     }
     for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) n.append(kid);
+    // A radio group is one Tab stop, on its checked option (radioKeys).
+    if (props && props.role === "radio") n.tabIndex = props["aria-checked"] === "true" ? 0 : -1;
     return n;
+  }
+
+  // Radio groups (.seg): the arrow keys pick the next or previous option,
+  // mirrored right to left. Picking one repaints the group, so the focus
+  // goes back to the checked option of the group that's there now.
+  function radioKeys() {
+    const groups = () => [...document.querySelectorAll("[role=radiogroup]")];
+    const refocus = (gi) => {
+      const g = groups()[gi];
+      const on = g && g.querySelector("[role=radio][aria-checked=true]");
+      if (on && !g.contains(document.activeElement)) on.focus();
+    };
+    document.addEventListener("keydown", (e) => {
+      const r = e.target.closest && e.target.closest("[role=radio]");
+      const g = r && r.closest("[role=radiogroup]");
+      if (!g || e.altKey || e.ctrlKey || e.metaKey) return;
+      const back = { ArrowUp: true, ArrowDown: false, ArrowLeft: i18n.dir !== "rtl", ArrowRight: i18n.dir === "rtl" }[e.key];
+      if (back === undefined) return;
+      e.preventDefault();
+      const all = [...g.querySelectorAll("[role=radio]:not(:disabled)")];
+      const next = all[(all.indexOf(r) + (back ? -1 : 1) + all.length) % all.length];
+      if (!next || next === r) return;
+      const gi = groups().indexOf(g);
+      next.focus();
+      next.click();
+      refocus(gi);
+    });
+    document.addEventListener("click", (e) => {
+      const r = e.target.closest && e.target.closest("[role=radio]");
+      const g = r && r.closest("[role=radiogroup]");
+      if (g && r === document.activeElement) { const gi = groups().indexOf(g); setTimeout(() => refocus(gi)); }
+    }, true);
   }
 
   const today = () => {
@@ -1910,6 +1944,7 @@
       : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
       : openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);
+    radioKeys();
     render();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();
