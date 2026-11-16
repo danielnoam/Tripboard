@@ -206,25 +206,59 @@
     toast(found === ids.length ? i18n.tn(found, "Found 1 place on the map.", "Found all {n} places on the map.")
       : i18n.t("Found {found} of {total} on the map. The rest have no location yet; Find by name or Pin on map in each one.", { found, total: ids.length }));
   }
+  // In New trip the list waits for Create (pendingList); in Edit trip its
+  // places come in at once.
+  let pendingList = null;
+  async function gotList(list) {
+    if (editingTrip) {
+      await closeSheet($("tripSheet"));
+      await importList(editingTrip, list.places);
+      return;
+    }
+    if (!list.places.length) { toast(i18n.t("No places found in that.")); return; }
+    const f = $("tripForm");
+    if (list.title && !f.name.value.trim()) f.name.value = list.title;
+    pendingList = list;
+    paintList();
+  }
+  function paintList() {
+    const list = pendingList, n = list ? list.places.length : 0;
+    const located = list ? list.places.filter((p) => p.lat != null).length : 0;
+    $("tripListCard").hidden = !list;
+    $("tripImportPick").hidden = $("tripImportHint").hidden = !!list;
+    $("tripImportLinkRow").hidden = !!list || !SHARE.enabled();
+    if (list) {
+      $("tripListCount").textContent = list.title ? i18n.tn(n, "1 place from {name}", "{n} places from {name}", { name: list.title }) : i18n.tn(n, "1 place", "{n} places");
+      $("tripListHow").textContent = located === n ? i18n.t("All of them have a location.")
+        : !located ? i18n.t("They're found on the map by name once the trip is made.")
+        : i18n.tn(located, "1 has a location; the rest are found on the map by name once the trip is made.", "{n} have a location; the rest are found on the map by name once the trip is made.");
+    }
+    $("tripDestHint").textContent = list && located < n ? i18n.t("Separate them with commas. With a list, add the city too, so places are found in the right one.") : i18n.t("Separate them with commas.");
+    $("tripSave").textContent = editingTrip ? i18n.t("Save") : list ? i18n.tn(n, "Create trip with 1 place", "Create trip with {n} places") : i18n.t("Create trip");
+  }
+  $("tripListRemove").addEventListener("click", () => {
+    const f = $("tripForm");
+    if (pendingList && pendingList.title && f.name.value === pendingList.title) f.name.value = "";
+    pendingList = null;
+    paintList();
+  });
   $("tripImportFile").addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
-    const trip = editingTrip;
-    if (!file || !trip) return;
+    if (!file) return;
     if (/\.kmz$/i.test(file.name)) { toast(i18n.t("That's a KMZ. In My Maps, tick Export to a .KML file and try again.")); return; }
-    const items = window.Tripboard.listImport.parse(await file.text(), file.name);
-    await closeSheet($("tripSheet"));
-    await importList(trip, items);
+    const text = await file.text();
+    const LI = window.Tripboard.listImport;
+    await gotList({ title: LI.title(text, file.name), places: LI.parse(text, file.name) });
   });
   $("tripImportGo").addEventListener("click", async () => {
-    const trip = editingTrip, btn = $("tripImportGo");
+    const btn = $("tripImportGo");
     const url = $("tripImportLink").value.trim();
-    if (!trip || !url) return;
+    if (!url) return;
     btn.disabled = true;
     try {
       const got = await SHARE.googleList(url);
-      await closeSheet($("tripSheet"));
-      await importList(trip, got.places || []);
+      await gotList({ title: got.title || "", places: got.places || [] });
     } catch (err) { toast(err.message); }
     finally { btn.disabled = false; }
   });
@@ -836,7 +870,6 @@
     const f = $("tripForm");
     f.reset();
     $("tripSheetTitle").textContent = trip ? i18n.t("Edit trip") : i18n.t("New trip");
-    $("tripSave").textContent = trip ? i18n.t("Save") : i18n.t("Create trip");
     if (trip) {
       f.name.value = trip.name;
       f.start.value = trip.start || "";
@@ -847,10 +880,15 @@
     $("tripDelete").hidden = !trip;
     $("tripFileRow").hidden = !trip;
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
-    $("tripImportRow").hidden = !trip;
     $("tripOfflineRow").hidden = !trip;
-    $("tripImportLinkRow").hidden = !SHARE.enabled();
     $("tripImportLink").value = "";
+    // New trip starts from a list, at the top; Edit trip imports into it, lower down.
+    const listRow = $("tripImportRow");
+    listRow.hidden = false;
+    if (trip) $("tripOfflineRow").before(listRow); else f.querySelector(".page-bar").after(listRow);
+    $("tripImportLabel").textContent = trip ? i18n.t("Import places from Google Maps") : i18n.t("Start from a Google Maps list");
+    pendingList = null;
+    paintList();
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
     openSheet($("tripSheet"), from);
     paintOffline();
@@ -952,6 +990,9 @@
     await closeSheet($("tripSheet"));
     save();
     if (!editingTrip) location.hash = "#/trip/" + trip.id;
+    const list = !editingTrip && pendingList;
+    pendingList = null;
+    if (list) await importList(doc.trips.find((t) => t.id === trip.id) || trip, list.places);
   });
   async function deleteTrip(trip) {
     const blob = trip.cover ? await store.cover(trip.id) : null;

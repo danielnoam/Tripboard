@@ -6,6 +6,8 @@
 //   - My Maps → Export to KML/KMZ (KML only): placemarks with a location.
 //   - Takeout → Maps (your places): Saved Places.json (GeoJSON).
 //   parse(text, fileName) -> [{ name, note?, lat?, lng?, url? }]
+//   title(text, fileName) -> the list's name, or "" when the file has none:
+//     KML's Document name, else a Takeout CSV's file name (one per list).
 // No DOM here, so Node tests it (test/listimport.test.js).
 (function () {
   const clean = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
@@ -114,7 +116,19 @@
     return fromCsv(t);
   }
 
-  const api = { parse, fromUrl, csvRows };
+  function title(text, fileName) {
+    const t = String(text || "");
+    const ext = (/\.(\w+)$/.exec(String(fileName || "").toLowerCase()) || [])[1] || "";
+    if (ext === "kml" || /^\s*<\?xml|<kml[\s>]/i.test(t)) {
+      const m = /<Document[\s>][\s\S]*?<name>([\s\S]*?)<\/name>/i.exec(t.split(/<Placemark[\s>]/i)[0]);
+      return m ? clean(m[1].replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, "$1").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&")) : "";
+    }
+    if (ext !== "csv") return "";
+    // A browser may add " (1)" to a file downloaded twice.
+    return clean(String(fileName).replace(/\.csv$/i, "").replace(/\s*\(\d+\)$/, ""));
+  }
+
+  const api = { parse, title, fromUrl, csvRows };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.listImport = api; }
 })();

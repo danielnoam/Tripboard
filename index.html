@@ -53,7 +53,7 @@
       </div>
       <label class="field"><span data-t>Destinations</span>
         <input name="destinations" type="text" autocomplete="off" placeholder="Tokyo, Kyoto, Osaka" data-t-attr="placeholder">
-        <span class="hint" data-t>Separate them with commas.</span>
+        <span class="hint" id="tripDestHint" data-t>Separate them with commas.</span>
       </label>
       <div class="field">
         <span data-t>Cover</span>
@@ -65,10 +65,15 @@
           </div>
         </div>
       </div>
-      <div class="field" id="tripImportRow" hidden>
-        <span data-t>Import places from Google Maps</span>
-        <div><label class="btn"><span data-t>Choose a file</span><input id="tripImportFile" type="file" accept=".csv,.kml,.json,.geojson,text/csv,application/json,application/vnd.google-earth.kml+xml" class="visually-hidden"></label></div>
-        <p class="hint dim" data-t>A list from Google Takeout (Saved, as CSV), a map from My Maps (Export to KML), or Saved Places.json.</p>
+      <div class="field" id="tripImportRow">
+        <span id="tripImportLabel" data-t>Import places from Google Maps</span>
+        <div class="offline-card" id="tripListCard" hidden>
+          <p class="offline-title" id="tripListCount"></p>
+          <p class="dim" id="tripListHow"></p>
+          <div class="offline-actions"><button class="btn quiet" id="tripListRemove" type="button" data-t>Remove</button></div>
+        </div>
+        <div id="tripImportPick"><label class="btn"><span data-t>Choose a file</span><input id="tripImportFile" type="file" accept=".csv,.kml,.json,.geojson,text/csv,application/json,application/vnd.google-earth.kml+xml" class="visually-hidden"></label></div>
+        <p class="hint dim" id="tripImportHint" data-t>A list from Google Takeout (Saved, as CSV), a map from My Maps (Export to KML), or Saved Places.json.</p>
         <div class="link-row" id="tripImportLinkRow" hidden>
           <input id="tripImportLink" type="url" inputmode="url" autocomplete="off" placeholder="https://maps.app.goo.gl/…" aria-label="A shared Google Maps list's link" data-t-attr="aria-label">
           <button class="btn" id="tripImportGo" type="button" data-t>Import</button>

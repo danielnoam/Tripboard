@@ -41,4 +41,11 @@ test("not a list: nothing", () => {
   assert.deepStrictEqual(L.parse("{ broken", "x.json"), []);
 });
 
+test("the list's name: KML's Document name, a Takeout CSV's file name, none for JSON", () => {
+  assert.strictEqual(L.title("<kml><Document><name>Porto &amp; Douro</name><Placemark><name>Ribeira</name></Placemark></Document></kml>", "x.kml"), "Porto & Douro");
+  assert.strictEqual(L.title("<kml><Document><Placemark><name>Ribeira</name></Placemark></Document></kml>", "x.kml"), "");
+  assert.strictEqual(L.title("Title,Note,URL\n", "Tokyo eats (1).csv"), "Tokyo eats");
+  assert.strictEqual(L.title("{}", "Saved Places.json"), "");
+});
+
 console.log(passed + " passed");
