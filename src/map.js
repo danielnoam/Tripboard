@@ -131,7 +131,12 @@
     const want = JSON.stringify([cfg, dark()]);
     if (map && want === applied) { map.resize(); return T.last; }
     css();
-    lib = lib || await import("./vendor/maplibre-gl.mjs");
+    if (!lib) {
+      lib = await import("./vendor/maplibre-gl.mjs");
+      // Hebrew and Arabic labels in the right order; fetched only when a
+      // label needs it, and kept offline with the app.
+      try { lib.setRTLTextPlugin(new URL("src/vendor/rtl-text/plugin.mjs", location.href).href, true); } catch (e) { /* already set */ }
+    }
     const r = await resolve(cfg);
     google = r.style.__google || null;
     delete r.style.__google;

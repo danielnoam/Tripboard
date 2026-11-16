@@ -240,6 +240,7 @@ Keel.i18n.strings("he", {
   "Map data and Find by name: © ": "נתוני מפה וחיפוש לפי שם: © ",
   " contributors, ": " והתורמים, ",
   "With your own key: ": "עם מפתח אישי: ",
+  "Hebrew and Arabic map labels: ": "תוויות בעברית ובערבית במפה: ",
   "Your name": "השם שלך",
   "Saved.": "נשמר.",
   "Shown to people you share a trip with, next to what you add and what you paid. Sharing comes in a later version; trips you make now are already marked as yours.": "מוצג לאנשים שהטיול משותף איתם, ליד מה שהוספת ומה ששילמת. שיתוף יגיע בגרסה מאוחרת יותר; טיולים שנוצרים עכשיו כבר מסומנים כשלך.",

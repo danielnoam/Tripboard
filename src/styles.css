@@ -329,6 +329,10 @@ body.on-map .bar { width: 100%; max-width: none; }
 .toast span { flex: 1; min-width: 0; }
 .toast .btn { color: var(--bg); font-weight: 700; }
 body.on-map .toast { bottom: auto; top: 108px; }
+/* Over the map everything keeps screen sides (MapLibre's controls don't
+   flip): its panel leaves the right for +, so + stays on the right in
+   Hebrew too. */
+:root[dir="rtl"] body.on-map .fab { inset-inline-end: auto; right: calc(env(safe-area-inset-right) + var(--space-3)); }
 .map-days .chip::before { display: none; }
 .map-note {
   position: absolute; top: var(--space-2); left: var(--space-3); right: 64px; margin: 0;

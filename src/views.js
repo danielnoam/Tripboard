@@ -1234,6 +1234,7 @@
       el("li", {}, i18n.t("Icons: "), link("Lucide", "https://lucide.dev"), " (ISC)"),
       el("li", {}, i18n.t("Map: "), link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
       el("li", {}, i18n.t("Map data and Find by name: © "), link("OpenStreetMap", "https://www.openstreetmap.org/copyright"), i18n.t(" contributors, "), link("Nominatim", "https://nominatim.org")),
+      el("li", {}, i18n.t("Hebrew and Arabic map labels: "), link("mapbox-gl-rtl-text", "https://github.com/mapbox/mapbox-gl-rtl-text"), " (BSD-2)"),
       el("li", {}, i18n.t("With your own key: "), link("Google Maps Platform", "https://developers.google.com/maps"), ", ", link("MapTiler", "https://www.maptiler.com")))]));
   }
 
