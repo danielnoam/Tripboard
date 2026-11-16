@@ -57,6 +57,10 @@
   };
   addEventListener("pagehide", () => { if (timer) { clearTimeout(timer); T.store.save(latest); } });
 
+  // Google's sign-in window comes back to a copy of the app that only
+  // hands the token over and closes (src/drive.js).
+  if (T.drive && T.drive.closing) return;
+
   T.store.init()
     .then(() => T.store.load())
     .catch((e) => { K.errlog.note("load", String(e)); return null; })

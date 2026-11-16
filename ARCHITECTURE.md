@@ -14,6 +14,7 @@ src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
 src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
+src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
 src/settings.js      Settings on this device: each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
@@ -23,6 +24,7 @@ src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl
 src/icons.js         the Lucide icons used, as SVG paths
 src/views.js         Home, a trip's board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/map] routing
 src/styles.css       the tokens per theme, then the styles
+src/keel/drive.js    Google Drive: sign-in, upload in pieces, keeping the newest three, restore (from keel)
 src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
@@ -69,6 +71,12 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 What the app gives up on purpose, said plainly. A change that adds one
 adds a line here.
 
+- Google Drive backups hold every trip, with its covers and files, as
+  plain JSON in the person's own Drive (a Tripboard folder): anyone who can
+  read that Drive can read them. The scope is drive.file, so Tripboard
+  sees only the files it made. In a browser the sign-in token lasts an
+  hour and is kept in localStorage for that hour; connect-src allows
+  www.googleapis.com and oauth2.googleapis.com for it.
 - Shared trips live on the sharing server (server/), readable by whoever
   runs its Cloudflare account; they aren't end-to-end encrypted. The
   server enforces who may edit and who sees expenses and files, but the
