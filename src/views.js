@@ -52,6 +52,21 @@
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
+  // What you may do on a trip, by its share settings (M.access).
+  const meId = () => window.Tripboard.settings.get().me.id;
+  const mayEdit = (trip) => !trip || M.can(trip, meId(), "edit");
+  const sees = (trip, section) => !trip || M.can(trip, meId(), section);
+  // A sheet for someone who can only view: its fields read-only, and its
+  // Save and Delete gone. Open, Save a copy and Cancel stay.
+  function lockForm(form, locked) {
+    for (const n of form.querySelectorAll("input, select, textarea, button")) {
+      if (n.matches("[data-close], .attached-file, #fileOpen, #fileSaveCopy")) continue;
+      if (n.type === "submit" || n.classList.contains("danger")) {
+        if (locked && !n.hidden) { n.hidden = true; n.dataset.lockHidden = ""; }
+        else if (!locked && "lockHidden" in n.dataset) { n.hidden = false; delete n.dataset.lockHidden; }
+      } else n.disabled = locked;
+    }
+  }
   // Every change goes through here: cleaned, stamped against the last save
   // (updatedAt, and what was deleted), kept, drawn, and sent to sync.
   let lastSaved = "{}", version = 0;
@@ -182,7 +197,7 @@
     document.body.classList.toggle("with-tabbar", !!trip);
     if (!trip) return;
     const tabs = [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
-      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]];
+      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => sees(trip, mode));
     bar.replaceChildren(...tabs.map(([mode, ico, label, path]) =>
       el("a.tab", { href: "#/trip/" + trip.id + path, "aria-label": label, title: label, "aria-current": view.mode === mode ? "page" : "false",
         onclick: () => { view.pick = null; } }, icon(ico))));
@@ -236,6 +251,7 @@
   // New files ask once whether they sync or stay on this device.
   let pendingFiles = null, attachTo = "";
   function askFiles(list, trip, place) {
+    if (!mayEdit(trip)) return;
     const ok = list.filter((f) => f.size <= M.MAX_FILE_MB * 1e6);
     const big = list.filter((f) => f.size > M.MAX_FILE_MB * 1e6).map((f) => f.name);
     if (big.length) toast(i18n.tn(big.length, "{join} is over {MAX_FILE_MB} MB, too big to keep here.", "{join} are over {MAX_FILE_MB} MB, too big to keep here.", { join: i18n.join(big), MAX_FILE_MB: M.MAX_FILE_MB }));
@@ -336,6 +352,7 @@
       closeSheet($("fileSheet"));
       undoable(i18n.t("Deleted {name}.", { name: f.name }), () => { doc.files = doc.files.filter((x) => x !== f); });
     });
+    lockForm(form, !mayEdit(trip));
     openSheet($("fileSheet"), from);
   }
   $("fileForm").addEventListener("submit", async (e) => {
@@ -363,9 +380,10 @@
       f.local ? el("span.attached-local", { title: i18n.t("Only this device"), "aria-label": i18n.t("Only this device") }, icon("phone")) : null)));
   }
   function paintPlaceFiles() {
-    const on = !!editingPlace;
+    const on = !!editingPlace && sees(placeTrip, "files");
     $("placeFilesRow").hidden = !on;
     if (on) $("placeFiles").replaceChildren(...fileButtons(filesOn(editingPlace.id)));
+    $("placeAttach").hidden = !mayEdit(placeTrip);
   }
   $("placeAttach").addEventListener("click", () => {
     if (!editingPlace) return;
@@ -425,6 +443,7 @@
       closeSheet($("expenseSheet"));
       undoable(i18n.t("Deleted {title}.", { title: x.title }), () => { doc.expenses = doc.expenses.filter((e) => e !== x); });
     });
+    lockForm(f, !mayEdit(trip));
     openSheet($("expenseSheet"), from);
   }
   // "12,50" and "1 200.5" are amounts too.
@@ -456,7 +475,7 @@
     const head = el("div.group-head", {},
       el("h2", { text: title }),
       el("span.count", { text: String(g.places.length) }),
-      view.sort === "time" ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
+      view.sort === "time" && mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
         onclick: (e) => openPlace(null, trip, { day: g.day || "" }, e.currentTarget) }, icon("plus")) : null);
     const box = el("section.group" + (g.dropOnly ? ".drop-only" : ""), {}, head);
     if (view.sort !== "distance") box.dataset.drop = g.id;
@@ -480,7 +499,7 @@
   // ---------- Drag and drop (mouse) ----------
   // Dropping a card on another group changes what that sort groups by: its
   // day (and time slot), category or importance. Distance has nothing to change.
-  const canDrag = () => window.matchMedia("(pointer: fine)").matches && view.sort !== "distance";
+  const canDrag = () => window.matchMedia("(pointer: fine)").matches && view.sort !== "distance" && mayEdit(findTrip(view.trip));
   const SLOT_TIME = { morning: "09:00", afternoon: "14:00", evening: "19:00" };
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
@@ -546,10 +565,10 @@
       const meta = view.sort === "category" ? [] : [M.CATEGORY.get(p.category)];
       if (view.sort !== "time" && p.day) meta.push(dayLabel(p.day));
       if (p.time) meta.push(timeLabel(p));
-      const nFiles = filesOn(p.id).length;
+      const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(g.km.get(p.id) < 1 ? Math.round(g.km.get(p.id) * 1000) + " m" : g.km.get(p.id).toFixed(1) + " km");
       return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
-        el("button.tick", { type: "button", "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
+        el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
           onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
           el("span.card-name", { text: p.name }),
@@ -784,6 +803,8 @@
     paintWhere();
     $("placeDelete").hidden = !place;
     paintPlaceFiles();
+    lockForm(f, !mayEdit(trip));
+    if (!mayEdit(trip)) $("placeSheetTitle").textContent = p.name;
     if (place) armDelete($("placeDelete"), i18n.t("Delete"), () => {
       closeSheet($("placeSheet"));
       undoable(i18n.t("Deleted {name}.", { name: place.name }), () => { doc.places = doc.places.filter((x) => x !== place); });
@@ -817,6 +838,86 @@
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
     await commitPlace();
   });
+
+  // ---------- Sharing ----------
+  // A trip's share settings: what everyone gets, and anyone set apart.
+  const SECTION_LABEL = () => [["expenses", i18n.t("Expenses")], ["files", i18n.t("Files")]];
+  function personName(trip, m) {
+    if (m.id === meId()) return i18n.t("You");
+    return m.name || i18n.t("Someone");
+  }
+  function accessLabel(a) {
+    const parts = [a.role === "owner" ? i18n.t("Owner") : a.role === "viewer" ? i18n.t("Can view") : i18n.t("Can edit")];
+    const hidden = SECTION_LABEL().filter(([k]) => a.hide.includes(k)).map(([, l]) => l);
+    if (hidden.length) parts.push(i18n.t("doesn't see {what}", { what: i18n.join(hidden) }));
+    return parts.join(" · ");
+  }
+  function changeShare(trip, fn) {
+    M.ownTrip(trip, SET.get().me);
+    fn(trip);
+    trip.updatedAt = new Date().toISOString();
+    save();
+  }
+  function roleSeg(cur, options, onpick, locked) {
+    return el("div.seg", { role: "radiogroup" }, options.map(([id, label]) => el("button", { type: "button", role: "radio", disabled: locked,
+      "aria-checked": String(cur === id), text: label, onclick: () => onpick(id) })));
+  }
+  function sectionChips(hide, ontoggle, locked) {
+    return el("div.chips-row", {}, SECTION_LABEL().map(([k, label]) => el("button.chip", { type: "button", disabled: locked,
+      "aria-pressed": String(!hide.includes(k)), onclick: () => ontoggle(k) }, icon(hide.includes(k) ? "eyeOff" : "eye"), label)));
+  }
+  function renderShare(main, trip) {
+    $("title").textContent = i18n.t("Sharing");
+    main.classList.add("share-page");
+    const manage = M.can(trip, meId(), "manage");
+    const d = trip.share || { role: "editor", hide: [] };
+    const toggle = (list, k) => (list.includes(k) ? list.filter((x) => x !== k) : list.concat(k));
+    main.append(el("section.panel", {},
+      el("h2", { text: i18n.t("Everyone") }),
+      el("p.hint.dim", { text: i18n.t("What people on this trip get, unless you set something else for them below.") }),
+      el("fieldset.field", {}, el("legend", { text: i18n.t("Can") }),
+        roleSeg(d.role, [["editor", i18n.t("Edit")], ["viewer", i18n.t("Only view")]], (role) => changeShare(trip, (t) => { t.share = { ...d, role }; }), !manage)),
+      el("fieldset.field", {}, el("legend", { text: i18n.t("Sees") }),
+        el("p.hint.dim", { text: i18n.t("The plan and the map are always shown.") }),
+        sectionChips(d.hide, (k) => changeShare(trip, (t) => { t.share = { ...d, hide: toggle(d.hide, k) }; }), !manage))));
+
+    const people = (trip.members && trip.members.length ? trip.members : [{ id: meId(), name: SET.get().me.name, role: "owner" }])
+      .slice().sort((a, b) => (b.role === "owner") - (a.role === "owner"));
+    const rows = people.map((m) => {
+      const a = M.access(trip.members ? trip : { ...trip, members: [] }, m.id);
+      const head = [el("span.avatar", { "aria-hidden": "true", text: (personName(trip, m)[0] || "?").toUpperCase() }),
+        el("span.srow-text", {}, el("span.srow-title", { text: personName(trip, m) + (m.id === meId() && m.name ? " (" + m.name + ")" : "") }),
+          el("span.srow-status", { text: accessLabel(a) + (a.role !== "owner" && !a.own.role && !a.own.hide ? " · " + i18n.t("as everyone") : "") }))];
+      if (a.role === "owner" || !manage) return el("li.person", {}, el("div.person-head", {}, head));
+      const set = (fn) => { view.sharePerson = m.id; changeShare(trip, (t) => fn(t.members.find((x) => x.id === m.id))); };
+      return el("li.person", {}, el("details", { open: view.sharePerson === m.id, ontoggle: (e) => { if (e.target.open) view.sharePerson = m.id; } },
+        el("summary.person-head", {}, head, el("span.srow-chev", { "aria-hidden": "true", text: "›" })),
+        el("div.person-body", {},
+          el("fieldset.field", {}, el("legend", { text: i18n.t("Can") }),
+            roleSeg(m.role || "", [["", i18n.t("As everyone")], ["editor", i18n.t("Edit")], ["viewer", i18n.t("Only view")]], (role) => set((x) => { if (role) x.role = role; else delete x.role; }))),
+          el("fieldset.field", {}, el("legend", { text: i18n.t("Sees") }),
+            sectionChips(a.hide, (k) => set((x) => { x.hide = toggle(a.hide, k); })),
+            a.own.hide ? el("div", {}, el("button.btn.quiet", { type: "button", text: i18n.t("Same as everyone"), onclick: () => set((x) => { delete x.hide; }) })) : null))));
+    });
+    main.append(el("section.panel", {},
+      el("div.group-head", {}, el("h2", { text: i18n.t("People") }), el("span.count", { text: String(people.length) })),
+      el("ul.people", {}, rows),
+      people.length < 2 ? el("p.hint.dim", { text: i18n.t("No one else is on this trip yet. People show up here once they sync it.") }) : null,
+      !manage ? el("p.hint.dim", { text: i18n.t("Only the trip's owner can change these.") }) : null));
+
+    main.append(el("section.panel.share-note", {},
+      el("h2", { text: i18n.t("Before you rely on it") }),
+      el("p", { text: i18n.t("Inviting people comes in a later version. For now a trip syncs only between devices that use your sync repo.") }),
+      el("p", { text: i18n.t("The app follows these settings, but they aren't a lock: anyone who can open the sync repo can read the whole trip, files and expenses too.") })));
+  }
+
+  // You join each shared trip you have, by your id and name.
+  function joinTrips() {
+    const me = SET.get().me;
+    let changed = false;
+    for (const t of doc.trips) if (M.join(t, me)) { t.updatedAt = new Date().toISOString(); changed = true; }
+    if (changed) save();
+  }
 
   // ---------- The map ----------
   const TM = window.Tripboard.map;
@@ -904,15 +1005,15 @@
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
         sel.address ? el("span.dim.addr", { text: sel.address }) : null),
-        filesOn(sel.id).length ? el("ul.attached", {}, fileButtons(filesOn(sel.id))) : null,
+        sees(trip, "files") && filesOn(sel.id).length ? el("ul.attached", {}, fileButtons(filesOn(sel.id))) : null,
         el("div.loc-actions", {},
-          el("button.btn", { type: "button", text: i18n.t("Edit"), onclick: (e) => openPlace(sel, trip, null, e.currentTarget) }),
-          el("button.btn.quiet", { type: "button", text: i18n.t("Move pin"), onclick: () => { view.pick = sel.id; view.sel = null; render(); } })),
+          el("button.btn", { type: "button", text: mayEdit(trip) ? i18n.t("Edit") : i18n.t("Details"), onclick: (e) => openPlace(sel, trip, null, e.currentTarget) }),
+          mayEdit(trip) ? el("button.btn.quiet", { type: "button", text: i18n.t("Move pin"), onclick: () => { view.pick = sel.id; view.sel = null; render(); } }) : null),
         openIn(sel));
       return;
     }
     const nowhere = shownPlaces(trip).filter((p) => p.lat == null);
-    if (!nowhere.length) { panel.replaceChildren(); return; }
+    if (!nowhere.length || !mayEdit(trip)) { panel.replaceChildren(); return; }
     panel.replaceChildren(
       el("p.dim", { text: i18n.tn(nowhere.length, "1 place has no location yet. Pick one, then tap the map.", "{n} places have no location yet. Pick one, then tap the map.") }),
       el("ul.unplaced", {}, nowhere.map((p) => el("li", {}, el("button.chip.imp-" + p.importance, { type: "button", "aria-pressed": "true", text: p.name,
@@ -1246,7 +1347,7 @@
       onchange: (e) => { SET.setMe({ name: e.target.value }); toast(i18n.t("Saved.")); } });
     main.append(el("section.panel", {}, el("label.field", {}, i18n.t("Name"), name),
       el("p.hint.dim", { text: i18n.t("Shown to people you share a trip with, next to what you add and what you paid. Sharing comes in a later version; trips you make now are already marked as yours.") })),
-    el("p.dim.hint", { text: i18n.t("Each device has its own id for you until sharing can link them.") }));
+    el("p.dim.hint", { text: i18n.t("Your devices that sync share one id for you, kept in the sync repo.") }));
   }
 
   // ---------- GitHub sync ----------
@@ -1351,22 +1452,24 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     $("settingsBtn").hidden = !!/^#\/trip\//.test(location.hash) || settings;
-    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files))?/.exec(location.hash);
+    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
+    if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { location.replace("#/trip/" + trip.id); return; }
     if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
     $("mapView").hidden = !onMap;
-    paintTripBar(trip);
+    paintTripBar(view.mode === "share" ? null : trip);
+    $("shareTrip").hidden = !trip || view.mode === "share";
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);
     if (onMap) {
       document.body.classList.add("on-board"); document.body.classList.remove("on-home");
       $("title").textContent = trip.name;
       $("back").hidden = false;
-      $("editTrip").hidden = false;
-      $("fab").hidden = !!view.pick;
+      $("editTrip").hidden = !mayEdit(trip);
+      $("fab").hidden = !!view.pick || !mayEdit(trip);
       showMap(trip);
       return;
     }
@@ -1377,13 +1480,15 @@
     document.body.classList.toggle("on-board", !!trip);
     document.body.classList.toggle("on-home", !trip && !settings);
     $("back").hidden = !trip;
-    $("editTrip").hidden = !trip;
-    $("fab").hidden = !trip;
+    $("editTrip").hidden = !trip || !mayEdit(trip) || view.mode === "share";
+    $("fab").hidden = !trip || !mayEdit(trip) || view.mode === "share";
     if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
     else if (trip && view.mode === "expenses") renderExpenses(main, trip);
     else if (trip && view.mode === "files") renderFiles(main, trip);
+    else if (trip && view.mode === "share") renderShare(main, trip);
     else if (trip) renderBoard(main, trip); else renderHome(main);
     $("fab").setAttribute("aria-label", view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add files") : i18n.t("Add a place"));
+    if (view.mode !== "share") main.classList.remove("share-page");
     if (view.mode !== "files") { main.ondragover = main.ondragleave = main.ondrop = null; main.classList.remove("file-over"); }
     window.scrollTo(0, y);
   }
@@ -1394,10 +1499,13 @@
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
     $("editTrip").append(icon("pencil"));
+    $("shareTrip").append(icon("users"));
+    $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("sliders"));
     $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
+      if (view.mode === "share" && view.trip) { location.hash = "#/trip/" + view.trip; return; }
       location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"; });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
@@ -1405,6 +1513,7 @@
       : openPlace(null, findTrip(view.trip), null, e.currentTarget));
     window.addEventListener("hashchange", render);
     render();
+    joinTrips();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();
     const T = window.Tripboard;
@@ -1423,6 +1532,7 @@
     lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
+    joinTrips();
   }
   function coverChanged(id) {
     if (covers.get(id)) URL.revokeObjectURL(covers.get(id));

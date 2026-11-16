@@ -111,6 +111,34 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.deepStrictEqual(names, ["Fram Museum", "Opera"]);
   });
 
+  await test("sharing: everyone's default and one person's own, through the CLI and MCP", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Rome"], env, out);
+    const path = [...g.files().keys()].find((p) => p.startsWith("trips/"));
+    const b = g.read(path);
+    b.trip.owner = "ana";
+    b.trip.members = [{ id: "ana", name: "Ana", role: "owner" }, { id: "ben", name: "Ben" }];
+    g.put(path, JSON.stringify(b));
+    await cli.main(["share", "Rome", "--role", "viewer", "--hide", "files"], env, out);
+    assert.deepStrictEqual(g.read(path).trip.share, { role: "viewer", hide: ["files"] });
+    await assert.rejects(cli.main(["share", "Rome", "ana", "--role", "viewer"], env, out), /owner/);
+    await assert.rejects(cli.main(["share", "Rome", "--hide", "maps"], env, out), /No section/);
+    const sent = [];
+    const s = mcp.server({ env, fetch: g.fetch, write: (line) => sent.push(JSON.parse(line)) });
+    await s.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "update_sharing", arguments: { trip: "Rome", person: "ben", role: "editor", hide: ["expenses"] } } });
+    assert.ok(!sent[0].result.isError, sent[0].result.content[0].text);
+    const ben = g.read(path).trip.members.find((m) => m.id === "ben");
+    assert.deepStrictEqual([ben.role, ben.hide], ["editor", ["expenses"]]);
+    await s.handle({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "get_trip", arguments: { trip: "Rome" } } });
+    const people = JSON.parse(sent[1].result.content[0].text).people;
+    assert.deepStrictEqual(people.map((p) => [p.name, p.role, p.hidden]), [["Ana", "owner", []], ["Ben", "editor", ["expenses"]]]);
+    await s.handle({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "update_sharing", arguments: { trip: "Rome", person: "Ben", role: "default", sameAsEveryone: true } } });
+    const ben2 = g.read(path).trip.members.find((m) => m.id === "ben");
+    assert.deepStrictEqual([ben2.role, ben2.hide], [undefined, undefined]);
+  });
+
   await test("no token or repo says what to set", async () => {
     await assert.rejects(cli.main(["trips"], {}, () => {}), /TRIPBOARD_TOKEN/);
     await assert.rejects(cli.main(["trips"], { TRIPBOARD_TOKEN: "x" }, () => {}), /TRIPBOARD_REPO/);

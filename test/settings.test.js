@@ -49,4 +49,16 @@ test("me: a person id and a name are kept, a bad id isn't", () => {
   assert.ok(/^u\w+$/.test(S.get().me.id));
 });
 
+test("adoptId takes another device's id and remembers the old one", () => {
+  const old = S.get().me.id;
+  S.adoptId("ushared123");
+  assert.deepStrictEqual([S.get().me.id, S.get().me.was], ["ushared123", [old]]);
+  S.adoptId("ushared123");
+  S.adoptId("<bad>");
+  assert.deepStrictEqual(S.get().me.was, [old]);
+  S.setMe({ name: "D" });
+  assert.strictEqual(S.get().me.id, "ushared123");
+  assert.deepStrictEqual(S.merge({ me: { id: "ushared123", was: ["uold1234", 5, "<x>"] } }).me.was, ["uold1234"]);
+});
+
 console.log(passed + " passed");

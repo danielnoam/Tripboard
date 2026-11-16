@@ -12,9 +12,11 @@
 // 4217 code), category, and optionally day, place (a place's id), note and
 // paidBy (who paid, for when a trip is shared).
 // Every record can carry `by`: the id of the person who changed it last.
-// A trip can carry owner (a person id) and members: [{ id, name, role }],
-// role owner, editor or viewer. Nothing checks them yet (there's no shared
-// store); they're here so trips made now are ready to be shared.
+// A trip can carry owner (a person id), members: [{ id, name, role?, hide? }]
+// and share: { role, hide }, what everyone gets unless their own entry says
+// otherwise. role is owner, editor or viewer; hide lists the sections a
+// person doesn't see (expenses, files). The app follows these for whoever
+// uses it; they aren't a lock, since the sync repo holds the whole trip.
 // A file: id, trip, name, type (its MIME type), size in bytes, and
 // optionally place, note and local (true: kept on this device only, never
 // synced or shared). Its bytes are kept apart (store.js), never in the doc.
@@ -46,7 +48,7 @@
   const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "by", "createdAt", "updatedAt"]);
   const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
-  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "by", "createdAt", "updatedAt"]);
+  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "share", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "time", "endTime", "note",
     "lat", "lng", "address", "placeId", "geoAt", "visited", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
@@ -76,7 +78,12 @@
     out.destinations = [...new Set(dest)].slice(0, 20);
     if (t.cover) out.cover = true;
     const members = (Array.isArray(t.members) ? t.members : []).filter((m) => m && isPersonId(m.id))
-      .map((m) => ({ id: m.id, name: text(m.name).slice(0, 60), role: ROLES.includes(m.role) ? m.role : "viewer" }));
+      .map((m) => {
+        const r = { id: m.id, name: text(m.name).slice(0, 60) };
+        if (ROLES.includes(m.role)) r.role = m.role;
+        if (Array.isArray(m.hide)) r.hide = SECTIONS.filter((x) => m.hide.includes(x));
+        return r;
+      });
     const seen = new Set();
     out.members = members.filter((m) => !seen.has(m.id) && seen.add(m.id));
     if (isPersonId(t.owner)) out.owner = t.owner;
@@ -86,7 +93,12 @@
     if (out.owner && !out.members.some((m) => m.id === out.owner)) out.members.unshift({ id: out.owner, name: "", role: "owner" });
     const om = out.members.find((m) => m.id === out.owner);
     if (om) om.role = "owner";
+    if (om) delete om.hide;
     if (!out.members.length) delete out.members;
+    const sh = t.share && typeof t.share === "object" ? t.share : null;
+    if (sh && (sh.role === "viewer" || (Array.isArray(sh.hide) && sh.hide.length))) {
+      out.share = { role: sh.role === "viewer" ? "viewer" : "editor", hide: SECTIONS.filter((x) => (sh.hide || []).includes(x)) };
+    }
     if (isPersonId(t.by)) out.by = t.by;
     return keepUnknown(t, out, KNOWN_TRIP);
   }
@@ -95,11 +107,50 @@
   const isPersonId = (v) => typeof v === "string" && /^[\w-]{1,40}$/.test(v);
   // What a person may do with a trip: "read", "edit" or "manage" (members,
   // deleting the trip). A trip with no members yet is its device's own.
+  // Someone not on the list yet gets what everyone gets.
+  const SECTIONS = ["expenses", "files"];
+  const DEFAULT_SHARE = { role: "editor", hide: [] };
+  function access(trip, personId) {
+    if (!trip.members || !trip.members.length || trip.owner === personId) return { role: "owner", hide: [], own: { role: false, hide: false } };
+    const m = trip.members.find((x) => x.id === personId) || {};
+    const d = trip.share || DEFAULT_SHARE;
+    return { role: m.role || d.role, hide: (m.hide || d.hide).slice(), own: { role: !!m.role, hide: !!m.hide } };
+  }
   function can(trip, personId, what) {
-    if (!trip.members || !trip.members.length) return true;
-    const m = trip.members.find((x) => x.id === personId);
-    if (!m) return false;
-    return m.role === "owner" || (m.role === "editor" && what !== "manage") || what === "read";
+    const a = access(trip, personId);
+    if (what === "manage") return a.role === "owner";
+    if (what === "edit") return a.role !== "viewer";
+    if (SECTIONS.includes(what)) return !a.hide.includes(what);
+    return true;
+  }
+  // You on a shared trip: added to its people when you aren't there yet,
+  // and your name kept current. Gives true when it changed the trip.
+  function join(trip, me) {
+    if (!trip.members || !trip.members.length || !me || !isPersonId(me.id)) return false;
+    const m = trip.members.find((x) => x.id === me.id);
+    const name = text(me.name).slice(0, 60);
+    if (!m) { trip.members.push({ id: me.id, name }); return true; }
+    if (name && m.name !== name) { m.name = name; return true; }
+    return false;
+  }
+  // One person's id becomes another's: a second device takes the id the
+  // first one keeps in the sync repo. Trips and expenses that named the old
+  // id name the new one, stamped now so the change wins a merge.
+  function renamePerson(doc, from, to) {
+    if (!isPersonId(from) || !isPersonId(to) || from === to) return doc;
+    const at = now();
+    for (const t of doc.trips) {
+      let hit = false;
+      if (t.owner === from) { t.owner = to; hit = true; }
+      for (const m of t.members || []) if (m.id === from) { m.id = to; hit = true; }
+      if (hit && t.members) {
+        const seen = new Set();
+        t.members = t.members.filter((m) => !seen.has(m.id) && seen.add(m.id));
+        t.updatedAt = at;
+      }
+    }
+    for (const x of doc.expenses || []) if (x.paidBy === from) { x.paidBy = to; x.updatedAt = at; }
+    return doc;
   }
   // A trip made by `me` starts with them as its owner.
   function ownTrip(trip, me) {
@@ -358,7 +409,7 @@
   }
 
   const api = {
-    sanitizeFile, MAX_FILE_MB, ROLES, can, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
+    sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, GOOGLE_DAYS,

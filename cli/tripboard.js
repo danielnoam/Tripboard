@@ -20,6 +20,8 @@ const HELP = `Tripboard CLI. Needs TRIPBOARD_TOKEN and TRIPBOARD_REPO (owner/nam
   add-expense <trip> --amount A --currency EUR [--title T --category C --day D --place P --note T]
   edit-expense <trip> <expense> [same fields]
   delete-expense <trip> <expense>
+  share <trip> [<person>] [--role editor|viewer|default --hide "expenses,files"|""|default]
+                                          what everyone (or one person) may do and see
 
 A trip, place or expense is its id or its name (or part of it). Dates are YYYY-MM-DD.
 Categories: places ${core.M.CATEGORIES.map((c) => c[0]).join(", ")}; expenses ${core.M.EXPENSE_CATEGORIES.map((c) => c[0]).join(", ")}.`;
@@ -41,6 +43,7 @@ const COMMANDS = {
   "new-trip": [[], "createTrip"], "edit-trip": [["trip"], "updateTrip"], "delete-trip": [["trip"], "deleteTrip"],
   "add-place": [["trip"], "addPlace"], "edit-place": [["trip", "place"], "updatePlace"], "delete-place": [["trip", "place"], "deletePlace"],
   "add-expense": [["trip"], "addExpense"], "edit-expense": [["trip", "expense"], "updateExpense"], "delete-expense": [["trip", "expense"], "deleteExpense"],
+  share: [["trip", "person"], "updateSharing"],
 };
 
 function money(n, cur) {
@@ -54,6 +57,10 @@ function printTrip(v) {
   for (const p of v.places) lines.push("  " + [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")");
   lines.push("", "Expenses (" + v.expenses.length + ")" + (v.totals.length ? ": " + v.totals.map((x) => money(x.total, x.currency)).join(" + ") : ""));
   for (const x of v.expenses) lines.push("  " + [x.day || "no date", money(x.amount, x.currency), x.title, "[" + x.category + "]"].join("  ") + "  (" + x.id + ")");
+  if (v.people.length) {
+    lines.push("", "People (" + v.people.length + ")" + (t.share ? ": everyone " + (t.share.role === "viewer" ? "can view" : "can edit") + (t.share.hide.length ? ", doesn't see " + t.share.hide.join(", ") : "") : ""));
+    for (const p of v.people) lines.push("  " + (p.name || "Someone") + "  " + p.role + (p.hidden.length ? ", doesn't see " + p.hidden.join(", ") : "") + "  (" + p.id + ")");
+  }
   lines.push("", "Files (" + v.files.length + ")");
   for (const f of v.files) lines.push("  " + f.name + "  " + Math.max(1, Math.round(f.size / 1000)) + " KB  (" + f.id + ")");
   return lines.join("\n");
@@ -81,7 +88,10 @@ async function main(argv, env = process.env, out = console.log) {
   if (args.visited !== undefined) args.visited = args.visited !== "false" && args.visited !== "";
   for (const k of ["lat", "lng"]) if (args[k] !== undefined && args[k] !== "") args[k] = +args[k];
   const r = await tb.change((doc) => core.ops[c[1]](doc, args), "Tripboard CLI: " + cmd);
-  show(r, (x) => (x.deleted ? "Deleted " + x.deleted + "." : "Done: " + (x.name || x.title) + " (" + x.id + ")"));
+  show(r, (x) => (x.deleted ? "Deleted " + x.deleted + "."
+    : x.everyone ? x.trip + ": everyone " + (x.everyone.role === "viewer" ? "can view" : "can edit") + (x.everyone.hide.length ? ", doesn't see " + x.everyone.hide.join(", ") : "")
+    : x.access ? x.trip + ": " + x.person + " " + x.access.role + (x.access.hide.length ? ", doesn't see " + x.access.hide.join(", ") : "")
+    : "Done: " + (x.name || x.title) + " (" + x.id + ")"));
 }
 
 if (require.main === module) {
