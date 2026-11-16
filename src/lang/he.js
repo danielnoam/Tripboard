@@ -275,7 +275,6 @@ Keel.i18n.strings("he", {
   "The map works.": "המפה עובדת.",
   "Map: {why}": "מפה: {why}",
   "Testing needs a connection.": "בדיקה דורשת חיבור.",
-  "Board": "לוח",
   "On Google Maps": "ב-Google Maps",
   "Add files": "הוספת קבצים",
   "{n} places": { one: "מקום אחד", two: "שני מקומות", other: "{n} מקומות" },
