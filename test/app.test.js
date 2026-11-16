@@ -21,6 +21,16 @@ test("everything index.html loads is kept for offline, and is there", () => {
   for (const f of assets) if (f !== "./") assert.ok(fs.existsSync(path.join(ROOT, f)), f + " is in ASSETS but missing");
 });
 
+test("every script compiles (a name declared twice stops the whole app)", () => {
+  const vm = require("vm");
+  const files = [...index.matchAll(/<script src="([^"?]+)/g)].map((m) => m[1]);
+  assert.ok(files.length > 5);
+  for (const f of files) {
+    try { new vm.Script(read(f), { filename: f }); }
+    catch (e) { throw new Error(f + ": " + e.message); }
+  }
+});
+
 test("the version is the same in src/app.js and on every ?v= tag", () => {
   const v = /const APP_VERSION = "([^"]+)"/.exec(app)[1];
   const tags = [...index.matchAll(/\?v=([^"]+)"/g)].map((m) => m[1]);
