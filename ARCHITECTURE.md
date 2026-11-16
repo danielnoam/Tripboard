@@ -11,11 +11,12 @@ manifest.json        the web app manifest
 icon.svg             the app icon
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js)
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter (Node-tested)
+src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter, Today's order and the guessed time between places (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
+src/share.js         shared trips: each device on one syncs that trip with the sharing server (server/), beside GitHub sync; invite links, joining, leaving
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
@@ -24,7 +25,7 @@ src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles 
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl-text 1.0.0 (BSD-2, LICENSE.md), rtl.js and its .wasm, loaded by plugin.mjs in the map's worker when a label needs it
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/map] routing
+src/views.js         Home, a trip's Today, board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/today|/map] routing
 src/styles.css       the tokens per theme, then the styles
 src/keel/drive.js    Google Drive: sign-in, upload in pieces, keeping the newest three, restore (from keel)
 src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
@@ -34,6 +35,7 @@ src/keel/releases.js the update check and test builds (from keel)
 src/keel/motion.js   springs and moves, made in app.js (from keel)
 src/keel/sw-preview.js  the service worker's half of a test build (from keel)
 src/keel/i18n.js     languages: t()/tn() keyed by the English text, data-t in index.html, Intl dates and numbers (from keel)
+src/keel/qr.js       a QR encoder (from keel); synced but not loaded or cached yet
 src/theme.js         the theme set in <head>, before the page draws
 src/language.js      the app's i18n, made in <head>; loads src/lang/<code>.js when the language isn't English
 src/lang/he.js       the Hebrew words, keyed by the English
@@ -43,6 +45,7 @@ test/model.test.js   src/model.js
 test/merge.test.js   src/merge.js and the model's stamp()
 test/places.test.js  src/places.js
 test/offline.test.js src/offline.js's tile plan, keys and style rewrite
+test/listimport.test.js  src/listimport.js
 test/settings.test.js  src/settings.js
 test/i18n.test.js    every language table has every word the code uses, nothing stale or broken (keel's check)
 test/csp.test.js     the policy and the code under it (keel's check)
@@ -50,6 +53,11 @@ test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
 cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo; core.js reuses model.js, merge.js and keel's github.js in Node
 test/cli.test.js     cli/, against a fake GitHub
+server/              the sharing server: a Cloudflare Worker (worker.js) with D1 and KV, Google Maps list links (googlelist.js); not deployed yet (server/README.md)
+test/server.test.js  server/, in Node against SQLite (as D1) and an in-memory KV
+docs/                SCOPE.md (v1), SHARING.md, DRIVE.md (turning on Drive backups), mockup/ (the first screens)
+from-lifelog/        LifeLog's old Travel tab, for reference only; not loaded
+changes/             notes for the next release (changes/README.md)
 server.js            the local server: this computer only (from keel)
 tools/               release.js, keel-sync.js, keel-checks.js, android-version.js (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www/ (phones) or www-desktop/ (desktop), with app-build.json
@@ -62,7 +70,7 @@ package.json         the native builds' tools only (Capacitor, Tauri)
 capacitor.config.json  the phone apps: id, name, colours
 src-tauri/           the desktop app: one window on the same files, single instance, updater
 assets/logo.svg      the phone apps' icon and splash (@capacitor/assets)
-.github/workflows/   tests, Pages, android, ios, desktop, test-builds
+.github/workflows/   tests, Pages, android, ios, desktop, test-builds, server (deploys server/ once its secrets are set)
 ```
 
 android/, ios/, www/ and www-desktop/ are made in CI, never committed.
@@ -96,8 +104,14 @@ adds a line here.
   (shares.json), so their devices share it; anyone who can read that
   repo could use the key until the person is taken off the trip.
 
-- Trips live on this device only (IndexedDB) until sync is built: a
-  cleared browser or a new phone starts empty.
+- Without GitHub sync (or a backup file), trips live on this device only
+  (IndexedDB): a cleared browser or a new phone starts empty.
+- Today's times between places are guesses from the straight line (a
+  third added for streets, walking at 5 km/h, past 2 km a drive at
+  25 km/h), not a route: a river, a hill or a one-way street can make the
+  real way much longer. A routing service would fix it but sends every
+  place to it, and Google's costs money. Navigate opens Google Maps with
+  the place's location (or name) and Google id, only when tapped.
 - Distance sorting needs places with a location (Find by name, or a pin);
   places without one sort under "No location".
 - The map is MapLibre, about 1.7 MB in src/vendor/, cached with the app.
@@ -122,9 +136,15 @@ adds a line here.
   its saved tiles until Update now. Google's tiles aren't saved (its
   terms); MapTiler's terms weren't checked, so it isn't either. With no
   connection and a saved trip, OpenFreeMap is used whatever Settings picks.
-- MapLibre's worker holds an eval for a right-to-left text plugin that
-  Tripboard never loads; test/csp.test.js names it, and the policy has no
-  unsafe-eval, so it couldn't run anyway.
+- MapLibre's worker holds an eval for a right-to-left text plugin given
+  as a classic script. Tripboard's plugin (src/vendor/rtl-text/plugin.mjs)
+  is a module, which the worker import()s, so the eval never runs;
+  test/csp.test.js names it.
+- The page's policy is a meta tag, which doesn't reach the map's worker: a
+  worker gets its policy from its own response headers, and GitHub Pages
+  sends none. So connect-src doesn't limit the worker's requests. It
+  fetches only what the chosen provider's style names (tiles, glyphs,
+  sprites) and the right-to-left plugin's .wasm from Tripboard itself.
 - Google and MapTiler need the person's own key. It's kept in
   localStorage on this device, in plain text like everything else there,
   and sent only to its own provider. Google's tile URLs carry the key, so
@@ -179,9 +199,11 @@ adds a line here.
   server can change and delete trips. The tools tell it to ask before
   deleting, but nothing enforces that, and git history is the way back.
 - Your person id is made per device until sharing can link a person's
-  devices, so `by` on records names a device's id, not a person's. Trip
-  roles are recorded but not enforced: there's no shared store to
-  enforce them in (docs/SHARING.md).
+  devices, so `by` on records names a device's id, not a person's; GitHub
+  sync gives a person's synced devices one id (me.json). Trip roles are
+  enforced by the sharing server for a shared trip; on a device they only
+  set what the screens let you do, and the owner's own sync repo always
+  holds the whole trip (docs/SHARING.md).
 - Cover photos sync whole (covers/<id>.jpg); the trip's `coverAt` says
   which copy is newer.
 

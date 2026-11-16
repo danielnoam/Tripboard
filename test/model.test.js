@@ -114,6 +114,36 @@ test("a day's route: its located places in planned order", () => {
   ], "2026-11-17").map((p) => p.id), ["early", "late"]);
 });
 
+test("today's plan: timed places by time, then the rest by importance, stays included", () => {
+  const list = [
+    P({ id: "late", day: "2026-11-18", time: "18:00" }),
+    P({ id: "maybe", day: "2026-11-18", importance: "maybe" }),
+    P({ id: "must", day: "2026-11-18", importance: "must" }),
+    P({ id: "early", day: "2026-11-18", time: "08:00" }),
+    P({ id: "stay", day: "2026-11-17", endDay: "2026-11-19", time: "15:00" }),
+    P({ id: "other", day: "2026-11-19", time: "07:00" }),
+  ];
+  assert.deepStrictEqual(M.dayPlan(list, "2026-11-18").map((p) => p.id), ["early", "stay", "late", "must", "maybe"]);
+  const plan = M.dayPlan(list, "2026-11-18");
+  plan[0].visited = true;
+  assert.strictEqual(M.nextOf(plan).id, "stay");
+  assert.strictEqual(M.nextOf([]), null);
+});
+
+test("a leg between two places: a walk up to 2 km, a drive past it, none without a location", () => {
+  const a = { lat: 38.7139, lng: -9.1334 };
+  const walk = M.leg(a, { lat: 38.7139, lng: -9.1207 });
+  assert.strictEqual(walk.mode, "walk");
+  assert.ok(walk.km > 1 && walk.km < 1.2, walk.km);
+  assert.strictEqual(walk.min, 15);
+  const drive = M.leg(a, { lat: 38.7139, lng: -9.0964 });
+  assert.strictEqual(drive.mode, "drive");
+  assert.strictEqual(drive.min, 10);
+  assert.strictEqual(M.leg(a, a).min, 5);
+  assert.strictEqual(M.leg(a, { lat: null, lng: null }), null);
+  assert.strictEqual(M.leg(null, a), null);
+});
+
 test("an expense is cleaned: amount, currency, category, and its trip must exist", () => {
   const d = M.sanitizeDoc({ trips: [{ id: "t", name: "K" }], expenses: [
     { id: "a", trip: "t", amount: "12.345", currency: "eur", category: "food" },
