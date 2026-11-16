@@ -207,6 +207,8 @@ adds a line here.
 - Cover photos sync whole (covers/<id>.jpg); the trip's `coverAt` says
   which copy is newer.
 
+- **Setup link and code for another device** (Settings › GitHub sync). The link carries the sync token, owner and repo after the `#` (`#t=…&o=…&r=…`), which browsers never send to a server, and keel's qr.js draws the code on the device, so the token never goes to a QR service. The trade-off is that anyone who sees the code or gets the link can use the token. The page says to use them only on your own devices. Opening a link takes the token out of the address bar first, then asks before connecting, so a link someone else sends can't quietly point this device at their repo.
+
 ## Traps
 
 Things that broke once and would again.
@@ -222,3 +224,4 @@ Things that broke once and would again.
 - maplibre-gl.css gives the map's container `position: relative`, which
   beat `.map`'s absolute fill and left the map 0 px high: the rule is
   `.map-view .map`, one class stronger.
+
