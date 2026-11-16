@@ -18,8 +18,8 @@ test("a trip is cleaned: swapped dates, destinations from text, no duplicates", 
   assert.strictEqual(M.sanitizeTrip({ start: "2027-02-30" }).start, undefined);
 });
 
-test("a place is cleaned: known category and importance, a time only with a day, an end only after it", () => {
-  const p = P({ name: "x", category: "spaceport", importance: "urgent", time: "09:00" });
+test("a place is cleaned: a category id (yours or a default), known importance, a time only with a day, an end only after it", () => {
+  const p = P({ name: "x", category: "space port", importance: "urgent", time: "09:00" });
   assert.deepStrictEqual([p.category, p.importance, p.time], ["other", "want", undefined]);
   const q = P({ name: "y", day: "2026-11-17", time: "10:00", endTime: "09:00", lat: "35", lng: 135, extra: 1 });
   assert.deepStrictEqual([q.time, q.endTime, q.lat, q.lng, q.extra], ["10:00", undefined, 35, 135, 1]);
@@ -235,6 +235,22 @@ test("a place over several days: endDay only after its day, on each of its days,
     [["2026-11-17", []], ["2026-11-18", ["h"]], ["2026-11-19", ["h", "x"]], ["2026-11-20", ["h"]], ["nodate", []]]);
   assert.deepStrictEqual(M.dayRoute([hotel], "2026-11-19").map((p) => p.id), ["h"]);
   assert.deepStrictEqual([M.daySpan(hotel), M.addDays("2026-11-30", 2)], [2, "2026-12-02"]);
+});
+
+test("your categories: defaults until changed, Other always there, unknown ones keep their id and the trip's name", () => {
+  assert.deepStrictEqual(M.catList(null), M.CATEGORIES);
+  const mine = M.catList([{ id: "food", name: "Eating" }, { id: "cMarkets", name: "Markets" }, { id: "sight" }, { id: "bad id!" }]);
+  assert.deepStrictEqual(mine.map((c) => c[0]), ["food", "cMarkets", "sight", "other"]);
+  assert.deepStrictEqual(mine[2], ["sight", "Sights"]);
+  assert.strictEqual(P({ category: "cMarkets" }).category, "cMarkets");
+  assert.strictEqual(P({ category: "no way!" }).category, "other");
+  const doc = M.sanitizeDoc({ trips: [{ id: "t", name: "K" }], places: [P({ id: "a", category: "cMarkets" }), P({ id: "b", category: "sight" }), P({ id: "c", category: "food" })] });
+  const carried = M.carryCats(doc, mine);
+  assert.deepStrictEqual(carried.trips[0].cats, { cMarkets: "Markets", food: "Eating" });
+  assert.strictEqual(M.carryCats(carried, mine), carried);
+  // Someone else's category on a shared trip: its own group, by the name the trip carries.
+  const g = M.board(carried.trips[0], carried.places, "category", { cats: M.CATEGORIES });
+  assert.deepStrictEqual(g.map((x) => [x.id, x.title]), [["sight", "Sights"], ["food", "Food & drink"], ["cMarkets", "Markets"]]);
 });
 
 console.log(passed + " passed");

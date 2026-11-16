@@ -71,9 +71,11 @@
   // Every change goes through here: cleaned, stamped against the last save
   // (updatedAt, and what was deleted), kept, drawn, and sent to sync.
   let lastSaved = "{}", version = 0;
+  // Your place categories (Settings → Categories).
+  const cats = () => M.catList((SET.get().categories || {}).list);
   function save() {
     version++;
-    doc = M.stamp(JSON.parse(lastSaved), M.sanitizeDoc(doc), undefined, SET.get().me.id);
+    doc = M.stamp(JSON.parse(lastSaved), M.carryCats(M.sanitizeDoc(doc), cats()), undefined, SET.get().me.id);
     lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
@@ -177,13 +179,13 @@
           : i18n.t("No place has a location yet. Give one with Find by name or Pin on map in its sheet, or on the Map.") }),
         el("button.btn", { type: "button", onclick: locate }, icon("locate"), i18n.t("Use my location"))));
     }
-    const groups = M.board(trip, places, view.sort, { only: view.only, from: view.from });
+    const groups = M.board(trip, places, view.sort, { only: view.only, from: view.from, cats: cats() });
     // Groups with nothing in them yet, to drop into while dragging.
-    const all = view.sort === "category" ? M.CATEGORIES : view.sort === "importance" ? M.IMPORTANCE : [];
+    const all = view.sort === "category" ? cats() : view.sort === "importance" ? M.IMPORTANCE : [];
     for (const [id, title] of all) {
       if (!groups.some((g) => g.id === id)) groups.push({ id, title, places: [], dropOnly: true });
     }
-    const at = (id) => all.findIndex(([x]) => x === id);
+    const at = (id) => { const i = all.findIndex(([x]) => x === id); return i < 0 ? all.length : i; };
     if (all.length) groups.sort((a, b) => at(a.id) - at(b.id));
     const wrap = el("div.groups");
     if (canDrag()) wireDrag(wrap);
@@ -566,7 +568,7 @@
 
   function cards(trip, list, g) {
     return el("ul.cards", {}, list.map((p) => {
-      const meta = view.sort === "category" ? [] : [M.CATEGORY.get(p.category)];
+      const meta = view.sort === "category" ? [] : [M.catName(cats(), trip, p.category)];
       if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
       else if (p.endDay && g.day) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       if (p.time) meta.push(timeLabel(p));
@@ -753,7 +755,7 @@
       note.textContent = (list.length ? i18n.t("Pick the right one, from {via}:", { via }) : i18n.t("Nothing found on {via}. Try another spelling, or pin it on the map.", { via })) + fell;
       out.replaceChildren(...list.map((r) => el("li", {}, el("button", { type: "button", onclick: () => {
         loc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
-        if (r.category && !categoryTouched && !editingPlace) f.category.value = r.category;
+        if (r.category && !categoryTouched && !editingPlace && cats().some(([id]) => id === r.category)) f.category.value = r.category;
         out.replaceChildren();
         note.textContent = i18n.t("From {via}.", { via: via });
         paintWhere();
@@ -778,16 +780,19 @@
       el("button.imp-" + id, { type: "button", role: "radio", "aria-checked": String(importance === id), text: label,
         onclick: () => { importance = id; paintImportance(); } })));
   }
-  $("categorySelect").replaceChildren(...M.CATEGORIES.map(([id, label]) => el("option", { value: id, text: label })));
   function openPlace(place, trip, preset, from) {
     editingPlace = place;
     placeTrip = trip;
     const f = $("placeForm");
     f.reset();
-    const p = place || { category: "sight", importance: "want", ...(preset || {}) };
+    const p = place || { category: cats()[0][0], importance: "want", ...(preset || {}) };
     $("placeSheetTitle").textContent = place ? i18n.t("Edit place") : i18n.t("Add a place");
     $("placeSave").textContent = place ? i18n.t("Save") : i18n.t("Add place");
     f.name.value = p.name || "";
+    // Your categories, and the place's own if it isn't one of them (a shared trip's).
+    const list = cats();
+    if (!list.some(([id]) => id === p.category)) list.push([p.category, M.catName(list, trip, p.category)]);
+    $("categorySelect").replaceChildren(...list.map(([id, label]) => el("option", { value: id, text: label })));
     f.category.value = p.category;
     importance = p.importance;
     paintImportance();
@@ -1111,7 +1116,7 @@
     }
     const sel = view.sel && all.find((x) => x.id === view.sel);
     if (sel) {
-      const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.CATEGORY.get(sel.category)];
+      const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.catName(cats(), findTrip(view.trip), sel.category)];
       if (sel.day) meta.push(daysLabel(sel));
       if (sel.time) meta.push(timeLabel(sel));
       panel.replaceChildren(el("div.sel", {},
@@ -1283,6 +1288,7 @@
       ...(driveOn() ? [{ ico: "cloud", title: i18n.t("Google Drive"), where: i18n.t("Settings"), href: "#/settings/drive", words: "drive google backup backups restore automatic cloud copy" }] : []),
       { ico: "refresh", title: i18n.t("GitHub sync"), where: i18n.t("Settings"), href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
       { ico: "user", title: i18n.t("You"), where: i18n.t("Settings"), href: "#/settings/you", words: "name me profile person shared trips paid by who" },
+      { ico: "tag", title: i18n.t("Categories"), where: i18n.t("Settings"), href: "#/settings/categories", words: "categories category kinds types places add rename remove order sights food stays" },
       { ico: "database", title: i18n.t("Storage"), where: i18n.t("Settings"), href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
       { ico: "database", title: i18n.t("Backup"), where: i18n.t("Storage"), href: "#/settings/storage", words: "backup restore file export import save json" },
       { ico: "palette", title: i18n.t("Appearance"), where: i18n.t("Settings"), href: "#/settings/appearance", words: "theme dark light system mode colours" },
@@ -1320,6 +1326,7 @@
     if (page === "drive") return renderDrive(main);
     if (page === "sync") return renderSync(main);
     if (page === "you") return renderYou(main);
+    if (page === "categories") return renderCategories(main);
     if (page === "storage") return renderStorage(main);
     if (page === "appearance") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
@@ -1331,12 +1338,13 @@
     const results = el("div.settings-results");
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
     const home = el("div.sgroup", {}, el("div.sgroup-card", {},
-      driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
-      srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
       srow("#/settings/you", "user", i18n.t("You"), { text: cfg.me.name || i18n.t("Your name, for shared trips") }),
+      srow("#/settings/categories", "tag", i18n.t("Categories"), { text: cats().map(([, n]) => n).slice(0, 4).join(", ") + (cats().length > 4 ? "…" : "") }),
       srow("#/settings/storage", "database", i18n.t("Storage"), { text: i18n.t("Space used, backup and restore") }),
       srow("#/settings/appearance", "palette", i18n.t("Appearance"), { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] }),
       srow("#/settings/services", "plug", i18n.t("Services"), needs || { text: i18n.t("Map and Find by name: {join}", { join: SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }) }),
+      srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
+      driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
       srow("#/settings/about", "info", i18n.t("About"), { text: i18n.t("Version {version} · credits", { version: window.Tripboard.version }) })));
     const paint = () => {
       const q = input.value.trim();
@@ -1477,6 +1485,61 @@
     main.append(el("section.panel", {}, el("label.field", {}, i18n.t("Name"), name),
       el("p.hint.dim", { text: i18n.t("Shown to people you share a trip with, next to what you add and what you paid. Sharing comes in a later version; trips you make now are already marked as yours.") })),
     el("p.dim.hint", { text: i18n.t("Your devices that sync share one id for you, kept in the sync repo.") }));
+  }
+
+  // ---------- Categories ----------
+  // One list for all your trips, synced (categories.json). Removing one
+  // moves its places in your trips to Other; Undo brings both back.
+  function renderCategories(main) {
+    $("title").textContent = i18n.t("Categories");
+    const list = cats();
+    const asSaved = (l) => l.map(([id, name]) => (M.CATEGORY.get(id) === name ? { id } : { id, name }));
+    const setList = (l) => { SET.setCategories(asSaved(l)); save(); };
+    const count = (id) => doc.places.filter((p) => p.category === id).length;
+    const rows = list.map(([id, name], i) => {
+      const input = el("input", { value: name, maxlength: "40", "aria-label": i18n.t("Name of {name}", { name }), autocomplete: "off",
+        onchange: (e) => { const v = e.target.value.trim(); if (!v) { e.target.value = name; return; } const l = cats(); l[i] = [id, v]; setList(l); } });
+      const move = (d) => { const l = cats(); [l[i], l[i + d]] = [l[i + d], l[i]]; setList(l); };
+      const remove = el("button.btn.quiet", { type: "button" });
+      armConfirm(remove, i18n.t("Remove"), () => {
+        const before = cats();
+        undoable(i18n.t("Removed {name}. Its places are in Other now.", { name }), () => {
+          for (const p of doc.places) if (p.category === id && mayEdit(findTrip(p.trip) || {})) p.category = "other";
+          SET.setCategories(asSaved(before.filter(([x]) => x !== id)));
+        }, () => SET.setCategories(asSaved(before)));
+      });
+      return el("li", {},
+        el("span.cat-name", {}, input, el("span.dim", { text: i18n.tn(count(id), "1 place", "{n} places") })),
+        el("span.cat-btns", {},
+          el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Move {name} up", { name }), disabled: i === 0, onclick: () => move(-1) }, icon("arrowUp")),
+          el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Move {name} down", { name }), disabled: i === list.length - 1, onclick: () => move(1) }, icon("arrowDown")),
+          id === "other" ? el("span.cat-keep", { text: "" }) : remove));
+    });
+    const add = el("input", { maxlength: "40", placeholder: i18n.t("Markets"), "aria-label": i18n.t("New category"), autocomplete: "off" });
+    const addIt = () => {
+      const v = add.value.trim();
+      if (!v) return;
+      if (cats().some(([, n]) => n.toLowerCase() === v.toLowerCase())) { toast(i18n.t("There's already a category called {name}.", { name: v })); return; }
+      const l = cats();
+      const at = l.findIndex(([x]) => x === "other");
+      l.splice(at < 0 ? l.length : at, 0, ["c" + M.newId(), v]);
+      setList(l);
+      toast(i18n.t("Added {name}.", { name: v }));
+    };
+    add.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addIt(); } });
+    const reset = el("button.btn.quiet", { type: "button" });
+    armConfirm(reset, i18n.t("Back to the defaults"), () => {
+      const before = cats();
+      const keep = new Set(M.CATEGORIES.map(([id]) => id));
+      undoable(i18n.t("Categories are back to the defaults."), () => {
+        for (const p of doc.places) if (!keep.has(p.category) && mayEdit(findTrip(p.trip) || {})) p.category = "other";
+        SET.setCategories(M.CATEGORIES.map(([id]) => ({ id })));
+      }, () => SET.setCategories(asSaved(before)));
+    });
+    main.append(el("p.dim.hint.page-hint", { text: i18n.t("One list for all your trips. It syncs to your devices, and a trip you share shows your categories' names to the others.") }),
+      el("section.panel", {}, el("ul.cat-list", {}, rows)),
+      el("section.panel", {}, el("label.field", {}, i18n.t("New category"), add), el("div.loc-actions", {}, el("button.btn", { type: "button", text: i18n.t("Add"), onclick: addIt }))),
+      el("div.loc-actions", {}, reset));
   }
 
   // ---------- GitHub sync ----------

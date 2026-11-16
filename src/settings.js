@@ -5,6 +5,9 @@
 //   sync        GitHub sync's token and repo
 //   me          who you are on shared trips: an id (made once, or taken from
 //               the sync repo so all your devices share it), and your name
+//   categories  your own list of place categories, once you change the
+//               defaults: { list: [{ id, name? }], at }. GitHub sync keeps it
+//               in categories.json, and the newer list wins.
 // A service tries its main provider; if that fails (no key, an error, a
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
@@ -30,6 +33,13 @@
     // GitHub sync: a fine-grained token for one private repo of yours.
     sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
     me: { id: "", name: "" },
+    categories: null,
+  };
+  const catsOf = (c) => {
+    if (!c || !Array.isArray(c.list) || typeof c.at !== "string") return null;
+    const list = c.list.filter((x) => x && typeof x.id === "string" && /^[\w-]{1,40}$/.test(x.id)).slice(0, 60)
+      .map((x) => (typeof x.name === "string" && x.name.trim() ? { id: x.id, name: x.name.trim().slice(0, 40) } : { id: x.id }));
+    return list.length ? { list, at: c.at } : null;
   };
   const newPersonId = () => "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const merge = (saved) => {
@@ -48,6 +58,7 @@
     const me = saved.me || {};
     if (typeof me.id === "string" && /^[\w-]{4,40}$/.test(me.id)) out.me.id = me.id;
     if (typeof me.name === "string") out.me.name = me.name.trim().slice(0, 60);
+    out.categories = catsOf(saved.categories);
     if (Array.isArray(me.was)) out.me.was = me.was.filter((x) => typeof x === "string" && /^[\w-]{4,40}$/.test(x)).slice(-5);
     return out;
   };
@@ -69,6 +80,15 @@
       if (!/^[\w-]{4,40}$/.test(id) || id === cur.me.id) return;
       cur.me = { ...cur.me, was: (cur.me.was || []).concat(cur.me.id).filter((x) => x !== id).slice(-5), id };
       S.save();
+    },
+    setCategories(list) { cur.categories = catsOf({ list, at: new Date().toISOString() }); S.save(); },
+    // Another device's list (sync's categories.json), if it's newer than this one's.
+    adoptCategories(c) {
+      const got = catsOf(c);
+      if (!got || (cur.categories && cur.categories.at >= got.at)) return false;
+      cur.categories = got;
+      S.save();
+      return true;
     },
     setSync(patch) { cur.sync = { ...cur.sync, ...patch }; S.save(); },
     setService(svc, patch) { cur[svc] = { ...cur[svc], ...patch }; if (cur[svc].fallback === cur[svc].main) cur[svc].fallback = ""; S.save(); },
