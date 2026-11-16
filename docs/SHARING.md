@@ -13,7 +13,8 @@ there's no store that more than one person can reach.
 - **Members.** A new trip gets `owner` (you) and
   `members: [{ id, name, role }]`. The roles are owner, editor and viewer.
   `model.can(trip, personId, "read" | "edit" | "manage")` says what each
-  role may do. Nothing enforces it yet. Trips made before this have no
+  role may do. The sharing server enforces it for a shared trip
+  (below); on a device it only sets what the screens offer. Trips made before this have no
   members, and `can` treats them as their device's own.
 - **Who paid.** Expenses have `paidBy`. The sheet offers it once a trip
   has more than one member.
