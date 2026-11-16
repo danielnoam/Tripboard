@@ -33,6 +33,7 @@ src/keel/releases.js the update check and test builds (from keel)
 src/keel/motion.js   springs and moves, made in app.js (from keel)
 src/keel/sw-preview.js  the service worker's half of a test build (from keel)
 src/keel/i18n.js     languages: t()/tn() keyed by the English text, data-t in index.html, Intl dates and numbers (from keel)
+src/theme.js         the theme set in <head>, before the page draws
 src/language.js      the app's i18n, made in <head>; loads src/lang/<code>.js when the language isn't English
 src/lang/he.js       the Hebrew words, keyed by the English
 test/run-all.js      runs every test/*.test.js

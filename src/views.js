@@ -428,7 +428,7 @@
       undoable(i18n.t("Deleted {name}.", { name: f.name }), () => { doc.files = doc.files.filter((x) => x !== f); });
     });
     lockForm(form, !mayEdit(trip));
-    openSheet($("fileSheet"), from, true);
+    openSheet($("fileSheet"), from);
   }
   $("fileForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -519,7 +519,7 @@
       undoable(i18n.t("Deleted {title}.", { title: x.title }), () => { doc.expenses = doc.expenses.filter((e) => e !== x); });
     });
     lockForm(f, !mayEdit(trip));
-    openSheet($("expenseSheet"), from, !!x);
+    openSheet($("expenseSheet"), from);
   }
   // "12,50" and "1 200.5" are amounts too.
   function parseAmount(v) {
@@ -676,15 +676,14 @@
   // ---------- Sheets ----------
   const narrow = () => !window.matchMedia("(min-width: 720px)").matches;
   let opener = null;
-  // Editing something that's already there opens without a field in focus,
-  // so a phone doesn't throw up its keyboard over what you came to read.
-  function openSheet(d, from, edit) {
+  // A sheet opens with the sheet itself in focus, never a field, so a
+  // phone doesn't throw up its keyboard before you tap where to type.
+  function openSheet(d, from) {
     opener = from || null;
     d.showModal();
-    if (edit) { d.tabIndex = -1; d.focus(); }
+    d.tabIndex = -1;
+    d.focus();
     (narrow() ? motion.rise(d) : motion.dialogIn(d, from && from.getBoundingClientRect()));
-    const first = d.querySelector("input:not([type=file]):not([hidden]), select, textarea");
-    if (first && !narrow() && !edit) first.focus();
   }
   async function closeSheet(d) {
     if (!d.open) return;
@@ -735,7 +734,7 @@
     $("tripImportLinkRow").hidden = !SHARE.enabled();
     $("tripImportLink").value = "";
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
-    openSheet($("tripSheet"), from, !!trip);
+    openSheet($("tripSheet"), from);
   }
   // A photo is made at most 1600 px wide as a JPEG before it's kept.
   async function shrink(file) {
@@ -897,7 +896,7 @@
       closeSheet($("placeSheet"));
       undoable(i18n.t("Deleted {name}.", { name: place.name }), () => { doc.places = doc.places.filter((x) => x !== place); });
     });
-    openSheet($("placeSheet"), from, !!place);
+    openSheet($("placeSheet"), from);
   }
   // "Until": for a place that lasts several days, the last of them. Offered
   // once there's a day; the days after it, or any later date.
