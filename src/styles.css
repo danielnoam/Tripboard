@@ -465,10 +465,10 @@ details[open] > summary .srow-chev { transform: rotate(90deg); }
 
 /* Google Drive's backups */
 .drive-list { list-style: none; margin: 0; padding: 0; }
-.drive-list li { display: flex; align-items: center; gap: var(--s-2); padding-block: var(--s-2); border-block-end: 1px solid var(--line); }
+.drive-list li { display: flex; align-items: center; gap: var(--space-2); padding-block: var(--space-2); border-block-end: 1px solid var(--line); }
 .drive-list li:last-child { border-block-end: 0; }
 .drive-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .drive-text .dim { font-size: var(--fs-small); }
-.drive-btns { display: flex; gap: var(--s-1); flex-shrink: 0; }
+.drive-btns { display: flex; gap: var(--space-1); flex-shrink: 0; }
 /* A sheet opened to edit holds the focus itself (openSheet). */
 dialog[tabindex="-1"]:focus { outline: none; }
