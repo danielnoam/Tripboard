@@ -138,7 +138,7 @@
     hero.append(el("div.hero-text", {},
       el("span", { text: rangeLabel(trip) + (whenLabel(trip) ? " · " + whenLabel(trip) : "") }),
       trip.destinations.length ? el("ul.chips", {}, trip.destinations.map((d) => el("li", { text: d }))) : null));
-    main.append(hero, tripTabs(trip));
+    main.append(hero);
 
     const controls = el("div.controls", {},
       el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, SORTS.map(([id, label]) =>
@@ -175,11 +175,16 @@
   }
 
   // Plan, Expenses and Files: a trip's lists (the map is the button at the top).
-  function tripTabs(trip) {
-    const tabs = [["board", i18n.t("Plan"), ""], ["expenses", i18n.t("Expenses"), "/expenses"], ["files", i18n.t("Files"), "/files"]];
-    return el("div.seg.trip-tabs", { role: "tablist", "aria-label": i18n.t("Show") }, tabs.map(([mode, label, path]) =>
-      el("button", { type: "button", role: "tab", "aria-selected": String(view.mode === mode), text: label,
-        onclick: () => { location.hash = "#/trip/" + trip.id + path; } })));
+  // The bar at the bottom of a trip: Plan, Expenses and Files.
+  function paintTripBar(trip) {
+    const bar = $("tripBar");
+    const on = !!trip && view.mode !== "map";
+    bar.hidden = !on;
+    document.body.classList.toggle("with-tabbar", on);
+    if (!on) return;
+    const tabs = [["board", "calendar", i18n.t("Plan"), ""], ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]];
+    bar.replaceChildren(...tabs.map(([mode, ico, label, path]) =>
+      el("a.tab", { href: "#/trip/" + trip.id + path, "aria-current": view.mode === mode ? "page" : "false" }, icon(ico), el("span", { text: label }))));
   }
 
   // ---------- Expenses ----------
@@ -192,7 +197,6 @@
 
   function renderExpenses(main, trip) {
     $("title").textContent = trip.name;
-    main.append(tripTabs(trip));
     const list = expensesOf(trip.id);
     if (!list.length) {
       main.append(el("div.empty", {}, el("p", { text: i18n.t("No expenses yet.") }), el("p.dim", { text: i18n.t("Add what the trip costs with +.") })));
@@ -250,7 +254,6 @@
 
   function renderFiles(main, trip) {
     $("title").textContent = trip.name;
-    main.append(tripTabs(trip));
     const list = filesOf(trip.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     // A file dropped anywhere on the page joins the trip (with a mouse).
     main.ondragover = (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); main.classList.add("file-over"); } };
@@ -267,7 +270,7 @@
       return el("button.xrow", { type: "button", onclick: (e) => openFile(f, trip, e.currentTarget) },
         el("span.xrow-ic", {}, icon(f.type.startsWith("image/") ? "image" : "file")),
         el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }),
-          el("span.xrow-meta", { text: [kindOf(f), sizeLabel(f.size), place ? place.name : "", here ? "" : "not on this device yet"].filter(Boolean).join(" · ") })));
+          el("span.xrow-meta", { text: [kindOf(f), sizeLabel(f.size), place ? place.name : "", here ? "" : i18n.t("not on this device yet")].filter(Boolean).join(" · ") })));
     }))));
     if (window.matchMedia("(pointer: fine)").matches) main.append(el("p.dim.hint.page-hint", { text: i18n.t("Drop files here to add them.") }));
   }
@@ -1290,6 +1293,7 @@
     $("viewToggle").replaceChildren(icon(onMap ? "list" : "map"));
     $("viewToggle").setAttribute("aria-label", onMap ? i18n.t("Board") : i18n.t("Map"));
     $("mapView").hidden = !onMap;
+    paintTripBar(trip);
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);
     if (onMap) {

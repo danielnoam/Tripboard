@@ -262,6 +262,7 @@ Keel.i18n.strings("he", {
   "The token is kept in this browser and sent only to GitHub. Anyone who can open this browser's Tripboard can use it, so give it only that one repo.": "הטוקן נשמר בדפדפן הזה ונשלח רק ל-GitHub. כל מי שיכול לפתוח את Tripboard בדפדפן הזה יכול להשתמש בו, לכן כדאי לתת לו גישה למאגר הזה בלבד.",
   "Sync now": "סנכרון עכשיו",
   "Synced {ago}.": "סונכרן {ago}.",
+  "not on this device yet": "עדיין לא במכשיר הזה",
   "Not synced yet on this device.": "עדיין לא סונכרן במכשיר הזה.",
   "It syncs a few seconds after each change, when Tripboard opens, and every few minutes while it's open.": "הסנכרון קורה כמה שניות אחרי כל שינוי, כש-Tripboard נפתח, וכל כמה דקות כשהוא פתוח.",
   "Disconnect": "ניתוק",

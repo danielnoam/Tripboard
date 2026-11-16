@@ -172,7 +172,6 @@ body.on-board main { max-width: 1200px; }
 .locate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
 .locate p { margin: 0; flex: 1 1 240px; }
 
-.trip-tabs { max-width: 420px; margin-bottom: var(--space-3); }
 .groups { display: grid; gap: var(--space-3); }
 /* Expenses */
 .spend-total { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -239,6 +238,35 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 }
 .fab .icon { width: 26px; height: 26px; }
 .fab[hidden] { display: none; }
+
+/* A trip's bottom bar: Plan, Expenses, Files. Full width on a phone, a
+   floating bar on a wide screen. The + and the toast sit above it. */
+.tabbar {
+  position: fixed; z-index: 5; inset-inline: 0; bottom: 0;
+  display: flex; justify-content: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--line); background: var(--surface);
+}
+.tabbar[hidden] { display: none; }
+.tabbar .tab {
+  flex: 1; max-width: 160px; min-height: 58px;
+  display: grid; place-items: center; align-content: center; gap: 2px;
+  color: var(--text-dim); font-size: 12px; font-weight: 600; text-decoration: none;
+}
+.tabbar .tab .icon { width: 24px; height: 24px; }
+.tabbar .tab[aria-current="page"] { color: var(--accent); }
+body.with-tabbar main { padding-bottom: calc(env(safe-area-inset-bottom) + 160px); }
+body.with-tabbar .fab, body.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + 58px + var(--space-3)); }
+@media (min-width: 720px) {
+  .tabbar {
+    inset-inline: auto; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+    width: max-content; padding: 4px; border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow);
+  }
+  .tabbar .tab { display: flex; flex: none; max-width: none; min-height: 44px; padding-inline: 18px; gap: 8px; border-radius: 999px; font-size: 15px; }
+  .tabbar .tab[aria-current="page"] { background: var(--accent-soft); }
+  .tabbar .tab .icon { width: 20px; height: 20px; }
+  body.with-tabbar .fab, body.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + var(--space-3)); }
+}
 
 /* Sheets: from the bottom on a phone, a dialog on a wide screen */
 .sheet {
