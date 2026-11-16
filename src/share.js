@@ -3,8 +3,9 @@
 // It works beside GitHub sync, which still keeps your own copy of every
 // trip; a trip's share keeps its own agreed copy and version.
 //
-// Each device on a shared trip has a key for it, kept here only (IndexedDB
-// "meta:shares", never in the doc or the sync repo):
+// Each device on a shared trip has a key for it, kept in IndexedDB
+// ("meta:shares", never in the doc). GitHub sync copies the keys to your
+// own sync repo's shares.json, so your other devices open the trip as you:
 //   { [trip id]: { key, version, base, role, hidden, files: { id: true }, cover } }
 // A section someone doesn't see never reaches their device, so applying the
 // server's copy drops it here too.
