@@ -175,16 +175,17 @@
   }
 
   // Plan, Expenses and Files: a trip's lists (the map is the button at the top).
-  // The bar at the bottom of a trip: Plan, Expenses and Files.
+  // A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as icons.
   function paintTripBar(trip) {
     const bar = $("tripBar");
-    const on = !!trip && view.mode !== "map";
-    bar.hidden = !on;
-    document.body.classList.toggle("with-tabbar", on);
-    if (!on) return;
-    const tabs = [["board", "calendar", i18n.t("Plan"), ""], ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]];
+    bar.hidden = !trip;
+    document.body.classList.toggle("with-tabbar", !!trip);
+    if (!trip) return;
+    const tabs = [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
+      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]];
     bar.replaceChildren(...tabs.map(([mode, ico, label, path]) =>
-      el("a.tab", { href: "#/trip/" + trip.id + path, "aria-current": view.mode === mode ? "page" : "false" }, icon(ico), el("span", { text: label }))));
+      el("a.tab", { href: "#/trip/" + trip.id + path, "aria-label": label, title: label, "aria-current": view.mode === mode ? "page" : "false",
+        onclick: () => { view.pick = null; } }, icon(ico))));
   }
 
   // ---------- Expenses ----------
@@ -1289,9 +1290,6 @@
     if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
-    $("viewToggle").hidden = !trip;
-    $("viewToggle").replaceChildren(icon(onMap ? "list" : "map"));
-    $("viewToggle").setAttribute("aria-label", onMap ? i18n.t("Board") : i18n.t("Map"));
     $("mapView").hidden = !onMap;
     paintTripBar(trip);
     $("app").hidden = onMap;
@@ -1334,10 +1332,6 @@
     $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
       location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"; });
-    $("viewToggle").addEventListener("click", () => {
-      view.pick = null;
-      location.hash = "#/trip/" + view.trip + (view.mode === "map" ? "" : "/map");
-    });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
       : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
