@@ -2037,6 +2037,7 @@
       document.body.classList.add("on-board"); document.body.classList.remove("on-home");
       $("title").textContent = trip.name;
       $("back").hidden = false;
+      $("newTrip").hidden = true;
       $("editTrip").hidden = !mayEdit(trip);
       $("fab").hidden = !!view.pick || !mayEdit(trip);
       showMap(trip);
