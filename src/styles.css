@@ -470,3 +470,5 @@ details[open] > summary .srow-chev { transform: rotate(90deg); }
 .drive-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .drive-text .dim { font-size: var(--fs-small); }
 .drive-btns { display: flex; gap: var(--s-1); flex-shrink: 0; }
+/* A sheet opened to edit holds the focus itself (openSheet). */
+dialog[tabindex="-1"]:focus { outline: none; }
