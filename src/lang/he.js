@@ -49,6 +49,7 @@ Keel.i18n.strings("he", {
   "Go early, before the crowds.": "כדאי להגיע מוקדם, לפני ההמונים.",
   "Add place": "הוספת מקום",
   "Version {version} is out.": "גרסה {version} יצאה.",
+  "A newer unreleased build is ready ({sha}).": "גרסה חדשה שעוד לא שוחררה מוכנה ({sha}).",
   "{who} refused the key: {msg}": "{who} דחה את המפתח: {msg}",
   "{who} refused the key.": "{who} דחה את המפתח.",
   "{who}'s quota is used up for now.": "המכסה של {who} נוצלה לעת עתה.",

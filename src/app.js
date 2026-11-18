@@ -30,13 +30,21 @@
 
   // A newer release on GitHub, for the apps; the web copy updates itself.
   // Its name is the one on the release's assets (Tripboard.apk) and in
-  // the test build cache sw.js serves from.
+  // the test build cache sw.js serves from. On the channel "unreleased"
+  // (releases.setChannel(), kept on this device; no switch until the apps
+  // are on) the newest build of main is offered too, from the site's
+  // unreleased/ (keel's tools/unreleased.js).
   const releases = K.releases.create({ name: "Tripboard", repo: () => (K.platform.build && K.platform.build.repo) || null });
   if (K.platform.bundled) {
-    K.platform.ready.then(() => releases.latest()).then((r) => {
-      if (!r || !K.releases.newer(r.version, APP_VERSION)) return;
+    K.platform.ready.then((b) => {
+      const kind = K.platform.desktopOs === "windows" ? "windows" : K.platform.os === "android" ? "android" : null;
+      return releases.check({ version: APP_VERSION, sha: b && b.sha, at: b && b.builtAt }, kind);
+    }).then((r) => {
+      if (!r) return;
       const el = $("update");
-      el.textContent = i18n.t("Version {version} is out.", { version: r.version });
+      el.textContent = r.channel === "unreleased"
+        ? i18n.t("A newer unreleased build is ready ({sha}).", { sha: r.sha.slice(0, 7) })
+        : i18n.t("Version {version} is out.", { version: r.version });
       el.hidden = false;
     }).catch(() => { /* offline: ask again next launch */ });
   }
