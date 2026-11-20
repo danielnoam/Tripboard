@@ -238,38 +238,37 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 .tick[aria-pressed="true"] { color: var(--on-accent); }
 .tick[aria-pressed="true"] .icon { background: var(--accent); border-color: var(--accent); }
 
-/* A trip's bar at the bottom: one floating pill with the tabs (Plan,
-   Map, Today, Expenses, Files, as icons) and, at its inline end, the +
-   for what the tab adds. The toast and the map's panel sit above it. */
+/* A trip's bar at the bottom: a floating pill with the tabs (Plan, Map,
+   Today, Expenses, Files, as icons) and, beside it at its inline end, the
+   + for what the tab adds, a rounded square of its own. The two are
+   centred together. The toast and the map's panel sit above them. */
 .bottombar {
   position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
-  display: flex; align-items: center; gap: 4px; padding: 4px; max-width: calc(100vw - 2 * var(--space-3));
-  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+  display: flex; align-items: center; gap: var(--space-2); max-width: calc(100vw - 2 * var(--space-3));
 }
 .bottombar[hidden] { display: none; }
 /* The selected tab sits on one circle that slides from tab to tab (views.js,
    slideBubble); it's placed by its offsetLeft, so it's pinned to the
    physical left whatever the direction. */
-.tabbar { position: relative; display: flex; gap: 2px; }
-.tab-bubble { position: absolute; top: 0; left: 0; width: 48px; height: 48px; border-radius: 999px; background: var(--tab-on); }
+.tabbar {
+  position: relative; display: flex; gap: 2px; padding: 4px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+}
+.tab-bubble { position: absolute; top: 4px; left: 0; width: 48px; height: 48px; border-radius: 999px; background: var(--tab-on); }
 .tabbar .tab { position: relative; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 999px; color: var(--text-dim); }
 .tabbar .tab .icon { width: 22px; height: 22px; }
 .tabbar .tab[aria-current="page"] { color: var(--on-tab); }
 .tabbar .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-/* The + is a small tab of its own, sitting on the middle of the bar's top
-   edge; the bar's outline runs on under it. What it adds follows the tab.
-   It looks 24 px tall, but ::before reaches up so a finger gets 44 px. */
 .fab {
-  position: absolute; bottom: 100%; inset-inline: 0; margin-inline: auto; display: grid; place-items: center; width: 60px; height: 24px; padding: 0;
-  border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--surface); color: var(--text); box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.08);
+  display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
 }
-.fab::before { content: ""; position: absolute; inset: -20px -2px 0; }
-.fab .icon { width: 18px; height: 18px; }
+.fab .icon { width: 22px; height: 22px; }
 .fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fab[hidden] { display: none; }
 body.with-tabbar main { padding-bottom: calc(env(safe-area-inset-bottom) + 120px); }
-body.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + 58px + 24px + 2 * var(--space-3)); }
-body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 24px + 2 * var(--space-3)); right: var(--space-3); }
+body.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); }
+body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); right: var(--space-3); }
 
 
 /* Sheets: from the bottom on a phone, a dialog on a wide screen */
