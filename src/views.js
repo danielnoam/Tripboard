@@ -332,18 +332,124 @@
     main.append(wrap);
   }
 
-  // Plan, Expenses and Files: a trip's lists (the map is the button at the top).
-  const tripTabs = (trip) => [["today", "sun", i18n.t("Today"), "/today"], ["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"],
+  // A trip's tabs, in the bar's order: Today sits in the middle while the trip is under way.
+  const tripTabs = (trip) => [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"], ["today", "sun", i18n.t("Today"), "/today"],
     ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
   // A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as icons.
   function paintTripBar(trip) {
     const bar = $("tripBar");
+    const was = !$("bottomBar").hidden && bubble.isConnected && !bubble.hidden ? new DOMMatrix(getComputedStyle(bubble).transform).m41 : null;
     $("bottomBar").hidden = !trip;
     document.body.classList.toggle("with-tabbar", !!trip);
     if (!trip) return;
-    bar.replaceChildren(...tripTabs(trip).map(([mode, ico, label, path]) =>
-      el("a.tab", { href: "#/trip/" + trip.id + path, "aria-label": label, title: label, "aria-current": view.mode === mode ? "page" : "false",
-        onclick: () => { view.pick = null; } }, icon(ico))));
+    const tabs = tripTabs(trip);
+    const same = bar.dataset.tabs === trip.id + tabs.map(([m, , label]) => m + label).join();
+    // The same tabs keep their nodes, so a repaint mid-move doesn't cut the hop short.
+    if (same) [...bar.querySelectorAll(".tab")].forEach((a, i) => a.setAttribute("aria-current", view.mode === tabs[i][0] ? "page" : "false"));
+    else {
+      bar.dataset.tabs = trip.id + tabs.map(([m, , label]) => m + label).join();
+      bar.replaceChildren(bubble, ...tabs.map(([mode, ico, label, path]) =>
+        el("a.tab", { href: "#/trip/" + trip.id + path, "aria-label": label, title: label, "aria-current": view.mode === mode ? "page" : "false",
+          onclick: () => { view.pick = null; } }, icon(ico))));
+    }
+    slideBubble(bar, same ? was : null);
+  }
+
+  // ---------- Moving between a trip's tabs ----------
+  // The one move that runs while data-motion="off" keeps the rest of the
+  // app still. The new tab pushes in from its side of the bar (mirrored
+  // right to left, as the swipe is) and the old one leaves the other way,
+  // both on one spring that settles a little past its place; the bar's
+  // circle slides over on a bouncier spring, stretching as it goes, and
+  // the icon it lands under hops and turns white. Under reduced motion the
+  // screens cross-fade and the circle jumps. Web Animations, so the CSS
+  // that stills everything else doesn't reach it.
+  const springOf = (k, zeta) => window.Keel.motion.spring(k, 2 * zeta * Math.sqrt(k));
+  const TAB_PAGE = springOf(260, 0.78), TAB_BUBBLE = springOf(520, 0.58);
+  const LINEAR = !!(window.CSS && CSS.supports && CSS.supports("transition-timing-function", "linear(0, 1)"));
+  const onSpring = (s) => ({ duration: s.ms, easing: LINEAR ? s.curve : "cubic-bezier(0.2, 0.9, 0.3, 1)" });
+  const lessMotion = () => !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const bubble = el("span.tab-bubble", { "aria-hidden": "true" });
+  let tabMove = null;
+
+  function slideBubble(bar, was) {
+    const tabs = [...bar.querySelectorAll(".tab")];
+    const on = tabs.find((t) => t.getAttribute("aria-current") === "page");
+    bubble.hidden = !on;
+    if (!on) return;
+    const x = on.offsetLeft;
+    if (bubble.dataset.x === String(x) && bubble.getAnimations().length) return;
+    bubble.getAnimations().forEach((a) => a.cancel());
+    bubble.dataset.x = x;
+    bubble.style.transform = "translateX(" + x + "px)";
+    if (was == null || Math.abs(was - x) < 1 || lessMotion() || !bubble.animate) return;
+    const t = onSpring(TAB_BUBBLE), reach = Math.min(1, Math.abs(x - was) / 100);
+    bubble.animate([{ transform: "translateX(" + was + "px)" }, { transform: "translateX(" + x + "px)" }], t);
+    bubble.animate([{ scale: "1 1" }, { scale: (1 + 0.28 * reach) + " " + (1 - 0.1 * reach), offset: 0.22 }, { scale: "1 1", offset: 0.6 }, { scale: "1 1" }],
+      { duration: t.duration, easing: "ease-out" });
+    const off = tabs.find((n) => n !== on), dim = off ? getComputedStyle(off).color : null, white = getComputedStyle(on).color;
+    if (dim) {
+      on.animate([{ color: dim }, { color: dim, offset: 0.3 }, { color: white }], { duration: 260, easing: "linear" });
+      const left = tabs.reduce((a, n) => (Math.abs(n.offsetLeft - was) < Math.abs(a.offsetLeft - was) ? n : a), tabs[0]);
+      if (left !== on) left.animate([{ color: white }, { color: dim }], { duration: 160, easing: "linear" });
+    }
+    on.firstChild.animate([{ transform: "none" }, { transform: "translateY(-6px) scale(1.12)", offset: 0.3 }, { transform: "translateY(1px)", offset: 0.62 }, { transform: "none" }],
+      { duration: 440, delay: 60, easing: "ease-out" });
+  }
+
+  // What's on screen before a render, so the tab that leaves can be moved.
+  function tabBefore() {
+    const main = $("app"), map = $("mapView");
+    return { trip: view.trip, mode: view.mode, kids: [...main.childNodes], cls: main.className,
+      top: main.getBoundingClientRect().top, map: map.hidden ? null : map.getBoundingClientRect() };
+  }
+  function tabAfter(b) {
+    if (tabMove && tabMove.to === view.trip + view.mode) { tabMove.hold(); return; }
+    if (tabMove) tabMove.end();
+    const trip = view.trip === b.trip && b.mode !== view.mode && findTrip(view.trip);
+    if (!trip || !document.body.animate) return;
+    const modes = tripTabs(trip).map(([m]) => m), i = modes.indexOf(b.mode), j = modes.indexOf(view.mode);
+    if (i < 0 || j < 0) return;
+    const map = $("mapView"), main = $("app");
+    let out;
+    // A repaint while the map leaves hides it again (paint()); hold() shows it until the move ends.
+    const hold = () => { if (out === map) map.hidden = false; };
+    if (b.mode === "map") {
+      if (!b.map) return;
+      out = map;
+      map.hidden = false;
+      map.classList.add("tab-leaving");
+      Object.assign(map.style, { top: b.map.top + "px", left: b.map.left + "px", width: b.map.width + "px", height: b.map.height + "px" });
+    } else {
+      out = document.createElement("main");
+      out.className = b.cls;
+      out.classList.add("tab-leaving");
+      out.setAttribute("aria-hidden", "true");
+      out.inert = true;
+      out.style.top = b.top + "px";
+      out.append(...b.kids);
+      document.body.append(out);
+    }
+    const into = view.mode === "map" ? map : main;
+    const w = window.innerWidth * (j > i ? 1 : -1) * (i18n.dir === "rtl" ? -1 : 1);
+    const anims = lessMotion()
+      ? [into.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 }), out.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: "forwards" })]
+      : [into.animate([{ transform: "translateX(" + w + "px)" }, { transform: "none" }], onSpring(TAB_PAGE)),
+        out.animate([{ transform: "none" }, { transform: "translateX(" + -w + "px)" }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
+    document.documentElement.classList.add("tab-moving");
+    const end = () => {
+      if (!tabMove || tabMove.end !== end) return;
+      tabMove = null;
+      anims.forEach((a) => a.cancel());
+      document.documentElement.classList.remove("tab-moving");
+      if (out === map) {
+        map.classList.remove("tab-leaving");
+        ["top", "left", "width", "height"].forEach((k) => map.style.removeProperty(k));
+        map.hidden = view.mode !== "map";
+      } else out.remove();
+    };
+    tabMove = { to: view.trip + view.mode, end, hold };
+    Promise.all(anims.map((a) => a.finished)).then(end, end);
   }
 
   // ---------- Today ----------
@@ -2128,6 +2234,11 @@
 
   // ---------- Routing ----------
   function render() {
+    const before = tabBefore();
+    paint();
+    tabAfter(before);
+  }
+  function paint() {
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     $("settingsBtn").hidden = settings;
