@@ -51,8 +51,10 @@ test/i18n.test.js    every language table has every word the code uses, nothing 
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
-cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo; core.js reuses model.js, merge.js and keel's github.js in Node
+cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo, both made from one list of commands (tools.js); core.js reads and writes the repo and does each edit and query, reusing model.js, merge.js, listimport.js, places.js and keel's github.js in Node
+cli/coverage.js      every part of the app (record fields, sheets, Settings pages, undoable actions, repo files, model.js's API) and the tool that covers it, or why a chat can't
 test/cli.test.js     cli/, against a fake GitHub
+test/coverage.test.js  the drift guard: reads the app and fails when something in it has no CLI/MCP tool or reason in cli/coverage.js
 server/              the sharing server: a Cloudflare Worker (worker.js) with D1 and KV, Google Maps list links (googlelist.js); not deployed yet (server/README.md)
 test/server.test.js  server/, in Node against SQLite (as D1) and an in-memory KV
 server/mcp.js        the cloud connector: the same Worker as a remote MCP server for AI apps (Claude, ChatGPT, …), OAuth 2.1 sign-in with GitHub behind it, serving cli/mcp.js's tools minus deleting
@@ -198,8 +200,27 @@ adds a line here.
   a third more than the files themselves.
 - The CLI and MCP server need a token in an environment variable or an
   MCP client's config file, in plain text there. A chat with the MCP
-  server can change and delete trips. The tools tell it to ask before
-  deleting, but nothing enforces that, and git history is the way back.
+  server can change and delete everything the app can: trips, places,
+  expenses, files, covers, categories, people on a shared trip, and
+  restore a backup over trips. The tools tell it to ask before deleting
+  (and mark those tools destructiveHint), but nothing enforces that, and
+  git history is the way back.
+- What a chat reads goes to its AI provider: trips, places, notes,
+  expenses and people's names. Files' contents are the exception, off
+  unless the person sets TRIPBOARD_MCP_FILES=1 (tickets and passports are
+  the kind of file people keep there). A chat can always add a file and
+  see file names. A chat never gives the server a path, only bytes, so it
+  can't make it read other files on the computer; the CLI's --path is
+  for the person at the terminal.
+- find_location (CLI `locate`) sends the name searched for, and the
+  trip's area, to OpenStreetMap's Nominatim, as the app's Find by name
+  does, with a Tripboard-CLI user agent.
+- The CLI's role checks (a viewer can't edit, only the owner changes
+  who's on a trip or deletes it) need me.json and are only a courtesy,
+  like the app's: the token can write anything in the repo.
+- A cover set from the CLI or a chat is kept as given (up to 5 MB, JPEG,
+  PNG or WebP), not shrunk as the app does, so each device downloads it
+  whole.
 - The cloud connector (server/mcp.js) lets an AI app read and change
   trips from its own cloud. Each call passes the trip through the Worker
   (whoever runs its Cloudflare account) and into the chat, where the AI
