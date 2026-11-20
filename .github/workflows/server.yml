@@ -2,6 +2,9 @@
 # that changes server/, or by hand. It needs, in the repo's settings:
 #   secrets   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 #   variables TRIPBOARD_D1_ID, TRIPBOARD_KV_ID
+# and, for the cloud connector for AI apps (server/mcp.js), optionally:
+#   secrets   TRIPBOARD_GITHUB_APP_SECRET, TRIPBOARD_MCP_SECRET
+#   variables TRIPBOARD_GITHUB_APP_ID (the app's client ID), TRIPBOARD_MCP_USERS
 # (server/README.md says where each comes from). Without them it skips.
 name: Sharing server
 
@@ -25,6 +28,10 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.TRIPBOARD_D1_ID }}
       KV_ID: ${{ vars.TRIPBOARD_KV_ID }}
+      APP_ID: ${{ vars.TRIPBOARD_GITHUB_APP_ID }}
+      APP_SECRET: ${{ secrets.TRIPBOARD_GITHUB_APP_SECRET }}
+      MCP_SECRET: ${{ secrets.TRIPBOARD_MCP_SECRET }}
+      MCP_USERS: ${{ vars.TRIPBOARD_MCP_USERS }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,3 +60,13 @@ jobs:
         if: steps.ready.outputs.go == 'yes'
         working-directory: server
         run: npx --yes wrangler@4 deploy
+      # The cloud connector turns on only when all four are set; its secrets
+      # go to Cloudflare's own secret store, never into wrangler.toml.
+      - name: Cloud connector settings
+        if: steps.ready.outputs.go == 'yes' && env.APP_ID != '' && env.APP_SECRET != '' && env.MCP_SECRET != '' && env.MCP_USERS != ''
+        working-directory: server
+        run: |
+          printf '%s' "$APP_ID" | npx --yes wrangler@4 secret put GITHUB_APP_CLIENT_ID
+          printf '%s' "$APP_SECRET" | npx --yes wrangler@4 secret put GITHUB_APP_CLIENT_SECRET
+          printf '%s' "$MCP_SECRET" | npx --yes wrangler@4 secret put MCP_SECRET
+          printf '%s' "$MCP_USERS" | npx --yes wrangler@4 secret put MCP_USERS

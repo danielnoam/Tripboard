@@ -43,3 +43,55 @@ The token and IDs never go in the repo or in a chat.
 
 The tables change only through a new file in `migrations/`, never by
 editing an old one. A merge that changes `server/` deploys it.
+
+## The cloud connector for AI apps (optional)
+
+`mcp.js` makes the same Worker a remote MCP server, so Claude (Settings →
+Connectors), ChatGPT (developer mode) or another AI app can read and plan
+your trips from the cloud, phones included. It uses the same tools as the
+local MCP server (`cli/mcp.js`), minus the ones that delete, on your
+GitHub sync repo; your devices pick changes up on their next sync. You
+sign in with GitHub through your own GitHub App, which reaches only the
+sync repo. Only the GitHub accounts in `TRIPBOARD_MCP_USERS` get in.
+
+It needs the server set up first (above). Then, once:
+
+1. GitHub → **Settings → Developer settings → GitHub Apps → New GitHub
+   App**:
+   - Name: anything unique, like `Tripboard <your login>`. Homepage:
+     `https://danielnoam.github.io/Tripboard/`.
+   - Callback URL: the server's address + `/callback`, like
+     `https://tripboard.<your subdomain>.workers.dev/callback`. Leave
+     "Expire user authorization tokens" ticked.
+   - Webhook: untick **Active**.
+   - Repository permissions: **Contents: Read and write**. Nothing else.
+   - Where it can be installed: **Only on this account**. Create it.
+2. On the app's page, copy the **Client ID**, then **Generate a new client
+   secret** and copy it (it's shown once).
+3. **Install App** → your account → **Only select repositories** → your
+   sync repo.
+4. Your GitHub user id is the `id` at `https://api.github.com/users/<your login>`.
+5. In the Tripboard repo → **Settings → Secrets and variables → Actions**:
+   - Variables: `TRIPBOARD_GITHUB_APP_ID` (the Client ID, step 2) and
+     `TRIPBOARD_MCP_USERS`: `<your user id>=<owner>/<sync repo>`, like
+     `12345=you/tripboard-data` (`@branch` after it if sync uses another
+     branch; more people comma-separated).
+   - Secrets: `TRIPBOARD_GITHUB_APP_SECRET` (step 2) and
+     `TRIPBOARD_MCP_SECRET`, a long random string you make on your
+     computer, like the output of `openssl rand -base64 32`.
+6. **Actions → Sharing server → Run workflow.** It puts the four into
+   Cloudflare's secret store.
+7. Add the connector with the server's address + `/mcp`:
+   - Claude: **Settings → Connectors → Add custom connector** (on the web
+     or desktop; it then works on the phone apps too).
+   - ChatGPT (on the web): turn on **Developer mode**, then add a custom
+     MCP server with that address and OAuth. Each change asks you to
+     confirm; reads don't.
+   Tripboard asks whether to let the app in, then GitHub asks you to sign in.
+
+To cut every AI app off at once: in GitHub, **Settings → Applications →
+Authorized GitHub Apps → Revoke** (or uninstall the app), or change
+`TRIPBOARD_MCP_SECRET` and run the workflow again, which ends every
+sign-in. Taking your id out of `TRIPBOARD_MCP_USERS` works too.
+
+The secrets never go in the repo or in a chat.

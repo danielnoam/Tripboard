@@ -104,3 +104,7 @@ path, so it can't make the server read other files on your computer.
 
 Tools are added and never renamed or removed, so a chat that uses them
 keeps working.
+
+For an AI app in the cloud (claude.ai, the phone apps, ChatGPT), the
+sharing server serves these same tools, minus deleting, with a GitHub
+sign-in: see "The cloud connector" in server/README.md.

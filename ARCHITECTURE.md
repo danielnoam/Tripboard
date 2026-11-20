@@ -57,6 +57,8 @@ test/cli.test.js     cli/, against a fake GitHub
 test/coverage.test.js  the drift guard: reads the app and fails when something in it has no CLI/MCP tool or reason in cli/coverage.js
 server/              the sharing server: a Cloudflare Worker (worker.js) with D1 and KV, Google Maps list links (googlelist.js); not deployed yet (server/README.md)
 test/server.test.js  server/, in Node against SQLite (as D1) and an in-memory KV
+server/mcp.js        the cloud connector: the same Worker as a remote MCP server for AI apps (Claude, ChatGPT, …), OAuth 2.1 sign-in with GitHub behind it, serving cli/mcp.js's tools minus deleting
+test/cloud-mcp.test.js  server/mcp.js's sign-in and MCP over HTTP, against a fake GitHub and KV
 docs/                SCOPE.md (v1), SHARING.md, DRIVE.md (turning on Drive backups), mockup/ (the first screens)
 from-lifelog/        LifeLog's old Travel tab, for reference only; not loaded
 changes/             notes for the next release (changes/README.md)
@@ -219,6 +221,23 @@ adds a line here.
 - A cover set from the CLI or a chat is kept as given (up to 5 MB, JPEG,
   PNG or WebP), not shrunk as the app does, so each device downloads it
   whole.
+- The cloud connector (server/mcp.js) lets an AI app read and change
+  trips from its own cloud. Each call passes the trip through the Worker
+  (whoever runs its Cloudflare account) and into the chat, where the AI
+  company keeps it under its own rules. The Worker holds each sign-in's
+  GitHub token, AES-GCM encrypted in KV under TRIPBOARD_MCP_SECRET, so
+  whoever controls the Cloudflare account and that secret could use it;
+  the GitHub App limits it to the repos it's installed on, Contents only.
+  The AI app holds Tripboard's own bearer token (an hour, refreshed for
+  up to 30 days): anyone who gets it can act as you until then. It can't
+  delete (no delete tools), but it can change or blank anything, and a
+  place note or an imported list could carry text that steers it; git
+  history is the way back. Sharing roles don't apply, as with the local
+  MCP. Only the GitHub ids in TRIPBOARD_MCP_USERS get in, and a consent
+  page with a browser-bound cookie stops another site from signing you
+  in to its own registered client. Each call reads every trip, so on
+  Cloudflare's free plan (about 50 outside calls a request) it fails past
+  roughly 40 trips.
 - Your person id is made per device until sharing can link a person's
   devices, so `by` on records names a device's id, not a person's; GitHub
   sync gives a person's synced devices one id (me.json). Trip roles are
