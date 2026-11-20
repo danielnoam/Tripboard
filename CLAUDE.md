@@ -26,6 +26,14 @@ and no dependencies**, started from keel's template.
 - Shared files come from keel (danielnoam/keel): change them there, then
   sync with `node tools/keel-sync.js v<x.y.z>` in its own PR.
 
+## CLI and MCP
+
+- Every feature or change ships with CLI/MCP support in the same PR, so
+  any AI can do what the app does (CONTRIBUTING.md, "Every change works
+  from the CLI and MCP"). `test/coverage.test.js` fails until it's there;
+  don't satisfy it with a "device:" reason unless the thing truly never
+  leaves the device.
+
 ## Branch names
 
 - Don't use the claude/... branch the session was handed. Before the

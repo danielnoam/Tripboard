@@ -1,29 +1,27 @@
 #!/usr/bin/env node
 // Tripboard from a terminal: read and change the trips in your GitHub sync
-// repo. The apps pick the changes up on their next sync.
+// repo. The apps pick the changes up on their next sync. Its commands are
+// cli/tools.js, the same list the MCP server is made from.
 //
 //   TRIPBOARD_TOKEN=github_pat_… TRIPBOARD_REPO=you/tripboard-data node cli/tripboard.js trips
 //
 // Run with no command for the list. Every command takes --json.
 const core = require("./core");
+const { TOOLS, run, done } = require("./tools");
 
+const flag = (k) => "--" + k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+function usage(t) {
+  const args = t.args.filter(([, , o = {}]) => o.cli !== false);
+  const pos = args.filter(([, , o = {}]) => o.pos != null).sort((a, b) => a[2].pos - b[2].pos).map(([k, , o]) => (o.req ? "<" + k + ">" : "[<" + k + ">]"));
+  const opts = args.filter(([, , o = {}]) => o.pos == null).map(([k, s, o = {}]) => (o.req ? flag(k) + " " + k.toUpperCase() : "[" + flag(k) + (s.type === "boolean" ? " true|false" : "") + "]"));
+  return [t.cmd, ...pos, ...opts].join(" ");
+}
 const HELP = `Tripboard CLI. Needs TRIPBOARD_TOKEN and TRIPBOARD_REPO (owner/name); TRIPBOARD_BRANCH is optional.
 
-  trips                                   every trip
-  show <trip>                             a trip's places, expenses and files
-  new-trip --name N [--start D --end D --destinations "A, B"]
-  edit-trip <trip> [--name --start --end --destinations]
-  delete-trip <trip>
-  add-place <trip> --name N [--day D --time HH:MM --category C --importance must|want|maybe --note T --lat --lng]
-  edit-place <trip> <place> [same fields; --field "" clears one]
-  delete-place <trip> <place>
-  add-expense <trip> --amount A --currency EUR [--title T --category C --day D --place P --note T]
-  edit-expense <trip> <expense> [same fields]
-  delete-expense <trip> <expense>
-  share <trip> [<person>] [--role editor|viewer|default --hide "expenses,files"|""|default]
-                                          what everyone (or one person) may do and see
+${TOOLS.map((t) => "  " + usage(t) + "\n      " + t.description.split(". ")[0].replace(/\.$/, "") + ".").join("\n")}
 
-A trip, place or expense is its id or its name (or part of it). Dates are YYYY-MM-DD.
+A trip, place, expense, file, person or category is its id or its name (or part of it).
+Dates are YYYY-MM-DD; lists are comma-separated; an empty value ("") clears a field.
 Categories: places ${core.M.CATEGORIES.map((c) => c[0]).join(", ")}; expenses ${core.M.EXPENSE_CATEGORIES.map((c) => c[0]).join(", ")}.`;
 
 function parse(argv) {
@@ -39,62 +37,22 @@ function parse(argv) {
   return { pos, opt };
 }
 
-const COMMANDS = {
-  "new-trip": [[], "createTrip"], "edit-trip": [["trip"], "updateTrip"], "delete-trip": [["trip"], "deleteTrip"],
-  "add-place": [["trip"], "addPlace"], "edit-place": [["trip", "place"], "updatePlace"], "delete-place": [["trip", "place"], "deletePlace"],
-  "add-expense": [["trip"], "addExpense"], "edit-expense": [["trip", "expense"], "updateExpense"], "delete-expense": [["trip", "expense"], "deleteExpense"],
-  share: [["trip", "person"], "updateSharing"],
-};
-
-function money(n, cur) {
-  try { return new Intl.NumberFormat("en", { style: "currency", currency: cur }).format(n); } catch (e) { return n + " " + cur; }
-}
-function printTrip(v) {
-  const t = v.trip;
-  const lines = [t.name + (t.start ? "  " + t.start + (t.end && t.end !== t.start ? " to " + t.end : "") : "") + "  (" + t.id + ")"];
-  if (t.destinations.length) lines.push("  " + t.destinations.join(", "));
-  lines.push("", "Places (" + v.places.length + ")");
-  for (const p of v.places) lines.push("  " + [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")");
-  lines.push("", "Expenses (" + v.expenses.length + ")" + (v.totals.length ? ": " + v.totals.map((x) => money(x.total, x.currency)).join(" + ") : ""));
-  for (const x of v.expenses) lines.push("  " + [x.day || "no date", money(x.amount, x.currency), x.title, "[" + x.category + "]"].join("  ") + "  (" + x.id + ")");
-  if (v.people.length) {
-    lines.push("", "People (" + v.people.length + ")" + (t.share ? ": everyone " + (t.share.role === "viewer" ? "can view" : "can edit") + (t.share.hide.length ? ", doesn't see " + t.share.hide.join(", ") : "") : ""));
-    for (const p of v.people) lines.push("  " + (p.name || "Someone") + "  " + p.role + (p.hidden.length ? ", doesn't see " + p.hidden.join(", ") : "") + "  (" + p.id + ")");
-  }
-  lines.push("", "Files (" + v.files.length + ")");
-  for (const f of v.files) lines.push("  " + f.name + "  " + Math.max(1, Math.round(f.size / 1000)) + " KB  (" + f.id + ")");
-  return lines.join("\n");
-}
-
 async function main(argv, env = process.env, out = console.log) {
   const { pos, opt } = parse(argv);
   const cmd = pos.shift();
   if (!cmd || cmd === "help" || opt.help !== undefined) { out(HELP); return; }
+  const t = TOOLS.find((x) => x.cmd === cmd);
+  if (!t) throw new Error("No command " + JSON.stringify(cmd) + ". Run with no command for the list.");
   const tb = core.open({ token: env.TRIPBOARD_TOKEN, repo: env.TRIPBOARD_REPO, branch: env.TRIPBOARD_BRANCH });
-  const show = (x, plain) => out(opt.json ? JSON.stringify(x, null, 2) : plain(x));
-  if (cmd === "trips") {
-    const doc = await tb.read();
-    const list = core.M.sortTrips ? core.M.sortTrips(doc.trips, new Date().toISOString().slice(0, 10)) : doc.trips;
-    return show(list, (l) => l.map((t) => t.name + (t.start ? "  " + t.start : "") + "  " + doc.places.filter((p) => p.trip === t.id).length + " places  (" + t.id + ")").join("\n") || "No trips yet.");
-  }
-  if (cmd === "show") {
-    const doc = await tb.read();
-    return show(core.tripView(doc, core.findTrip(doc, pos[0])), printTrip);
-  }
-  const c = COMMANDS[cmd];
-  if (!c) throw new Error("No command " + JSON.stringify(cmd) + ". Run with no command for the list.");
   const args = { ...opt };
-  c[0].forEach((k, i) => { args[k] = pos[i]; });
-  if (args.visited !== undefined) args.visited = args.visited !== "false" && args.visited !== "";
-  for (const k of ["lat", "lng"]) if (args[k] !== undefined && args[k] !== "") args[k] = +args[k];
-  const r = await tb.change((doc) => core.ops[c[1]](doc, args), "Tripboard CLI: " + cmd);
-  show(r, (x) => (x.deleted ? "Deleted " + x.deleted + "."
-    : x.everyone ? x.trip + ": everyone " + (x.everyone.role === "viewer" ? "can view" : "can edit") + (x.everyone.hide.length ? ", doesn't see " + x.everyone.hide.join(", ") : "")
-    : x.access ? x.trip + ": " + x.person + " " + x.access.role + (x.access.hide.length ? ", doesn't see " + x.access.hide.join(", ") : "")
-    : "Done: " + (x.name || x.title) + " (" + x.id + ")"));
+  delete args.json;
+  for (const [k, , o = {}] of t.args) if (o.pos != null && pos[o.pos] !== undefined) args[k] = pos[o.pos];
+  const r = await run(tb, t, args, "cli", env);
+  if (typeof r === "string") return out(r);
+  out(opt.json || !(t.print || t.kind === "write") ? JSON.stringify(r, null, 2) : (t.print || done)(r));
 }
 
 if (require.main === module) {
   main(process.argv.slice(2)).catch((e) => { console.error(e.message || String(e)); process.exitCode = 1; });
 }
-module.exports = { main, parse };
+module.exports = { main, parse, HELP };
