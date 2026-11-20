@@ -25,7 +25,7 @@ src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles 
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl-text 1.0.0 (BSD-2, LICENSE.md), rtl.js and its .wasm, loaded by plugin.mjs in the map's worker when a label needs it
 src/icons.js         the Lucide icons used, as SVG paths
-src/views.js         Home, a trip's Today, board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/today|/map] routing, swiping between a trip's tabs, and the move between them (tabBefore/tabAfter, slideBubble: Web Animations on keel's spring(), the one move that runs while data-motion="off" stills the rest; a short cross-fade under reduced motion)
+src/views.js         Home, a trip's Today, board and map, the trip and place sheets, Settings and its pages, the #/, #/settings[/<page>] and #/trip/<id>[/today|/map] routing, swiping between a trip's tabs, the moves between tabs and screens (tabBefore/tabAfter by depthOf: a tab slides, a deeper screen pushes in, Back pops; slideBubble; slideSheet for full-screen editors on a phone; pressBounce for the top buttons and trip cards: Web Animations on keel's spring(), a short cross-fade under reduced motion)
 src/styles.css       the tokens per theme, then the styles
 src/keel/drive.js    Google Drive: sign-in, upload in pieces, keeping the newest three, restore (from keel)
 src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)

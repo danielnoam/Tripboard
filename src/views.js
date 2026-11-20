@@ -355,18 +355,20 @@
     slideBubble(bar, same ? was : null);
   }
 
-  // ---------- Moving between a trip's tabs ----------
-  // The one move that runs while data-motion="off" keeps the rest of the
-  // app still. The new tab pushes in from its side of the bar (mirrored
-  // right to left, as the swipe is) and the old one leaves the other way,
-  // both on one spring that settles a little past its place; the bar's
-  // circle slides over on a bouncier spring, stretching as it goes but
-  // never past the first or last tab (so never out of the pill), and the
-  // icon it lands under swells, settles back and turns white. Under reduced motion the
-  // screens cross-fade and the circle jumps. Web Animations, so the CSS
-  // that stills everything else doesn't reach it.
+  // ---------- Moving between a trip's tabs, and between screens ----------
+  // The new tab pushes in from its side of the bar (mirrored right to
+  // left, as the swipe is) and the old one leaves the other way, both on
+  // one spring that settles a little past its place; the bar's circle
+  // slides over on a bouncier spring, stretching as it goes but never past
+  // the first or last tab (so never out of the pill), and the icon it lands
+  // under swells, settles back and turns white.
+  // Going deeper (Home to a trip, a trip to Sharing or Settings, Settings
+  // to one of its pages) pushes the next screen in from the end edge with
+  // the same small bounce while the one under it drifts a quarter the
+  // other way and dims; Back sends it out to the end edge without one.
+  // Under reduced motion the screens cross-fade and the circle jumps.
   const springOf = (k, zeta) => window.Keel.motion.spring(k, 2 * zeta * Math.sqrt(k));
-  const TAB_PAGE = springOf(260, 0.78), TAB_BUBBLE = springOf(520, 0.68);
+  const TAB_PAGE = springOf(260, 0.78), TAB_BUBBLE = springOf(520, 0.68), PAGE_OUT = springOf(400, 1), PRESS = springOf(700, 0.38);
   const LINEAR = !!(window.CSS && CSS.supports && CSS.supports("transition-timing-function", "linear(0, 1)"));
   const onSpring = (s) => ({ duration: s.ms, easing: LINEAR ? s.curve : "cubic-bezier(0.2, 0.9, 0.3, 1)" });
   const lessMotion = () => !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -401,18 +403,31 @@
   }
 
   // What's on screen before a render, so the tab that leaves can be moved.
+  let shownHash = null;
+  // How deep a screen is: Home 0, a trip 1, its Sharing 2; Settings one
+  // more than where it was opened from, and each of its pages one more.
+  function depthOf(hash) {
+    const sm = /^#\/settings(?:\/(.+))?$/.exec(hash);
+    if (sm) { let d = view.settingsFrom ? 2 : 1; for (let pg = sm[1]; pg; pg = settingsParent(pg)) d++; return d; }
+    if (/^#\/trip\/[\w-]+\/share/.test(hash)) return 2;
+    return /^#\/(trip|join)\//.test(hash) ? 1 : 0;
+  }
   function tabBefore() {
     const main = $("app"), map = $("mapView");
-    return { trip: view.trip, mode: view.mode, kids: [...main.childNodes], cls: main.className,
+    return { hash: shownHash, trip: view.trip, mode: view.mode, kids: [...main.childNodes], cls: main.className,
       top: main.getBoundingClientRect().top, map: map.hidden ? null : map.getBoundingClientRect() };
   }
   function tabAfter(b) {
-    if (tabMove && tabMove.to === view.trip + view.mode) { tabMove.hold(); return; }
+    const hash = location.hash || "#/";
+    shownHash = hash;
+    if (tabMove && tabMove.to === hash) { tabMove.hold(); return; }
     if (tabMove) tabMove.end();
+    if (b.hash == null || b.hash === hash || !document.body.animate) return;
     const trip = view.trip === b.trip && b.mode !== view.mode && findTrip(view.trip);
-    if (!trip || !document.body.animate) return;
-    const modes = tripTabs(trip).map(([m]) => m), i = modes.indexOf(b.mode), j = modes.indexOf(view.mode);
-    if (i < 0 || j < 0) return;
+    const modes = trip ? tripTabs(trip).map(([m]) => m) : [], i = modes.indexOf(b.mode), j = modes.indexOf(view.mode);
+    const d0 = depthOf(b.hash), d1 = depthOf(hash);
+    const kind = i >= 0 && j >= 0 ? "tab" : d1 > d0 ? "push" : d1 < d0 ? "pop" : null;
+    if (!kind) return;
     const map = $("mapView"), main = $("app");
     let out;
     // A repaint while the map leaves hides it again (paint()); hold() shows it until the move ends.
@@ -433,25 +448,39 @@
       out.append(...b.kids);
       document.body.append(out);
     }
-    const into = view.mode === "map" ? map : main;
-    const w = window.innerWidth * (j > i ? 1 : -1) * (i18n.dir === "rtl" ? -1 : 1);
-    const anims = lessMotion()
-      ? [into.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 }), out.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: "forwards" })]
-      : [into.animate([{ transform: "translateX(" + w + "px)" }, { transform: "none" }], onSpring(TAB_PAGE)),
-        out.animate([{ transform: "none" }, { transform: "translateX(" + -w + "px)" }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
+    const into = view.mode === "map" && out !== map ? map : main;
+    const w = window.innerWidth * (i18n.dir === "rtl" ? -1 : 1);
+    const at = (k) => "translateX(" + k * w + "px)";
+    const DIM = "brightness(0.9)";
+    // The screen on top during the move: the new one on a push, the old one on Back.
+    if (kind === "push") { out.classList.add("tab-under"); into.classList.add("tab-over"); }
+    let anims;
+    if (lessMotion()) anims = [into.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 }), out.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: "forwards" })];
+    else if (kind === "tab") {
+      const k = j > i ? 1 : -1;
+      anims = [into.animate([{ transform: at(k) }, { transform: "none" }], onSpring(TAB_PAGE)),
+        out.animate([{ transform: "none" }, { transform: at(-k) }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
+    } else if (kind === "push") {
+      anims = [into.animate([{ transform: at(1) }, { transform: "none" }], onSpring(TAB_PAGE)),
+        out.animate([{ transform: "none", filter: "none" }, { transform: at(-0.25), filter: DIM }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
+    } else {
+      anims = [into.animate([{ transform: at(-0.25), filter: DIM }, { transform: "none", filter: "none" }], onSpring(PAGE_OUT)),
+        out.animate([{ transform: "none" }, { transform: at(1) }], { ...onSpring(PAGE_OUT), fill: "forwards" })];
+    }
     document.documentElement.classList.add("tab-moving");
     const end = () => {
       if (!tabMove || tabMove.end !== end) return;
       tabMove = null;
       anims.forEach((a) => a.cancel());
       document.documentElement.classList.remove("tab-moving");
+      into.classList.remove("tab-over");
       if (out === map) {
-        map.classList.remove("tab-leaving");
+        map.classList.remove("tab-leaving", "tab-under");
         ["top", "left", "width", "height"].forEach((k) => map.style.removeProperty(k));
         map.hidden = view.mode !== "map";
       } else out.remove();
     };
-    tabMove = { to: view.trip + view.mode, end, hold };
+    tabMove = { to: hash, end, hold };
     Promise.all(anims.map((a) => a.finished)).then(end, end);
   }
 
@@ -943,12 +972,24 @@
     d.showModal();
     d.tabIndex = -1;
     d.focus();
-    (narrow() ? motion.rise(d) : motion.dialogIn(d, from && from.getBoundingClientRect()));
+    if (narrow() && d.classList.contains("page")) slideSheet(d, true);
+    else (narrow() ? motion.rise(d) : motion.dialogIn(d, from && from.getBoundingClientRect()));
   }
   async function closeSheet(d) {
     if (!d.open) return;
-    await (narrow() ? motion.sink(d) : motion.dialogOut(d, opener && opener.getBoundingClientRect()));
+    await (narrow() && d.classList.contains("page") ? slideSheet(d, false)
+      : narrow() ? motion.sink(d) : motion.dialogOut(d, opener && opener.getBoundingClientRect()));
     d.close();
+  }
+  // A full-screen editor on a phone is a screen like the others: in from
+  // the end edge with the small bounce, out the same way without it.
+  function slideSheet(d, open) {
+    if (!d.animate) return Promise.resolve();
+    const off = "translateX(" + (i18n.dir === "rtl" ? -100 : 100) + "%)";
+    const a = lessMotion() ? d.animate([{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }], { duration: 120, fill: "forwards" })
+      : open ? d.animate([{ transform: off }, { transform: "none" }], onSpring(TAB_PAGE))
+      : d.animate([{ transform: "none" }, { transform: off }], { ...onSpring(PAGE_OUT), fill: "forwards" });
+    return a.finished.then(() => a.cancel(), () => {});
   }
   for (const d of document.querySelectorAll("dialog.sheet")) {
     d.addEventListener("cancel", (e) => { e.preventDefault(); closeSheet(d); });
@@ -2343,8 +2384,43 @@
     render();
     return true;
   }
+  // The buttons at the top and the trips on Home sink under a finger or
+  // the mouse and spring back past their size when let go (hover, in
+  // styles.css, grows them a little). A trip opens once its bounce has
+  // shown, a moment after the press.
+  function pressBounce() {
+    const DEPTH = [[".bar .icon-btn", 0.84], [".trip-card", 0.96]];
+    let held = null;
+    const sink = (n) => DEPTH.find(([sel]) => n.matches(sel))[1];
+    document.addEventListener("pointerdown", (e) => {
+      const n = e.target.closest && e.target.closest(DEPTH.map(([sel]) => sel).join(", "));
+      if (!n || e.button > 0 || lessMotion() || !n.animate) return;
+      held = n;
+      n.getAnimations().filter((a) => a.id === "press").forEach((a) => a.cancel());
+      const a = n.animate([{ transform: "none" }, { transform: "scale(" + sink(n) + ")" }], { duration: 90, easing: "ease-out", fill: "forwards" });
+      a.id = "press";
+    });
+    const up = () => {
+      if (!held) return;
+      const n = held, from = new DOMMatrix(getComputedStyle(n).transform).a || sink(n);
+      held = null;
+      n.getAnimations().filter((a) => a.id === "press").forEach((a) => a.cancel());
+      const a = n.animate([{ transform: "scale(" + from + ")" }, { transform: "none" }], onSpring(PRESS));
+      a.id = "press";
+    };
+    for (const t of ["pointerup", "pointercancel", "dragstart"]) document.addEventListener(t, up);
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest("a.trip-card");
+      if (!a || lessMotion() || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const to = a.getAttribute("href");
+      setTimeout(() => { location.hash = to; }, 150);
+    });
+  }
+
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
+    pressBounce();
     doc = M.sanitizeDoc(doc);
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));

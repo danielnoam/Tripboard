@@ -425,9 +425,19 @@ p[data-tone="warn"] { color: var(--must); }
   .hero { min-height: 180px; }
 }
 
-/* The tab that leaves while the next one moves in (views.js, tabAfter). */
+/* The screen that leaves while the next one moves in (views.js, tabAfter):
+   on top when it goes Back, under the new one on a push. */
 .tab-leaving { position: fixed; z-index: 4; pointer-events: none; }
 main.tab-leaving { left: 0; right: 0; margin-inline: auto; }
+.tab-leaving.tab-under { z-index: 0; }
+.tab-over { position: relative; z-index: 1; background: var(--bg); min-height: 100dvh; }
+/* With a mouse, the buttons at the top and the trips on Home grow a little
+   under the pointer; pressing them bounces (views.js, pressBounce). */
+@media (hover: hover) and (pointer: fine) {
+  .bar .icon-btn, .trip-card { transition: scale 260ms var(--spring-control, ease-out), box-shadow 260ms ease-out; }
+  .bar .icon-btn:hover { scale: 1.12; }
+  .trip-card:hover { scale: 1.025; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14); }
+}
 .tab-moving, .tab-moving body { overflow-x: clip; }
 
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after, :root[data-motion="off"] ::backdrop { animation: none !important; transition: none !important; }
