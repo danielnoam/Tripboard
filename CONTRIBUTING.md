@@ -60,6 +60,17 @@ copy uses gender-neutral forms. CSS uses logical sides (`inset-inline-start`,
 the map, whose controls don't flip. Dates and numbers go through Intl
 with `i18n.lang`.
 
+**Every change works from the CLI and MCP.** Anything a person can do or
+see in the app, a chat can do through `cli/` too: a new field, sheet,
+Settings page, action or file in the sync repo ships with its command and
+tool in the same pull request (`cli/tools.js` makes both, `cli/core.js`
+does the work, `test/cli.test.js` tests it, `cli/README.md` lists it).
+`cli/coverage.js` maps every part of the app to the tools that cover it,
+and `test/coverage.test.js` fails when something new isn't there. Only
+what never leaves the device (keys, providers, theme, offline maps) gets
+a "device:" reason instead of a tool. Tools are added, never renamed or
+removed (`PUBLISHED` in coverage.js).
+
 ## Keeping the notes files right
 
 - A change a person can notice adds a note in `changes/` (see its

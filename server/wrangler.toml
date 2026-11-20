@@ -3,6 +3,8 @@
 name = "tripboard"
 main = "worker.js"
 compatibility_date = "2026-11-01"
+# cli/ (the MCP tools, server/mcp.js) uses Node's Buffer.
+compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
 [[d1_databases]]

@@ -29,8 +29,10 @@
 //   GET|PUT /trips/:id/cover          the cover photo
 //   POST   /google-list               { url } -> { title, places } (googlelist.js;
 //                                     unofficial, 60 a day per address)
+//   /mcp, /authorize, /token, …        the cloud connector for AI apps (mcp.js)
 
 import * as GL from "./googlelist.js";
+import { handleMcp } from "./mcp.js";
 
 const SECTIONS = ["expenses", "files"];
 const MAX_BUNDLE = 2e6;
@@ -92,6 +94,8 @@ async function readJson(req) {
 }
 
 export async function handle(req, env) {
+  const cloud = await handleMcp(req, env);
+  if (cloud) return cloud;
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   const url = new URL(req.url);
   const parts = url.pathname.split("/").filter(Boolean);

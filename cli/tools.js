@@ -1,0 +1,264 @@
+// Every command the CLI and the MCP server offer, in one list, so the two
+// can't drift apart: cli/tripboard.js and cli/mcp.js are both made from it,
+// and test/coverage.test.js checks it against what the app can do
+// (cli/coverage.js). Each entry:
+//   tool   the MCP tool's name: added, never renamed or removed
+//   cmd    the CLI command's name: the same promise
+//   kind   "read" (on a snapshot) or "write" (one commit)
+//   args   [name, JSON schema, { req, pos, cli: false, mcp: false }]
+//          pos: the CLI takes it in that place instead of --name
+//   op / query   the function in core.js that does it
+//   input  "bytes": a file's contents, from --path (CLI) or content /
+//          text (MCP); an MCP chat can't make the server read a path
+//   print  how the CLI shows the answer (JSON with --json, or by default
+//          when there's no print)
+// fs and path load only when the CLI reads or writes a file, so the MCP
+// side runs where there's no file system (the sharing server's Worker).
+const fs = () => require("fs");
+const path = () => require("path");
+const core = require("./core");
+const PL = require("../src/places.js");
+const M = core.M;
+
+const day = { type: "string", description: "A date, YYYY-MM-DD." };
+const tripArg = ["trip", { type: "string", description: "The trip's id or name (or part of it)." }, { req: true, pos: 0 }];
+const placeArg = (req) => ["place", { type: "string", description: "The place's id or name in this trip." }, { req, pos: 1 }];
+const clears = " An empty string clears it.";
+const placeFields = [
+  ["name", { type: "string" }],
+  ["category", { type: "string", description: "A category id: " + M.CATEGORIES.map((c) => c[0]).join(", ") + ", or one of your own (list_categories)." }],
+  ["importance", { type: "string", enum: M.IMPORTANCE.map((c) => c[0]), description: "must (must see), want (want to), maybe." }],
+  ["day", { ...day, description: "YYYY-MM-DD, the day it's planned for." + clears }],
+  ["endDay", { type: "string", description: "YYYY-MM-DD, the last day of a place that lasts several days (a stay); after day." }],
+  ["time", { type: "string", description: "HH:MM, needs a day; the same on each of its days." }],
+  ["endTime", { type: "string", description: "HH:MM, after time." }],
+  ["note", { type: "string" }],
+  ["lat", { type: "number" }], ["lng", { type: "number" }],
+  ["address", { type: "string" }],
+  ["placeId", { type: "string", description: "Google's place id, if it came from Google." }],
+  ["visited", { type: "boolean", description: "Been there (the Today view's tick)." }],
+];
+const expenseFields = [
+  ["title", { type: "string" }], ["amount", { type: "number" }],
+  ["currency", { type: "string", description: "ISO 4217 code, like EUR or JPY." }],
+  ["category", { type: "string", enum: M.EXPENSE_CATEGORIES.map((c) => c[0]) }],
+  ["day", day], ["place", { type: "string", description: "A place's id or name in this trip." }], ["note", { type: "string" }],
+  ["paidBy", { type: "string", description: "Who paid: a person's id on a shared trip." }],
+];
+const tripFields = [["name", { type: "string" }], ["start", day], ["end", day], ["destinations", { type: "array", items: { type: "string" }, description: "Place names; the CLI takes them comma-separated." }]];
+const fileFields = [["name", { type: "string" }], ["place", { type: "string", description: "A place's id or name in this trip it belongs to." + clears }], ["note", { type: "string" }]];
+const bytesArgs = [
+  ["path", { type: "string", description: "A file on this computer." }, { mcp: false }],
+  ["content", { type: "string", description: "The file's bytes, base64." }, { cli: false }],
+  ["text", { type: "string", description: "Or the file's text, for a text file." }, { cli: false }],
+];
+const people = { type: "string", description: "A person's id or name on the trip." };
+const filesOk = (env) => env.TRIPBOARD_MCP_FILES === "1";
+const FILES_OFF = "File contents stay out of the chat unless the person turns them on: TRIPBOARD_MCP_FILES=1 in this server's env.";
+
+const money = (n, cur) => { try { return new Intl.NumberFormat("en", { style: "currency", currency: cur }).format(n); } catch (e) { return n + " " + cur; } };
+const placeLine = (p) => [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
+
+function printTrip(v) {
+  const t = v.trip;
+  const lines = [t.name + (t.start ? "  " + t.start + (t.end && t.end !== t.start ? " to " + t.end : "") : "") + "  (" + t.id + ")"];
+  if (t.destinations.length) lines.push("  " + t.destinations.join(", "));
+  lines.push("", "Places (" + v.places.length + ")");
+  for (const p of v.places) lines.push("  " + placeLine(p));
+  lines.push("", "Expenses (" + v.expenses.length + ")" + (v.totals.length ? ": " + v.totals.map((x) => money(x.total, x.currency)).join(" + ") : ""));
+  for (const x of v.expenses) lines.push("  " + [x.day || "no date", money(x.amount, x.currency), x.title, "[" + x.category + "]"].join("  ") + "  (" + x.id + ")");
+  if (v.people.length) {
+    lines.push("", "People (" + v.people.length + ")" + (t.share ? ": everyone " + (t.share.role === "viewer" ? "can view" : "can edit") + (t.share.hide.length ? ", doesn't see " + t.share.hide.join(", ") : "") : ""));
+    for (const p of v.people) lines.push("  " + (p.name || "Someone") + "  " + p.role + (p.hidden.length ? ", doesn't see " + p.hidden.join(", ") : "") + "  (" + p.id + ")");
+  }
+  lines.push("", "Files (" + v.files.length + ")");
+  for (const f of v.files) lines.push("  " + f.name + "  " + Math.max(1, Math.round(f.size / 1000)) + " KB  (" + f.id + ")");
+  return lines.join("\n");
+}
+const done = (x) => (x.deleted ? "Deleted " + x.deleted + "." + (x.movedToOther ? " " + x.movedToOther + " places are in Other now." : "")
+  : x.everyone ? x.trip + ": everyone " + (x.everyone.role === "viewer" ? "can view" : "can edit") + (x.everyone.hide.length ? ", doesn't see " + x.everyone.hide.join(", ") : "")
+  : x.access ? x.trip + ": " + x.person + " " + x.access.role + (x.access.hide.length ? ", doesn't see " + x.access.hide.join(", ") : "")
+  : x.removed ? "Removed " + x.removed + " from " + x.trip + "."
+  : x.added != null && x.tripId ? "Added " + x.added + " places to " + x.trip + (x.skipped ? " (" + x.skipped + " already there)" : "") + "."
+  : x.added != null ? "Restored " + (x.added + x.replaced) + " trips (" + x.replaced + " replaced): " + x.trips.join(", ") + "."
+  : x.cover !== undefined ? x.trip + ": " + (x.cover ? "cover set." : "cover removed.")
+  : x.categories ? "Categories are back to the defaults." + (x.movedToOther ? " " + x.movedToOther + " places are in Other now." : "")
+  : "Done: " + (x.name || x.title) + " (" + x.id + ")");
+
+const TOOLS = [
+  // ---------- Reading ----------
+  { tool: "list_trips", cmd: "trips", kind: "read", query: "listTrips", args: [],
+    description: "Every trip, in Home's order (under way, upcoming, undated, past): id, name, dates, destinations, status and how many places.",
+    print: (l) => l.map((t) => t.name + (t.start ? "  " + t.start : "") + "  " + t.places + " places  (" + t.id + ")").join("\n") || "No trips yet." },
+  { tool: "get_trip", cmd: "show", kind: "read", query: "getTrip", args: [tripArg],
+    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people and files (names only).",
+    print: printTrip },
+  { tool: "find_places", cmd: "places", kind: "read", query: "findPlaces",
+    description: "A trip's places that match every filter given. With near, nearest first, with km.",
+    args: [tripArg,
+      ["day", { type: "string", description: "YYYY-MM-DD (places on that day, multi-day ones too), or \"none\" for undated." }],
+      ["category", { type: "string", description: "A category's id or name." }],
+      ["importance", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) } }],
+      ["visited", { type: "boolean" }], ["located", { type: "boolean", description: "true: only places with a location; false: only those without." }],
+      ["text", { type: "string", description: "In the name, note or address." }],
+      ["near", { type: "string", description: "\"lat,lng\", or a place's name or id." }],
+      ["limit", { type: "number" }]],
+    print: (l) => l.map(placeLine).join("\n") || "No places match." },
+  { tool: "get_board", cmd: "board", kind: "read", query: "getBoard",
+    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date), category, importance, or distance (from near).",
+    args: [tripArg, ["sort", { type: "string", enum: ["time", "category", "importance", "distance"] }],
+      ["only", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) }, description: "The importance levels shown; all when empty." }],
+      ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
+    print: (gs) => gs.map((g) => g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n") : g.places.map((p) => "  " + placeLine(p)).join("\n"))).join("\n\n") },
+  { tool: "get_day", cmd: "day", kind: "read", query: "getDay",
+    description: "One day as the Today view shows it: the plan in order, a guessed time from the place before (straight line, not a route), the next place not yet visited, and that day's expenses. The day defaults to today.",
+    args: [tripArg, ["day", day, { pos: 1 }]],
+    print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : ""), ...d.plan.map((p) => (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
+      ...(d.totals.length ? ["Spent: " + d.totals.map((x) => money(x.total, x.currency)).join(" + ")] : [])].filter((x) => x !== "").join("\n") },
+  { tool: "list_categories", cmd: "categories", kind: "read", query: "listCategories", args: [],
+    description: "Your place categories, in order, one list for all trips: id, name, whether it's built in, and how many places use it.",
+    print: (l) => l.map((c) => c.position + ". " + c.name + "  " + c.places + " places  (" + c.id + ")").join("\n") },
+  { tool: "get_file", cmd: "file", kind: "read", query: "getFile",
+    description: "A file kept with a trip: its record and contents (text, or base64 for other kinds). " + FILES_OFF,
+    args: [tripArg, ["file", { type: "string", description: "The file's id or name." }, { req: true, pos: 1 }],
+      ["out", { type: "string", description: "Where to save it; without it a text file is printed." }, { mcp: false }]],
+    mcp: (r, a, env) => {
+      if (!filesOk(env)) throw new Error(FILES_OFF);
+      if (!r.bytes) return { file: r.file, missing: "Its bytes aren't in the sync repo yet (the device that added it hasn't synced)." };
+      const b = Buffer.from(r.bytes);
+      if (b.length > 5 * 1024 * 1024) throw new Error("That file is over 5 MB; save it with the CLI instead.");
+      return core.isText(r.file.type) ? { file: r.file, text: b.toString("utf8") } : { file: r.file, base64: b.toString("base64") };
+    },
+    cli: (r, a) => {
+      if (!r.bytes) return "Its bytes aren't in the sync repo yet.";
+      if (a.out) { fs().writeFileSync(a.out, r.bytes); return "Saved " + r.file.name + " to " + a.out + "."; }
+      if (core.isText(r.file.type)) return Buffer.from(r.bytes).toString("utf8");
+      throw new Error(r.file.name + " isn't text. Give --out to save it.");
+    } },
+  { tool: "export_backup", cmd: "export", kind: "read", query: "exportBackup",
+    description: "A backup like the app's Save a backup (Settings › Storage), which Restore takes back. All trips, or the ones named. Over MCP its covers and files' bytes come only with withBytes and TRIPBOARD_MCP_FILES=1.",
+    args: [["trips", { type: "array", items: { type: "string" }, description: "Trip ids or names; all when left out. The CLI takes them comma-separated." }],
+      ["withBytes", { type: "boolean" }, { cli: false }],
+      ["out", { type: "string", description: "The file to write; tripboard-<date>.json by default." }, { mcp: false }]],
+    before: (a, via, env) => ({ ...a, bytes: via === "cli" ? true : !!a.withBytes && filesOk(env) }),
+    cli: (data, a) => {
+      const out = a.out || (data.trips.length === 1 ? data.trips[0].name.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").toLowerCase() || "trips" : "tripboard") + "-" + core.today() + ".json";
+      fs().writeFileSync(out, JSON.stringify(data, null, 1));
+      return "Saved " + data.trips.length + " trips to " + out + ".";
+    } },
+  { tool: "find_location", cmd: "locate", kind: "read",
+    description: "Where a place is, by name, from OpenStreetMap (as the app's Find by name): up to 6 matches with address, lat, lng and a category guess. Sends the name (and the trip's area) to OpenStreetMap. Then set lat, lng and address with update_place.",
+    args: [["query", { type: "string", description: "The place's name, with the city helps." }, { req: true, pos: 0 }],
+      ["trip", { type: "string", description: "A trip whose located places say which area to look in." }]],
+    run: async (st, a, env) => {
+      const near = a.trip ? st.doc.places.filter((p) => p.trip === core.findTrip(st.doc, a.trip).id && p.lat != null) : [];
+      const fetchFn = (url, init) => (env.fetch || globalThis.fetch)(url, { ...init, headers: { ...(init && init.headers), "User-Agent": "Tripboard-CLI (https://github.com/danielnoam/Tripboard)" } });
+      return PL.providers.osm.search(a.query, { near, fetchFn });
+    },
+    print: (l) => l.map((r) => r.name + "  " + r.lat.toFixed(5) + ", " + r.lng.toFixed(5) + (r.category ? "  [" + r.category + "]" : "") + "\n  " + (r.address || "")).join("\n") || "Nothing found." },
+
+  // ---------- Trips ----------
+  { tool: "create_trip", cmd: "new-trip", kind: "write", op: "createTrip", args: tripFields.map((f, i) => (i ? f : [f[0], f[1], { req: true }])),
+    description: "Make a trip. You're its owner." },
+  { tool: "update_trip", cmd: "edit-trip", kind: "write", op: "updateTrip", args: [tripArg, ...tripFields],
+    description: "Change a trip's name, dates or destinations; an empty date clears it." },
+  { tool: "delete_trip", cmd: "delete-trip", kind: "write", op: "deleteTrip", args: [tripArg],
+    description: "Delete a trip with its places, expenses, files and cover. Ask the person first." },
+  { tool: "set_trip_cover", cmd: "cover", kind: "write", op: "setCover", input: "bytes",
+    description: "Set a trip's cover photo (JPEG, PNG or WebP, up to 5 MB; the app shrinks its own, this keeps it as given), or remove it.",
+    args: [tripArg, ...bytesArgs.filter(([n]) => n !== "text"), ["remove", { type: "boolean" }]] },
+
+  // ---------- Places ----------
+  { tool: "add_place", cmd: "add-place", kind: "write", op: "addPlace", args: [tripArg, ...placeFields.map((f, i) => (i ? f : [f[0], f[1], { req: true }]))],
+    description: "Add a place to a trip. Give a day (and time) to plan it, or leave it undated. find_location finds lat and lng." },
+  { tool: "update_place", cmd: "edit-place", kind: "write", op: "updatePlace", args: [tripArg, placeArg(true), ...placeFields],
+    description: "Change a place's fields (including visited); an empty string clears one." },
+  { tool: "delete_place", cmd: "delete-place", kind: "write", op: "deletePlace", args: [tripArg, placeArg(true)],
+    description: "Delete a place from a trip." },
+  { tool: "import_places", cmd: "import", kind: "write", op: "importPlaces", input: "bytes",
+    description: "Import a Google Maps list (Takeout CSV, My Maps KML, Saved Places JSON) into a trip, or with no trip into a new one named after the list. Names already in the trip are skipped. Places without a location stay unlocated: find_location finds them.",
+    args: [["trip", { type: "string", description: "The trip's id or name; leave out to make a new trip." }, { pos: 0 }], ...bytesArgs,
+      ["fileName", { type: "string", description: "The export's file name (its ending says the format; a CSV's name is the list's)." }, { mcp: true, cli: false }],
+      ["name", { type: "string", description: "The new trip's name, instead of the list's." }]] },
+
+  // ---------- Expenses ----------
+  { tool: "add_expense", cmd: "add-expense", kind: "write", op: "addExpense", args: [tripArg, ...expenseFields.map((f) => (f[0] === "amount" || f[0] === "currency" ? [f[0], f[1], { req: true }] : f))],
+    description: "Add an expense to a trip." },
+  { tool: "update_expense", cmd: "edit-expense", kind: "write", op: "updateExpense", args: [tripArg, ["expense", { type: "string", description: "The expense's id or title." }, { req: true, pos: 1 }], ...expenseFields],
+    description: "Change an expense; an empty string clears day, place, note or paidBy." },
+  { tool: "delete_expense", cmd: "delete-expense", kind: "write", op: "deleteExpense", args: [tripArg, ["expense", { type: "string" }, { req: true, pos: 1 }]],
+    description: "Delete an expense from a trip." },
+
+  // ---------- Files ----------
+  { tool: "add_file", cmd: "add-file", kind: "write", op: "addFile", input: "bytes",
+    description: "Keep a file with a trip (a ticket, a booking), up to " + M.MAX_FILE_MB + " MB. It syncs to the person's devices like one added in the app.",
+    args: [tripArg, ...bytesArgs, ...fileFields, ["type", { type: "string", description: "Its MIME type; guessed from its name when left out." }]] },
+  { tool: "update_file", cmd: "edit-file", kind: "write", op: "updateFile", args: [tripArg, ["file", { type: "string", description: "The file's id or name." }, { req: true, pos: 1 }], ...fileFields],
+    description: "Rename a file, change its note, or the place it belongs to." },
+  { tool: "delete_file", cmd: "delete-file", kind: "write", op: "deleteFile", args: [tripArg, ["file", { type: "string" }, { req: true, pos: 1 }]],
+    description: "Delete a file from a trip, and its bytes from the sync repo (git history keeps them)." },
+
+  // ---------- People ----------
+  { tool: "update_sharing", cmd: "share", kind: "write", op: "updateSharing",
+    description: "Who on a shared trip may edit, and who doesn't see expenses or files. With no person it sets what everyone gets; with a person, their own setting (\"default\" goes back to everyone's). The app follows these; they aren't a lock, since the sync repo holds the whole trip. get_trip lists the people.",
+    args: [tripArg, ["person", { type: "string", description: "A person's id or name on the trip. Leave out for everyone." }, { pos: 1 }],
+      ["role", { type: "string", enum: ["editor", "viewer", "default"] }],
+      ["hide", { type: "array", items: { type: "string", enum: M.SECTIONS }, description: "The sections they don't see; [] shows all. The CLI takes them comma-separated, \"\" for none, or default." }],
+      ["sameAsEveryone", { type: "boolean", description: "With a person: what they see goes back to everyone's." }, { cli: false }]],
+    before: (a) => ({ ...a, hide: a.sameAsEveryone ? "default" : a.hide }) },
+  { tool: "remove_person", cmd: "remove-person", kind: "write", op: "removePerson", args: [tripArg, ["person", people, { req: true, pos: 1 }]],
+    description: "Take someone off a shared trip (owner only). The sharing server ends their access at the next sync. Ask the person first." },
+
+  // ---------- Categories ----------
+  { tool: "add_category", cmd: "add-category", kind: "write", op: "addCategory", args: [["name", { type: "string" }, { req: true, pos: 0 }]],
+    description: "Add a place category to your list (before Other). It syncs to your devices." },
+  { tool: "update_category", cmd: "edit-category", kind: "write", op: "updateCategory",
+    args: [["category", { type: "string", description: "Its id or name." }, { req: true, pos: 0 }], ["name", { type: "string" }], ["position", { type: "number", description: "Its place in the list, from 1." }]],
+    description: "Rename a category or move it in the list." },
+  { tool: "delete_category", cmd: "delete-category", kind: "write", op: "deleteCategory", args: [["category", { type: "string", description: "Its id or name." }, { req: true, pos: 0 }]],
+    description: "Remove a category; its places in every trip move to Other. Ask the person first." },
+  { tool: "reset_categories", cmd: "reset-categories", kind: "write", op: "resetCategories", args: [],
+    description: "Back to the built-in categories; places in your own ones move to Other. Ask the person first." },
+
+  // ---------- Backups ----------
+  { tool: "import_backup", cmd: "restore", kind: "write", op: "importBackup", input: "bytes",
+    description: "Restore a Tripboard backup file (from the app's Save a backup or export_backup): its trips join, replacing ones with the same id, with their covers and files. Ask the person first.",
+    args: [["backup", { type: "object", description: "The backup's JSON." }, { cli: false }], ["path", bytesArgs[0][1], { mcp: false }]] },
+];
+
+// Arguments as the tool wants them: numbers, booleans and lists from the
+// CLI's strings, and a file's bytes from --path or content / text.
+function prep(t, a, via, env) {
+  a = { ...a };
+  if (via === "cli") {
+    for (const [k, s] of t.args) {
+      const v = a[k];
+      if (v === undefined || typeof v !== "string") continue;
+      if (s.type === "number") a[k] = v === "" ? "" : +v;
+      else if (s.type === "boolean") a[k] = v !== "false" && v !== "" && v !== "no";
+      else if (s.type === "array") a[k] = v === "" ? [] : v.split(",").map((x) => x.trim()).filter(Boolean);
+    }
+  }
+  if (t.input === "bytes") {
+    if (via === "cli" && a.path) {
+      a.bytes = fs().readFileSync(a.path);
+      if (a.name === undefined && t.op === "addFile") a.name = path().basename(a.path);
+      a.fileName = a.fileName || path().basename(a.path);
+    }
+    if (via === "mcp" && a.content) a.bytes = Buffer.from(a.content, "base64");
+    else if (via === "mcp" && a.text != null) a.bytes = Buffer.from(String(a.text));
+  }
+  for (const [k, , o = {}] of t.args) if (o.req && (a[k] === undefined || a[k] === "")) throw new Error(t.cmd + " needs " + (o.pos != null ? "<" + k + ">" : "--" + k) + ".");
+  return t.before ? t.before(a, via, env) : a;
+}
+
+// Runs a tool on a connection; `via` is "cli" or "mcp". Gives the answer.
+async function run(tb, t, args, via, env = {}) {
+  const a = prep(t, args, via, env);
+  if (t.kind === "write") return tb.change((doc, ctx) => core.ops[t.op](doc, a, ctx), "Tripboard " + via.toUpperCase() + ": " + (via === "cli" ? t.cmd : t.tool));
+  const st = await tb.snapshot();
+  const r = t.run ? await t.run(st, a, env) : await core.queries[t.query](st, a);
+  return t[via] ? t[via](r, a, env) : r;
+}
+
+module.exports = { TOOLS, run, prep, printTrip, done };
