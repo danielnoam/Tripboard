@@ -360,12 +360,13 @@
   // app still. The new tab pushes in from its side of the bar (mirrored
   // right to left, as the swipe is) and the old one leaves the other way,
   // both on one spring that settles a little past its place; the bar's
-  // circle slides over on a bouncier spring, stretching as it goes, and
-  // the icon it lands under hops and turns white. Under reduced motion the
+  // circle slides over on a bouncier spring, stretching as it goes but
+  // never past the first or last tab (so never out of the pill), and the
+  // icon it lands under swells, settles back and turns white. Under reduced motion the
   // screens cross-fade and the circle jumps. Web Animations, so the CSS
   // that stills everything else doesn't reach it.
   const springOf = (k, zeta) => window.Keel.motion.spring(k, 2 * zeta * Math.sqrt(k));
-  const TAB_PAGE = springOf(260, 0.78), TAB_BUBBLE = springOf(520, 0.58);
+  const TAB_PAGE = springOf(260, 0.78), TAB_BUBBLE = springOf(520, 0.68);
   const LINEAR = !!(window.CSS && CSS.supports && CSS.supports("transition-timing-function", "linear(0, 1)"));
   const onSpring = (s) => ({ duration: s.ms, easing: LINEAR ? s.curve : "cubic-bezier(0.2, 0.9, 0.3, 1)" });
   const lessMotion = () => !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -384,7 +385,9 @@
     bubble.style.transform = "translateX(" + x + "px)";
     if (was == null || Math.abs(was - x) < 1 || lessMotion() || !bubble.animate) return;
     const t = onSpring(TAB_BUBBLE), reach = Math.min(1, Math.abs(x - was) / 100);
-    bubble.animate([{ transform: "translateX(" + was + "px)" }, { transform: "translateX(" + x + "px)" }], t);
+    const lo = Math.min(...tabs.map((n) => n.offsetLeft)), hi = Math.max(...tabs.map((n) => n.offsetLeft));
+    bubble.animate(TAB_BUBBLE.pts.map((k) => ({ transform: "translateX(" + Math.min(hi, Math.max(lo, was + (x - was) * k)) + "px)" })),
+      { duration: t.duration, easing: "linear" });
     bubble.animate([{ scale: "1 1" }, { scale: (1 + 0.28 * reach) + " " + (1 - 0.1 * reach), offset: 0.22 }, { scale: "1 1", offset: 0.6 }, { scale: "1 1" }],
       { duration: t.duration, easing: "ease-out" });
     const off = tabs.find((n) => n !== on), dim = off ? getComputedStyle(off).color : null, white = getComputedStyle(on).color;
@@ -393,8 +396,8 @@
       const left = tabs.reduce((a, n) => (Math.abs(n.offsetLeft - was) < Math.abs(a.offsetLeft - was) ? n : a), tabs[0]);
       if (left !== on) left.animate([{ color: white }, { color: dim }], { duration: 160, easing: "linear" });
     }
-    on.firstChild.animate([{ transform: "none" }, { transform: "translateY(-6px) scale(1.12)", offset: 0.3 }, { transform: "translateY(1px)", offset: 0.62 }, { transform: "none" }],
-      { duration: 440, delay: 60, easing: "ease-out" });
+    on.firstChild.animate([{ transform: "none" }, { transform: "scale(1.22)", offset: 0.35 }, { transform: "scale(0.96)", offset: 0.7 }, { transform: "none" }],
+      { duration: 420, delay: 60, easing: "ease-out" });
   }
 
   // What's on screen before a render, so the tab that leaves can be moved.
