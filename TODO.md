@@ -19,6 +19,10 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
 - **Turn on Google Drive backups.** Built (src/drive.js); waits for
   Tripboard's own Google OAuth client ID, which Daniel makes
   (docs/DRIVE.md), then it goes in `WEB_CLIENT`.
+- **Turn on the cloud connector for AI apps.** Built (server/mcp.js);
+  waits for the sharing server's Cloudflare setup, then Daniel's GitHub
+  App (server/README.md, "The cloud connector"). Later: read only the
+  trip a tool names, so it isn't capped at about 40 trips on the free plan.
 - **Export to LifeLog / sync.** Send a trip's places (and later expenses)
   to LifeLog. The format is to be decided with LifeLog's side.
 

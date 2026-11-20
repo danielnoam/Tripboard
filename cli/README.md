@@ -41,3 +41,7 @@ For example, in Claude Desktop's `claude_desktop_config.json`:
 
 Tools are added and never renamed or removed, so a chat that uses them
 keeps working.
+
+For an AI app in the cloud (claude.ai, the phone apps, ChatGPT), the
+sharing server serves these same tools, minus deleting, with a GitHub
+sign-in: see "The cloud connector" in server/README.md.
