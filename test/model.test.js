@@ -130,6 +130,22 @@ test("today's plan: timed places by time, then the rest by importance, stays inc
   assert.strictEqual(M.nextOf([]), null);
 });
 
+test("a day's order: sorts places without a time and ties at a time; times still come first; kept only with a day", () => {
+  const list = [
+    P({ id: "lunch", day: "2026-11-18", importance: "maybe", order: 2 }),
+    P({ id: "hike", day: "2026-11-18", order: 1 }),
+    P({ id: "hotel", day: "2026-11-18", importance: "must" }),
+    P({ id: "b", day: "2026-11-18", time: "09:00", order: 2 }),
+    P({ id: "a", day: "2026-11-18", time: "09:00", order: 1, importance: "maybe" }),
+  ];
+  assert.deepStrictEqual(M.dayPlan(list, "2026-11-18").map((p) => p.id), ["a", "b", "hike", "lunch", "hotel"]);
+  const g = M.board({ start: "2026-11-18", end: "2026-11-18" }, list, "time")[0];
+  assert.deepStrictEqual(g.slots.find((s) => s.id === "any").places.map((p) => p.id), ["hike", "lunch", "hotel"]);
+  assert.strictEqual(P({ order: 3 }).order, undefined);
+  assert.strictEqual(P({ day: "2026-11-18", order: 0 }).order, undefined);
+  assert.strictEqual(P({ day: "2026-11-18", order: "2" }).order, 2);
+});
+
 test("a leg between two places: a walk up to 2 km, a drive past it, none without a location", () => {
   const a = { lat: 38.7139, lng: -9.1334 };
   const walk = M.leg(a, { lat: 38.7139, lng: -9.1207 });

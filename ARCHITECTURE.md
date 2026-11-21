@@ -11,7 +11,7 @@ manifest.json        the web app manifest
 icon.svg             the app icon
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js), and the CSP's extra sharing servers
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter, Today's order and the guessed time between places, what counts as a swipe (Node-tested)
+src/model.js         trips, places, expenses and files' records: cleaning, days, time slots, the board's sorts and filter, a day's order (time, then a place's `order`, then importance) and the guessed time between places, what counts as a swipe (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
@@ -55,7 +55,7 @@ test/i18n.test.js    every language table has every word the code uses, nothing 
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
-cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo, both made from one list of commands (tools.js); core.js reads and writes the repo and does each edit and query, reusing model.js, merge.js, listimport.js, places.js and keel's github.js in Node
+cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo, both made from one list of commands (tools.js); core.js reads and writes the repo and does each edit and query, reusing model.js, merge.js, listimport.js, places.js and keel's github.js in Node. Each write is one commit; batch_update runs many write tools' steps on one doc in one commit, all or nothing, without the deleting ones
 cli/coverage.js      every part of the app (record fields, sheets, Settings pages, undoable actions, repo files, model.js's API) and the tool that covers it, or why a chat can't
 test/cli.test.js     cli/, against a fake GitHub
 test/coverage.test.js  the drift guard: reads the app and fails when something in it has no CLI/MCP tool or reason in cli/coverage.js

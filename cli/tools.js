@@ -38,6 +38,7 @@ const placeFields = [
   ["address", { type: "string" }],
   ["placeId", { type: "string", description: "Google's place id, if it came from Google." }],
   ["visited", { type: "boolean", description: "Been there (the Today view's tick)." }],
+  ["order", { type: "number", description: "Its place in its day's plan, from 1. Places with a time go by time first; order sorts those at the same time and those without one. Moving it to another day clears it unless given again. order_day sets a whole day at once." + clears }],
 ];
 const expenseFields = [
   ["title", { type: "string" }], ["amount", { type: "number" }],
@@ -54,6 +55,7 @@ const bytesArgs = [
   ["text", { type: "string", description: "Or the file's text, for a text file." }, { cli: false }],
 ];
 const people = { type: "string", description: "A person's id or name on the trip." };
+const MAX_STEPS = 100;
 const filesOk = (env) => env.TRIPBOARD_MCP_FILES === "1";
 const FILES_OFF = "File contents stay out of the chat unless the person turns them on: TRIPBOARD_MCP_FILES=1 in this server's env.";
 
@@ -126,7 +128,7 @@ const TOOLS = [
       ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
     print: (gs) => gs.map((g) => g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n") : g.places.map((p) => "  " + placeLine(p)).join("\n"))).join("\n\n") },
   { tool: "get_day", cmd: "day", kind: "read", query: "getDay",
-    description: "One day as the Today view shows it: the plan in order, a guessed time from the place before (straight line, not a route), the next place not yet visited, and that day's expenses. The day defaults to today.",
+    description: "One day as the Today view shows it: the plan in order, a guessed time from the place before (straight line, not a route), the next place not yet visited, and that day's expenses. The day defaults to today. status is the trip's against today (now, upcoming, past, undated); when is the day's (past, today, upcoming).",
     args: [tripArg, ["day", day, { pos: 1 }]],
     print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : ""), ...d.plan.map((p) => (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
       ...(d.totals.length ? ["Spent: " + d.totals.map((x) => money(x.total, x.currency)).join(" + ")] : [])].filter((x) => x !== "").join("\n") },
@@ -207,6 +209,11 @@ const TOOLS = [
     description: "Add a place to a trip. Give a day (and time) to plan it, or leave it undated. find_location finds lat and lng." },
   { tool: "update_place", cmd: "edit-place", kind: "write", op: "updatePlace", args: [tripArg, placeArg(true), ...placeFields],
     description: "Change a place's fields (including visited); an empty string clears one." },
+  { tool: "order_day", cmd: "order-day", kind: "write", op: "orderDay",
+    description: "Put a day's places in order, as the Today view and the map's route follow it: the places given get order 1, 2, 3…, and the day's other places follow in their current order. Places with a time still go by their time first. A place over several days (a stay) has one order on all its days.",
+    args: [tripArg, ["day", { ...day }, { req: true, pos: 1 }],
+      ["places", { type: "array", items: { type: "string" }, description: "The places' ids or names, first to last. The CLI takes them comma-separated." }, { req: true }]],
+    print: (r) => [r.trip + "  " + r.day, ...r.plan.map((p) => "  " + p.order + ". " + (p.time ? p.time + "  " : "") + p.name), r.note ? r.note : ""].filter(Boolean).join("\n") },
   { tool: "delete_place", cmd: "delete-place", kind: "write", op: "deletePlace", args: [tripArg, placeArg(true)],
     description: "Delete a place from a trip." },
   { tool: "import_places", cmd: "import", kind: "write", op: "importPlaces", input: "bytes",
@@ -260,6 +267,34 @@ const TOOLS = [
   { tool: "reset_categories", cmd: "reset-categories", kind: "write", op: "resetCategories", args: [],
     description: "Back to the built-in categories; places in your own ones move to Other. Ask the person first." },
 
+  // ---------- Several at once ----------
+  { tool: "batch_update", cmd: "batch", kind: "write", op: "batch",
+    description: "Make many changes in one go (one commit, one round trip): up to " + MAX_STEPS + " steps, each a write tool's name and its arguments, run in order, so a step can name a place an earlier step added. If any step fails, nothing is changed. Takes the write tools that add or change (add_place, update_place, order_day, create_trip, add_expense, …), not the ones that delete, remove or restore. With trip, every step that takes a trip and doesn't give one uses it. Gives back each step's answer in order.",
+    args: [["steps", { type: "array", items: { type: "object", properties: { tool: { type: "string", description: "A write tool's name, like update_place." }, args: { type: "object", description: "That tool's arguments." } }, required: ["tool"] },
+      description: "The changes, in order. The CLI takes them as JSON." }],
+      ["trip", { type: "string", description: "The trip for every step that doesn't name one." }],
+      ["path", { type: "string", description: "A JSON file with the steps, instead of --steps." }, { mcp: false }]],
+    before: async (a, via, env) => {
+      let steps = a.steps;
+      if (via === "cli" && a.path) steps = JSON.parse(fs().readFileSync(a.path, "utf8"));
+      if (!Array.isArray(steps) || !steps.length) throw new Error("batch needs steps: a list of { tool, args }.");
+      if (steps.length > MAX_STEPS) throw new Error("Up to " + MAX_STEPS + " steps in one batch; split it.");
+      const out = [];
+      for (const [i, s] of steps.entries()) {
+        const name = s && (s.tool || s.cmd);
+        const t = TOOLS.find((x) => x.tool === name || x.cmd === name);
+        const fail = (why) => { throw new Error("Step " + (i + 1) + " (" + name + "): " + why + " Nothing was changed."); };
+        if (!t) fail("no such tool.");
+        if (t.kind !== "write" || t.op === "batch") fail("only tools that add or change can be in a batch.");
+        if (destructive(t)) fail("deleting, removing and restoring aren't done in a batch; use " + t.tool + " by itself.");
+        const args = { ...(s.args || {}) };
+        if (a.trip && args.trip === undefined && t.args.some(([k]) => k === "trip")) args.trip = a.trip;
+        try { out.push({ tool: t.tool, op: t.op, args: await prep(t, args, "mcp", env) }); } catch (e) { fail(e.message || String(e)); }
+      }
+      return { steps: out };
+    },
+    print: (r) => "Done: " + r.changes + (r.changes === 1 ? " change" : " changes") + " in one commit." },
+
   // ---------- Backups ----------
   { tool: "import_backup", cmd: "restore", kind: "write", op: "importBackup", input: "bytes",
     description: "Restore a Tripboard backup file (from the app's Save a backup or export_backup): its trips join, replacing ones with the same id, with their covers and files. Ask the person first.",
@@ -276,6 +311,7 @@ function prep(t, a, via, env) {
       if (v === undefined || typeof v !== "string") continue;
       if (s.type === "number") a[k] = v === "" ? "" : +v;
       else if (s.type === "boolean") a[k] = v !== "false" && v !== "" && v !== "no";
+      else if (s.type === "array" && s.items && s.items.type === "object") a[k] = JSON.parse(v);
       else if (s.type === "array") a[k] = v === "" ? [] : v.split(",").map((x) => x.trim()).filter(Boolean);
     }
   }

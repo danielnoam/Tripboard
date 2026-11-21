@@ -17,7 +17,7 @@ const PUBLISHED = ["list_trips", "get_trip", "create_trip", "update_trip", "dele
   "add_expense", "update_expense", "update_sharing", "delete_expense",
   "find_places", "get_board", "get_day", "list_categories", "get_file", "export_backup", "find_location", "set_trip_cover",
   "import_places", "add_file", "update_file", "delete_file", "remove_person", "add_category", "update_category", "delete_category",
-  "reset_categories", "import_backup", "get_weather"];
+  "reset_categories", "import_backup", "get_weather", "order_day", "batch_update"];
 
 const made = "auto: made by core.js (ids, times, who changed it)";
 const fields = {
@@ -36,6 +36,7 @@ const fields = {
     day: ["add_place", "update_place"], endDay: ["add_place", "update_place"], time: ["add_place", "update_place"], endTime: ["add_place", "update_place"],
     note: ["add_place", "update_place"], lat: ["add_place", "update_place", "find_location"], lng: ["add_place", "update_place", "find_location"],
     address: ["add_place", "update_place"], placeId: ["add_place", "update_place"], visited: ["add_place", "update_place"],
+    order: ["add_place", "update_place", "order_day"],
     geoAt: "auto: the day a Google location was fetched (Google's 30-day rule); only the app fetches from Google, and update_place drops it with a new location",
   },
   expense: {

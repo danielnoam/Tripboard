@@ -976,6 +976,7 @@
     if (view.sort === "category") p.category = groupId;
     else if (view.sort === "importance") p.importance = groupId;
     else if (view.sort === "time") {
+      if (groupId !== p.day) delete p.order;
       if (groupId === "nodate") { delete p.day; delete p.endDay; delete p.time; delete p.endTime; }
       else {
         // A place over several days moves as a whole: it starts on the day it's dropped on.
@@ -1393,6 +1394,7 @@
     const until = placeTrip.start ? $("untilSelect").value : $("untilInput").value;
     const p = editingPlace || { id: M.newId(), trip: placeTrip.id, createdAt: stamp };
     if (day && until > day) p.endDay = until; else delete p.endDay;
+    if (day !== p.day) delete p.order;
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
     if (loc === null) { for (const k of ["lat", "lng", "address", "placeId", "geoAt"]) delete p[k]; }
     else if (loc) {

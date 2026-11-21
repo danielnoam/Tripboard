@@ -88,9 +88,10 @@
   const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "by", "createdAt", "updatedAt"]);
   const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
+  const MAX_ORDER = 999;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "geoAt", "visited", "by", "createdAt", "updatedAt"]);
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "order", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
   // additions survive an older one saving.
   function keepUnknown(src, out, known) {
@@ -218,6 +219,10 @@
       out.time = p.time;
       if (isTime(p.endTime) && p.endTime > p.time) out.endTime = p.endTime;
     }
+    // Its place in the day's plan, from 1, among places at the same time
+    // (or with none); set by an AI tool, and dropped when it moves day.
+    const order = num(p.order);
+    if (out.day && order != null && order >= 1 && order <= MAX_ORDER) out.order = Math.round(order);
     const lat = num(p.lat), lng = num(p.lng);
     if (lat != null && lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { out.lat = lat; out.lng = lng; }
     for (const k of ["note", "address", "placeId"]) { const v = text(p[k]); if (v) out[k] = v; }
@@ -360,6 +365,8 @@
   const byName = (a, b) => a.name.localeCompare(b.name);
   const byTime = (a, b) => (a.time || "99").localeCompare(b.time || "99") || RANK[a.importance] - RANK[b.importance] || byName(a, b);
   const byImportance = (a, b) => RANK[a.importance] - RANK[b.importance] || byName(a, b);
+  // A day's order: by time (untimed last), then the order given, then importance.
+  const inDay = (a, b) => (a.time || "99").localeCompare(b.time || "99") || (a.order || Infinity) - (b.order || Infinity) || byImportance(a, b);
 
   function distanceKm(a, b) {
     const r = Math.PI / 180;
@@ -401,8 +408,8 @@
     }
     const groups = tripDays(trip, places).map((day) => {
       const list = shown.filter((p) => onDay(p, day));
-      const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p) === id).sort(byTime) }))
-        .concat([{ id: "any", title: i18n.t("Any time"), places: list.filter((p) => !p.time).sort(byImportance) }])
+      const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p) === id).sort(inDay) }))
+        .concat([{ id: "any", title: i18n.t("Any time"), places: list.filter((p) => !p.time).sort(inDay) }])
         .filter((s) => s.places.length);
       return { id: day, day, title: day, places: list, slots };
     });
@@ -446,14 +453,14 @@
 
   // One day's located places in the order they're planned, for the map's route.
   function dayRoute(places, day) {
-    return places.filter((p) => onDay(p, day) && p.lat != null).sort(byTime);
+    return places.filter((p) => onDay(p, day) && p.lat != null).sort(inDay);
   }
 
   // Today's places in the order they're planned: timed ones by time, then
-  // the rest by importance. Multi-day places (a stay) are on each of their days.
+  // the rest; each by their order, then importance. Multi-day places (a stay)
+  // are on each of their days.
   function dayPlan(places, day) {
-    const list = places.filter((p) => onDay(p, day));
-    return list.filter((p) => p.time).sort(byTime).concat(list.filter((p) => !p.time).sort(byImportance));
+    return places.filter((p) => onDay(p, day)).sort(inDay);
   }
   // A guess at getting from a to b, from the straight line between them (no
   // routing service): streets add about a third, walking is 5 km/h, and past
