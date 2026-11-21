@@ -471,6 +471,19 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.match(out.join("\n"), /rain  12°\/5°C  rain 70%  sun 06:41–16:44/);
   });
 
+  await test("an edit gives back the record as written, with its new updatedAt", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const tb = core.open({ token: "tok", repo: "me/data" });
+    const t = await tb.change((d, c) => core.ops.createTrip(d, { name: "Bern" }, c));
+    const p = await tb.change((d, c) => core.ops.addPlace(d, { trip: t.id, name: "Zytglogge" }, c));
+    await new Promise((r) => setTimeout(r, 5));
+    const r = await tb.change((d, c) => core.ops.updatePlace(d, { trip: t.id, place: p.id, note: "Clock at 11" }, c));
+    const saved = g.read("trips/" + t.id + ".json").places[0];
+    assert.ok(r.updatedAt > p.updatedAt, r.updatedAt + " vs " + p.updatedAt);
+    assert.strictEqual(r.updatedAt, saved.updatedAt);
+  });
+
   await test("MCP tools say which only read and which delete", async () => {
     const s = mcp.server({ env, write: () => {} });
     const by = Object.fromEntries(s.TOOLS.map((t) => [t.name, t.annotations]));
