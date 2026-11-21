@@ -132,6 +132,7 @@ body.on-map .update { bottom: auto; top: 108px; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.quiet { border-color: transparent; background: transparent; }
 .btn.danger { border-color: transparent; background: transparent; color: var(--danger); padding: 0 var(--space-2); }
+.btn.destroy { background: var(--danger); border-color: var(--danger); color: var(--bg); }
 .btn[hidden] { display: none; }
 
 /* Home */
@@ -141,8 +142,22 @@ body.on-map .update { bottom: auto; top: 108px; }
   position: relative; display: block; overflow: hidden;
   border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow);
   color: inherit; text-decoration: none;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
+.trip-card img { -webkit-user-drag: none; }
 .trip-cover { height: 120px; }
+.quick-menu {
+  position: fixed; z-index: 40; min-width: 220px; white-space: nowrap; padding: var(--space-1);
+  display: grid; border: 1px solid var(--surface-2); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25); transform-origin: top left;
+}
+.quick-menu button {
+  display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: 0 var(--space-3);
+  border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer;
+}
+.quick-menu button:hover, .quick-menu button:focus-visible { background: var(--surface-2); }
+.quick-menu button.danger { color: var(--danger); }
+
 .trip-text { display: grid; padding: var(--space-3); }
 .trip-text strong { font-size: 18px; }
 .badge {
@@ -253,6 +268,27 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 .tick .icon { width: 16px; height: 16px; box-sizing: content-box; padding: 3px; border: 2px solid var(--line); border-radius: 50%; }
 .tick[aria-pressed="true"] { color: var(--on-accent); }
 .tick[aria-pressed="true"] .icon { background: var(--accent); border-color: var(--accent); }
+.tick.pick .icon { border-radius: 6px; }
+.card.picked { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
+.card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* Picking places: the bar takes the tabs' place at the bottom. */
+body.picking .bottombar { display: none; }
+.select-bar {
+  position: fixed; z-index: 8; left: 0; right: 0; margin-inline: auto; bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+  width: min(480px, calc(100vw - 2 * var(--space-3))); display: flex; align-items: center; gap: var(--space-1); padding: 4px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+}
+.select-bar[hidden] { display: none; }
+.select-count { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.select-bar .btn.danger { padding: 0 var(--space-3); }
+.move-list { display: grid; gap: 2px; max-height: 60vh; overflow-y: auto; margin-bottom: var(--space-2); }
+.move-slots { margin-bottom: var(--space-2); flex-wrap: wrap; border-radius: var(--radius); }
+.move-to {
+  display: flex; align-items: center; gap: var(--space-3); min-height: 48px; padding: 0 var(--space-3);
+  border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer;
+}
+.move-to:hover, .move-to:focus-visible { background: var(--surface-2); }
 
 /* A trip's bar at the bottom: a floating pill with the tabs (Plan, Map,
    Today, Expenses, Files, as icons) and, beside it at its inline end, the

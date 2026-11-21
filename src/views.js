@@ -278,7 +278,7 @@
       main.append(el("ul.trips", {}, trips.map((t) => {
         const n = placesOf(t.id).length;
         const when = whenLabel(t);
-        return el("li", {}, el("a.trip-card", { href: "#/trip/" + t.id + (M.tripStatus(t, today()) === "now" ? "/today" : "") },
+        return el("li", {}, el("a.trip-card", { href: "#/trip/" + t.id + (M.tripStatus(t, today()) === "now" ? "/today" : ""), "data-trip": t.id },
           coverBox(t, "trip-cover"),
           el("div.trip-text", {},
             el("strong", { text: t.name }),
@@ -973,10 +973,10 @@
     undoable(i18n.t("Moved {name}.", { name: p.name }), () => shift(p, groupId, slot));
     if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance]) === before) $("toast").hidden = true;
   }
-  function shift(p, groupId, slot) {
-    if (view.sort === "category") p.category = groupId;
-    else if (view.sort === "importance") p.importance = groupId;
-    else if (view.sort === "time") {
+  function shift(p, groupId, slot, sort = view.sort) {
+    if (sort === "category") p.category = groupId;
+    else if (sort === "importance") p.importance = groupId;
+    else if (sort === "time") {
       if (groupId !== p.day) delete p.order;
       if (groupId === "nodate") { delete p.day; delete p.endDay; delete p.time; delete p.endTime; }
       else {
@@ -1024,7 +1024,8 @@
       e.preventDefault();
       const p = doc.places.find((x) => x.id === dragging);
       const grp = t.closest("[data-drop]");
-      if (p && grp) movePlace(p, grp.dataset.drop, t.dataset.slot || "");
+      if (p && grp && picked && picked.has(p.id) && picked.size > 1) moveMany(grp.dataset.drop, t.dataset.slot || "", view.sort);
+      else if (p && grp) movePlace(p, grp.dataset.drop, t.dataset.slot || "");
     });
   }
 
@@ -1040,10 +1041,12 @@
       if (p.time) meta.push(timeLabel(p));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
-      return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
-        el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
-          onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
-        el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
+      const on = !!(picked && picked.has(p.id));
+      return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : "") + (on ? ".picked" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
+        picked ? el("button.tick.pick", { type: "button", "aria-pressed": String(on), "aria-label": i18n.t("Select {name}", { name: p.name }), onclick: () => pick(p.id) }, icon("check"))
+          : el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
+            onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
+        el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
           el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name),
           el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), meta.length ? " · " + meta.join(" · ") : "",
             nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
@@ -1124,6 +1127,19 @@
       btn.textContent = i18n.t("Tap again to delete");
       setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 3000);
     };
+  }
+
+  // "Delete …?" with Cancel and Delete; resolves true on Delete.
+  function confirmDelete(title, from) {
+    const d = $("confirmSheet");
+    $("confirmTitle").textContent = title;
+    $("confirmText").textContent = i18n.t("You can undo it right after.");
+    return new Promise((done) => {
+      let yes = false;
+      $("confirmGo").onclick = () => { yes = true; closeSheet(d); };
+      d.addEventListener("close", () => done(yes), { once: true });
+      openSheet(d, from);
+    });
   }
 
   // Trip sheet
@@ -2618,6 +2634,7 @@
   function render() {
     const before = tabBefore();
     paint();
+    paintPicking();
     tabAfter(before);
   }
   function paint() {
@@ -2630,7 +2647,7 @@
     if (m && !trip) { location.replace("#/"); return; }
     if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { location.replace("#/trip/" + trip.id); return; }
     if (trip && m[2] === "today" && !underWay(trip)) { location.replace("#/trip/" + trip.id); return; }
-    if ((trip && trip.id) !== view.trip) { view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
+    if ((trip && trip.id) !== view.trip) { picked = null; view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
     $("mapView").hidden = !onMap;
@@ -2749,9 +2766,173 @@
     for (const t of ["pointerup", "pointercancel", "dragstart"]) document.addEventListener(t, up);
   }
 
+  // A long press (touch) or a right-click (mouse, or the keyboard's menu
+  // key) on what matches sel calls hold(node, x, y, keyboard); it answers
+  // true when it did something. A tap still goes through at once; only a
+  // press held LONG_PRESS ms without moving counts, and the click that may
+  // follow it is swallowed.
+  const LONG_PRESS = 450;
+  function onHold(sel, hold) {
+    let timer = 0, swallow = false;
+    const at = (n) => n && n.closest && n.closest(sel);
+    const cancel = () => { clearTimeout(timer); timer = 0; };
+    document.addEventListener("pointerdown", (e) => {
+      const node = at(e.target);
+      if (!node || e.pointerType === "mouse") return;
+      cancel();
+      const x0 = e.clientX, y0 = e.clientY;
+      timer = setTimeout(() => {
+        timer = 0;
+        if (hold(node, x0, y0)) { swallow = true; if (navigator.vibrate) navigator.vibrate(10); }
+      }, LONG_PRESS);
+      const move = (m) => { if (Math.hypot(m.clientX - x0, m.clientY - y0) > 10) cancel(); };
+      node.addEventListener("pointermove", move);
+      const done = () => { cancel(); node.removeEventListener("pointermove", move); };
+      node.addEventListener("pointerup", done, { once: true });
+      node.addEventListener("pointercancel", done, { once: true });
+    }, true);
+    document.addEventListener("contextmenu", (e) => {
+      const node = at(e.target);
+      if (!node) return;
+      if (swallow) { e.preventDefault(); return; }
+      if (hold(node, e.clientX, e.clientY, !e.clientX && !e.clientY)) { e.preventDefault(); cancel(); }
+    });
+    document.addEventListener("click", (e) => {
+      if (!swallow) return;
+      swallow = false;
+      if (at(e.target)) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+    return { swallow: () => { swallow = true; } };
+  }
+
+  // Home's quick menu: Edit and Delete for a trip. Delete asks first in a
+  // small sheet (confirmDelete), then the toast offers Undo.
+  function tripMenu() {
+    let box = null, from = null;
+    const close = (refocus) => {
+      if (!box) return;
+      box.remove();
+      box = null;
+      if (refocus && from) from.focus();
+    };
+    const held = onHold(".trip-card[data-trip]", (card, x, y, keyboard) => {
+      const trip = findTrip(card.dataset.trip);
+      if (!trip || !mayEdit(trip)) return false;
+      close();
+      from = card;
+      const del = el("button.danger", { type: "button", role: "menuitem", onclick: async () => { close(); if (await confirmDelete(i18n.t("Delete {name}?", { name: trip.name }), card)) deleteTrip(trip); } }, icon("trash"), el("span", { text: i18n.t("Delete") }));
+      box = el("div.quick-menu", { role: "menu", "aria-label": trip.name },
+        el("button", { type: "button", role: "menuitem", onclick: () => { close(); openTrip(trip, card); } }, icon("pencil"), el("span", { text: i18n.t("Edit") })),
+        del);
+      document.body.append(box);
+      const r = box.getBoundingClientRect(), M8 = 8, vw = innerWidth, vh = innerHeight;
+      if (keyboard) { const c = card.getBoundingClientRect(); x = i18n.dir === "rtl" ? c.right : c.left; y = c.bottom; }
+      const left = i18n.dir === "rtl" ? x - r.width : x;
+      const top = y + r.height + M8 > vh ? y - r.height : y;
+      box.style.left = Math.max(M8, Math.min(vw - r.width - M8, left)) + "px";
+      box.style.top = Math.max(M8, Math.min(vh - r.height - M8, top)) + "px";
+      if (!lessMotion() && box.animate) box.animate([{ opacity: 0, transform: "scale(0.92)" }, { opacity: 1, transform: "none" }], { duration: 120, easing: "ease-out" });
+      if (keyboard) box.querySelector("button").focus();
+      return true;
+    });
+    // A tap beside the open menu only closes it.
+    document.addEventListener("pointerdown", (e) => { if (box && !box.contains(e.target)) { close(); held.swallow(); } }, true);
+    document.addEventListener("keydown", (e) => {
+      if (!box) return;
+      if (e.key === "Escape") { e.preventDefault(); close(true); return; }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const items = [...box.querySelectorAll("button")];
+      const i = items.indexOf(document.activeElement);
+      items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    });
+    for (const t of ["hashchange", "resize", "blur"]) window.addEventListener(t, () => close());
+    document.addEventListener("scroll", () => close(), true);
+  }
+
+  // Picking places on the Plan: a long press or right-click on a place
+  // starts it; then a tap adds or drops a place, and the bar at the bottom
+  // moves them all (to a day and time, a category or an importance, by
+  // what the Plan is sorted by) or deletes them.
+  let picked = null;
+  function paintPicking() {
+    if (picked && (view.mode !== "board" || !findTrip(view.trip))) picked = null;
+    if (picked) for (const id of [...picked]) if (!doc.places.some((p) => p.id === id)) picked.delete(id);
+    if (picked && !picked.size) picked = null;
+    document.body.classList.toggle("picking", !!picked);
+    $("selectBar").hidden = !picked;
+    if (picked) $("selectCount").textContent = i18n.tn(picked.size, "1 selected", "{n} selected");
+  }
+  function pick(id) {
+    if (!picked) picked = new Set();
+    if (picked.has(id)) picked.delete(id); else picked.add(id);
+    render();
+  }
+  const stopPicking = () => { picked = null; render(); };
+  const pickedPlaces = () => doc.places.filter((p) => picked && picked.has(p.id));
+  function placePicking() {
+    onHold(".groups .card[data-id]", (card) => {
+      const trip = findTrip(view.trip);
+      if (!trip || !mayEdit(trip)) return false;
+      pick(card.dataset.id);
+      return true;
+    });
+    $("selectDone").addEventListener("click", stopPicking);
+    $("selectMove").addEventListener("click", (e) => openMove(e.currentTarget));
+    $("selectDelete").addEventListener("click", async (e) => {
+      const list = pickedPlaces();
+      if (!list.length || !await confirmDelete(i18n.tn(list.length, "Delete 1 place?", "Delete {n} places?"), e.currentTarget)) return;
+      const ids = new Set(list.map((p) => p.id));
+      picked = null;
+      undoable(i18n.tn(list.length, "Deleted 1 place.", "Deleted {n} places."), () => { doc.places = doc.places.filter((x) => !ids.has(x.id)); });
+    });
+    document.addEventListener("keydown", (e) => { if (picked && e.key === "Escape" && !document.querySelector("dialog[open]")) stopPicking(); });
+  }
+  function moveMany(groupId, slot, sort) {
+    const list = pickedPlaces();
+    closeSheet($("moveSheet"));
+    picked = null;
+    if (!list.length) return render();
+    undoable(i18n.tn(list.length, "Moved 1 place.", "Moved {n} places."), () => list.forEach((p) => shift(p, groupId, slot, sort)));
+  }
+  // Where the picked places can go: the trip's days (with a time of day),
+  // its categories, or the importances. Sorted by distance, it's the days.
+  function openMove(from) {
+    const trip = findTrip(view.trip), n = picked ? picked.size : 0;
+    if (!trip || !n) return;
+    const sort = view.sort === "distance" ? "time" : view.sort;
+    $("moveTitle").textContent = i18n.tn(n, "Move 1 place", "Move {n} places");
+    const row = (label, ico, go) => el("button.move-to", { type: "button", onclick: go }, ico ? icon(ico, "cat") : null, el("span", { text: label }));
+    const box = $("moveList");
+    box.replaceChildren();
+    if (sort === "time") {
+      let slot = "";
+      const slots = [["", i18n.t("Keep the time")]].concat(M.SLOTS.map(([id, t]) => [id, t]), [["any", i18n.t("Any time")]]);
+      const seg = el("div.seg.move-slots", { role: "radiogroup", "aria-label": i18n.t("Time of day") }, slots.map(([id, t]) =>
+        el("button", { type: "button", role: "radio", "aria-checked": String(id === slot), text: t, onclick: (e) => {
+          slot = id;
+          seg.querySelectorAll("[role=radio]").forEach((b) => { b.setAttribute("aria-checked", String(b === e.currentTarget)); b.tabIndex = b === e.currentTarget ? 0 : -1; });
+        } })));
+      box.append(seg);
+      for (const day of M.tripDays(trip, placesOf(trip.id))) {
+        box.append(row(trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, day), date: dayLabel(day) }) : dayLabel(day), null, () => moveMany(day, slot, sort)));
+      }
+      box.append(row(i18n.t("No date"), null, () => moveMany("nodate", "", sort)));
+    } else if (sort === "category") {
+      for (const [id, label] of cats()) box.append(row(label, catIcon(id), () => moveMany(id, "", sort)));
+    } else {
+      for (const [id, label] of M.IMPORTANCE) box.append(row(label, null, () => moveMany(id, "", sort)));
+    }
+    openSheet($("moveSheet"), from);
+  }
+
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
     pressBounce();
+    tripMenu();
+    placePicking();
+    $("selectDone").append(icon("x"));
+    $("selectDelete").prepend(icon("trash"));
     doc = M.sanitizeDoc(doc);
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
