@@ -398,8 +398,13 @@
       const left = tabs.reduce((a, n) => (Math.abs(n.offsetLeft - was) < Math.abs(a.offsetLeft - was) ? n : a), tabs[0]);
       if (left !== on) left.animate([{ color: white }, { color: dim }], { duration: 160, easing: "linear" });
     }
-    on.firstChild.animate([{ transform: "none" }, { transform: "scale(1.22)", offset: 0.35 }, { transform: "scale(0.96)", offset: 0.7 }, { transform: "none" }],
-      { duration: 420, delay: 60, easing: "ease-out" });
+    swell(on.firstChild, 60);
+  }
+  // A tab's icon, or the +'s, swells and settles when picked.
+  function swell(n, delay) {
+    if (!n || !n.animate || lessMotion()) return;
+    n.animate([{ transform: "none" }, { transform: "scale(1.22)", offset: 0.35 }, { transform: "scale(0.96)", offset: 0.7 }, { transform: "none" }],
+      { duration: 420, delay: delay || 0, easing: "ease-out" });
   }
 
   // What's on screen before a render, so the tab that leaves can be moved.
@@ -1254,6 +1259,8 @@
     $("placeFindNote").textContent = "";
     paintWhere();
     $("placeDelete").hidden = !place;
+    // Adding is a sheet from below over the trip; editing a place is a page.
+    $("placeSheet").classList.toggle("page", !!place);
     paintPlaceFiles();
     lockForm(f, !mayEdit(trip));
     if (!mayEdit(trip)) $("placeSheetTitle").textContent = p.name;
@@ -2438,6 +2445,13 @@
       if (view.mode === "share" && view.trip) { location.hash = "#/trip/" + view.trip; return; }
       location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : /^#\/settings$/.test(location.hash) && view.settingsFrom || "#/"; });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
+    // The + itself stays put; its icon swells and flashes green, like a tab's.
+    $("fab").addEventListener("click", (e) => {
+      const fab = e.currentTarget;
+      swell(fab.firstChild);
+      if (!lessMotion() && fab.animate) fab.animate([{ color: getComputedStyle(fab).getPropertyValue("--tab-on") }, { color: getComputedStyle(fab).color }],
+        { duration: 600, easing: "ease-in" });
+    });
     $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
       : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
       : openPlace(null, findTrip(view.trip), view.mode === "today" ? { day: today() } : null, e.currentTarget));
