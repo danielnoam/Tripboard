@@ -32,6 +32,13 @@ function fakeGitHub() {
       g.lastUserAgent = headers["User-Agent"];
       return res(200, [{ name: "Fushimi Inari Taisha", display_name: "Fushimi Inari Taisha, Kyoto, Japan", lat: "34.9671", lon: "135.7727", category: "amenity", type: "place_of_worship" }]);
     }
+    if (u.hostname === "api.open-meteo.com") {
+      g.lastWeather = u; g.lastUserAgent = headers["User-Agent"];
+      const n = u.searchParams.get("latitude").split(",").length;
+      const one = (i) => ({ daily: { time: [u.searchParams.get("start_date")], weather_code: [61 + i], temperature_2m_max: [12.4], temperature_2m_min: [4.6],
+        precipitation_probability_max: [70], sunrise: [u.searchParams.get("start_date") + "T06:41"], sunset: [u.searchParams.get("start_date") + "T16:44"] } });
+      return res(200, n === 1 ? one(0) : Array.from({ length: n }, (x, i) => one(i)));
+    }
     if (headers.Authorization !== "Bearer tok") return res(401, { message: "Bad credentials" });
     if (u.pathname === "/repos/me/data") return res(200, { private: true, default_branch: "main" });
     const p = u.pathname.replace("/repos/me/data/", "");
@@ -397,6 +404,26 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.ok(!r.error, r.error);
     assert.deepStrictEqual([r.value[0].lat, r.value[0].lng, r.value[0].category], [34.9671, 135.7727, "sight"]);
     assert.match(g.lastUserAgent, /^Tripboard-CLI/);
+  });
+
+  await test("get_weather asks Open-Meteo for the trip's located days, rounded", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const day = core.today();
+    await cli.main(["new-trip", "--name", "Kyoto", "--start", day, "--end", core.M.addDays(day, 1)], env, () => {});
+    await cli.main(["add-place", "kyoto", "--name", "Fushimi Inari", "--day", day, "--lat", "34.96714", "--lng", "135.77271"], env, () => {});
+    const sent = [];
+    const s = mcp.server({ env, fetch: g.fetch, write: (l) => sent.push(JSON.parse(l)) });
+    const r = await mcpCall(s, sent, "get_weather", { trip: "Kyoto" });
+    assert.ok(!r.error, r.error);
+    assert.strictEqual(g.lastWeather.searchParams.get("latitude"), "34.97");
+    assert.strictEqual(g.lastWeather.searchParams.get("longitude"), "135.77");
+    assert.match(g.lastUserAgent, /^Tripboard-CLI/);
+    assert.deepStrictEqual(r.value.days.map((d) => [d.day, d.kind, d.max, d.min, d.rain, d.sunrise]), [[day, "rain", 12, 5, 70, "06:41"]]);
+    assert.deepStrictEqual(r.value.noForecast, [core.M.addDays(day, 1)]);
+    const out = [];
+    await cli.main(["weather", "kyoto"], env, (l) => out.push(l));
+    assert.match(out.join("\n"), /rain  12°\/5°C  rain 70%  sun 06:41–16:44/);
   });
 
   await test("MCP tools say which only read and which delete", async () => {

@@ -18,6 +18,7 @@ const fs = () => require("fs");
 const path = () => require("path");
 const core = require("./core");
 const PL = require("../src/places.js");
+const WX = require("../src/weather.js");
 const M = core.M;
 
 const day = { type: "string", description: "A date, YYYY-MM-DD." };
@@ -115,6 +116,25 @@ const TOOLS = [
     args: [tripArg, ["day", day, { pos: 1 }]],
     print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : ""), ...d.plan.map((p) => (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
       ...(d.totals.length ? ["Spent: " + d.totals.map((x) => money(x.total, x.currency)).join(" + ")] : [])].filter((x) => x !== "").join("\n") },
+  { tool: "get_weather", cmd: "weather", kind: "read",
+    description: "The weather forecast for a trip's days, as the app shows it on Today and the Plan, from Open-Meteo: per day the kind (clear, partly, cloudy, fog, drizzle, rain, snow, storm), high and low in °C, chance of rain in %, sunrise and sunset (local time). Only today to 15 days ahead has a forecast; other days are listed under noForecast. Sends each day's rough location (2 decimals, about 1 km) and the dates to Open-Meteo.",
+    args: [tripArg, ["day", { ...day, description: "Only this day (YYYY-MM-DD)." }, { pos: 1 }]],
+    run: async (st, a, env) => {
+      const t = core.findTrip(st.doc, a.trip);
+      if (a.day && !M.isDay(a.day)) throw new Error("A day is YYYY-MM-DD.");
+      const places = st.doc.places.filter((p) => p.trip === t.id);
+      const fetchFn = (url, init) => (env.fetch || globalThis.fetch)(url, { ...init, headers: { ...(init && init.headers), "User-Agent": "Tripboard-CLI (https://github.com/danielnoam/Tripboard)" } });
+      const f = await WX.forecast(t, places, { today: core.today(), fetchFn, force: true });
+      const days = Object.keys(WX.points(t, places)).filter((d) => !a.day || d === a.day);
+      const got = (f && f.days) || {};
+      return { trip: t.name, source: "Open-Meteo.com (CC BY 4.0)", unit: "celsius",
+        days: days.filter((d) => got[d]).map((d) => ({ day: d, dayNumber: M.dayIndex(t, d), ...got[d] })),
+        noForecast: days.filter((d) => !got[d]),
+        ...(days.length ? {} : { note: a.day ? "That day isn't one of the trip's days, or no place in the trip has a location." : "No place in this trip has a location yet, so there's nowhere to forecast." }) };
+    },
+    print: (r) => [r.trip + "  weather from " + r.source,
+      ...r.days.map((w) => "  " + w.day + (w.dayNumber ? "  day " + w.dayNumber : "") + "  " + w.kind + "  " + w.max + "°/" + w.min + "°C" + (w.rain != null ? "  rain " + w.rain + "%" : "") + (w.sunrise ? "  sun " + w.sunrise + "–" + w.sunset : "")),
+      r.noForecast.length ? "  No forecast yet (more than 15 days off, or past): " + r.noForecast.join(", ") : "", r.note ? "  " + r.note : ""].filter(Boolean).join("\n") },
   { tool: "list_categories", cmd: "categories", kind: "read", query: "listCategories", args: [],
     description: "Your place categories, in order, one list for all trips: id, name, whether it's built in, and how many places use it.",
     print: (l) => l.map((c) => c.position + ". " + c.name + "  " + c.places + " places  (" + c.id + ")").join("\n") },
