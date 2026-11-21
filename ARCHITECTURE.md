@@ -105,7 +105,11 @@ adds a line here.
 - Shared trips live on the sharing server (server/), readable by whoever
   runs its Cloudflare account; they aren't end-to-end encrypted. The
   server enforces who may edit and who sees expenses and files, but the
-  owner's own sync repo still holds the whole trip.
+  owner's own sync repo still holds the whole trip. The server is
+  https://tripboard.danielnoam1999.workers.dev (Daniel's Cloudflare
+  account, free plan), the one extra host in connect-src for it; the
+  app sends it nothing until someone shares or joins a trip, or imports
+  a Google Maps list by its link.
 - A shared trip's key is kept in its member's own sync repo
   (shares.json), so their devices share it; anyone who can read that
   repo could use the key until the person is taken off the trip.

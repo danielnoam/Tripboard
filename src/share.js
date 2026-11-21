@@ -16,8 +16,8 @@
 (function () {
   const T = window.Tripboard;
   const G = T.merge;
-  // The server, once it's deployed (server/README.md). Empty: no sharing.
-  const SERVER = "";
+  // The server (server/README.md). Empty: no sharing.
+  const SERVER = "https://tripboard.danielnoam1999.workers.dev";
   const APP_URL = "https://danielnoam.github.io/Tripboard/";
   const server = () => { try { return localStorage.getItem("tripboard.shareServer") || SERVER; } catch (e) { return SERVER; } };
 
