@@ -307,6 +307,8 @@
         return el("button.chip.imp-" + id, { type: "button", "aria-pressed": String(on), text: label, onclick: () => toggleOnly(id) });
       })));
     main.append(controls);
+    const ask = wxAsk(trip);
+    if (ask) main.append(ask);
 
     if (!places.length) {
       main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned yet.") }), el("p.dim", { text: i18n.t("Add the first place with +.") })));
@@ -328,7 +330,8 @@
     if (all.length) groups.sort((a, b) => at(a.id) - at(b.id));
     const wrap = el("div.groups");
     if (canDrag()) wireDrag(wrap);
-    for (const g of groups) wrap.append(group(trip, g));
+    const wx = view.sort === "time" ? wxDays(trip) : null;
+    for (const g of groups) wrap.append(group(trip, g, wx));
     main.append(wrap);
   }
 
@@ -484,6 +487,71 @@
     Promise.all(anims.map((a) => a.finished)).then(end, end);
   }
 
+
+  // ---------- Weather ----------
+  // Open-Meteo's forecast (src/weather.js) on Today and each day heading,
+  // once the person says yes: their places' rough locations go to it.
+  // The last forecast is kept on this device (localStorage
+  // "tripboard.weather"), so a trip with no signal shows it, never synced.
+  const W = window.Tripboard.weather;
+  const WX_KEY = "tripboard.weather";
+  const WX_ICON = { clear: "sun", partly: "cloudSun", cloudy: "cloud", fog: "cloudFog", drizzle: "cloudDrizzle", rain: "cloudRain", snow: "cloudSnow", storm: "cloudLightning" };
+  const WX_WORDS = { clear: i18n.t("Clear"), partly: i18n.t("Partly cloudy"), cloudy: i18n.t("Cloudy"), fog: i18n.t("Fog"), drizzle: i18n.t("Drizzle"), rain: i18n.t("Rain"), snow: i18n.t("Snow"), storm: i18n.t("Thunderstorms") };
+  const wxOn = () => SET.get().weather.on === true;
+  const wxUnit = () => SET.get().weather.unit || W.localUnit(navigator.language);
+  const wxBusy = new Map();
+  function wxKept() { try { return JSON.parse(localStorage.getItem(WX_KEY) || "{}") || {}; } catch (e) { return {}; } }
+  function wxKeep(tripId, f) {
+    const all = wxKept();
+    if (f) all[tripId] = f; else delete all[tripId];
+    for (const id of Object.keys(all)) if (!findTrip(id)) delete all[id];
+    try { localStorage.setItem(WX_KEY, JSON.stringify(all)); } catch (e) { /* private window: this visit only */ }
+  }
+  // Can this trip have a forecast: a located place, and a day in reach?
+  function wxCan(trip) {
+    const pts = W.points(trip, placesOf(trip.id));
+    return W.reachable(Object.keys(pts), today()).length > 0;
+  }
+  // The kept forecast's days for a trip, asking Open-Meteo again when it's
+  // stale; the screen redraws when the new one comes.
+  function wxDays(trip) {
+    if (!wxOn()) return null;
+    const kept = wxKept()[trip.id] || null;
+    const busy = wxBusy.get(trip.id);
+    if (navigator.onLine !== false && !(busy && (busy.p || Date.now() - busy.failed < 10 * 60e3))) {
+      const job = { p: null, failed: 0 };
+      job.p = W.forecast(trip, placesOf(trip.id), { today: today(), cached: kept })
+        .then((f) => {
+          wxBusy.delete(trip.id);
+          if (!f || f === kept) return;
+          wxKeep(trip.id, f);
+          if (view.trip === trip.id && (view.mode === "today" || (view.mode === "board" && view.sort === "time"))) render();
+        })
+        .catch((e) => { job.p = null; job.failed = Date.now(); window.Keel.errlog.note("weather", String(e)); });
+      wxBusy.set(trip.id, job);
+    }
+    return kept ? kept.days : null;
+  }
+  const deg = (c) => W.degrees(c, wxUnit()) + "°";
+  const wxSay = (w) => i18n.t("{kind}, high {max}, low {min}", { kind: WX_WORDS[w.kind], max: deg(w.max), min: deg(w.min) });
+  // A day's weather, small: its icon, the high and the low.
+  const wxChip = (w) => el("span.wx", { role: "img", "aria-label": wxSay(w), title: wxSay(w) },
+    icon(WX_ICON[w.kind]), el("span.wx-max", { text: deg(w.max) }), el("span.wx-min", { text: deg(w.min) }));
+  const clock = (hm) => fmt({ hour: "numeric", minute: "2-digit" }).format(new Date("2000-01-01T" + hm + ":00"));
+  // Asked once, on Today or the Plan: weather sends the places' rough
+  // locations to Open-Meteo, so it's off until the person says yes.
+  function wxAsk(trip) {
+    if (SET.get().weather.on !== null || !wxCan(trip)) return null;
+    return el("section.panel.wx-ask", {},
+      el("span.wx-ask-ic", {}, icon("cloudSun")),
+      el("div.wx-ask-text", {},
+        el("h2", { text: i18n.t("See the weather for each day?") }),
+        el("p.dim", { text: i18n.t("The forecast comes from Open-Meteo, a free weather service. It gets your places' rough locations and the trip's dates, nothing else.") }),
+        el("div.loc-actions", {},
+          el("button.btn.primary", { type: "button", text: i18n.t("Show the weather"), onclick: () => { SET.setWeather({ on: true }); render(); } }),
+          el("button.btn.quiet", { type: "button", text: i18n.t("Not now"), onclick: () => { SET.setWeather({ on: false }); toast(i18n.t("You can turn the weather on in Settings.")); render(); } }))));
+  }
+
   // ---------- Today ----------
   // While a trip is under way: today's places in order, the way between
   // each two (a guess from the straight line, M.leg), and Navigate on the
@@ -521,6 +589,24 @@
         el("p.today-kicker", { text: total ? i18n.t("Today · day {n} of {total}", { n: M.dayIndex(trip, day), total }) : i18n.t("Today") }),
         el("h2.today-date", { text: fmt({ weekday: "long", day: "numeric", month: "long" }).format(asDate(day)) })),
       plan.length ? el("span.dim.today-done", { text: i18n.t("{n} of {total} done", { n: done, total: plan.length }) }) : null));
+    const wx = wxDays(trip);
+    const w = wx && wx[day];
+    if (w) {
+      const sun = [w.sunrise ? i18n.t("Sunrise {time}", { time: clock(w.sunrise) }) : null, w.sunset ? i18n.t("Sunset {time}", { time: clock(w.sunset) }) : null].filter(Boolean);
+      const at = wxKept()[trip.id].at;
+      const old = Date.now() - Date.parse(at) > 12 * 3600e3;
+      main.append(el("section.panel.wx-today", { "aria-label": i18n.t("Weather") },
+        el("span.wx-today-ic", {}, icon(WX_ICON[w.kind])),
+        el("div.wx-today-text", {},
+          el("p.wx-today-kind", { text: WX_WORDS[w.kind] }),
+          el("p.wx-today-temps", { "aria-label": i18n.t("High {max}, low {min}", { max: deg(w.max), min: deg(w.min) }) }, el("span.wx-max", { text: deg(w.max) }), el("span.wx-min", { text: deg(w.min) })),
+          w.rain != null ? el("p.wx-today-more.dim", { text: i18n.t("Rain {n}%", { n: w.rain }) }) : null,
+          sun.length ? el("p.wx-today-more.dim", { text: sun.join(" · ") }) : null,
+          el("p.wx-today-src.dim", { text: old ? i18n.t("Weather from Open-Meteo, as of {when}.", { when: fmt({ weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(at)) }) : i18n.t("Weather from Open-Meteo.") }))));
+    } else {
+      const ask = wxAsk(trip);
+      if (ask) main.append(ask);
+    }
 
     if (!plan.length) {
       main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned for today.") }),
@@ -558,7 +644,7 @@
     const later = trip.end && tomorrow <= trip.end ? M.dayPlan(all, tomorrow) : [];
     if (later.length) {
       main.append(el("a.panel.tomorrow", { href: "#/trip/" + trip.id },
-        el("span.tomorrow-head", {}, el("h2", { text: i18n.t("Tomorrow") }), el("span.dim", { text: String(later.length) })),
+        el("span.tomorrow-head", {}, el("h2", { text: i18n.t("Tomorrow") }), wx && wx[tomorrow] ? wxChip(wx[tomorrow]) : null, el("span.dim", { text: String(later.length) })),
         el("p.dim", { text: later.map((p) => p.name).join(", ") })));
     }
   }
@@ -829,11 +915,12 @@
     save();
   });
 
-  function group(trip, g) {
+  function group(trip, g, wx) {
     const isDay = !!g.day;
     const title = isDay ? (trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, g.day), date: dayLabel(g.day) }) : dayLabel(g.day)) : g.title;
     const head = el("div.group-head", {},
       el("h2", { text: title }),
+      isDay && wx && wx[g.day] ? wxChip(wx[g.day]) : null,
       el("span.count", { text: String(g.places.length) }),
       view.sort === "time" && mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
         onclick: (e) => openPlace(null, trip, { day: g.day || "" }, e.currentTarget) }, icon("plus")) : null);
@@ -1734,6 +1821,7 @@
       { ico: "plug", title: i18n.t("Services"), where: i18n.t("Settings"), href: "#/settings/services", words: "connections providers map search keys google maptiler openstreetmap openfreemap" },
       { ico: "map", title: i18n.t("Map"), where: i18n.t("Services"), href: "#/settings/map", words: "map tiles use fallback if it fails provider" },
       { ico: "search", title: i18n.t("Find by name"), where: i18n.t("Services"), href: "#/settings/search", words: "search find places geocoding use fallback if it fails provider" },
+      { ico: "cloudSun", title: i18n.t("Weather"), where: i18n.t("Settings"), href: "#/settings/weather", words: "weather forecast rain temperature celsius fahrenheit open-meteo sunrise sunset" },
       { ico: "info", title: i18n.t("About"), where: i18n.t("Settings"), href: "#/settings/about", words: "version credits licences privacy" },
     ];
     for (const [id, P] of Object.entries(SET.PROVIDERS)) {
@@ -1768,6 +1856,7 @@
     if (page === "storage") return renderStorage(main);
     if (page === "appearance") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
+    if (page === "weather") return renderWeather(main);
     const pm = /^p\/(\w+)$/.exec(page || "");
     if (pm && SET.PROVIDERS[pm[1]]) return renderProvider(main, pm[1]);
     $("title").textContent = i18n.t("Settings");
@@ -1783,6 +1872,7 @@
       srow("#/settings/services", "plug", i18n.t("Services"), needs || { text: i18n.t("Map and Find by name: {join}", { join: SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }) }),
       srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
       driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
+      srow("#/settings/weather", "cloudSun", i18n.t("Weather"), { text: wxOn() ? i18n.t("On, from Open-Meteo") : i18n.t("Off") }),
       srow("#/settings/about", "info", i18n.t("About"), { text: i18n.t("Version {version} · credits", { version: window.Tripboard.version }) })));
     const paint = () => {
       const q = input.value.trim();
@@ -1901,6 +1991,19 @@
     if (P.key) main.append(el("p.dim.hint", { text: i18n.t("The key is kept in this browser only, and sent only to {name} when it's used.", { name: P.name }) }));
   }
 
+  // Weather: on or off on this device, and °C or °F.
+  function renderWeather(main) {
+    $("title").textContent = i18n.t("Weather");
+    const w = SET.get().weather, unit = wxUnit();
+    const seg = (legend, opts, cur, pick) => el("fieldset.field", {}, el("legend", { text: legend }),
+      el("div.seg", { role: "radiogroup" }, opts.map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String(cur === id), text: label, onclick: () => { pick(id); render(); } }))));
+    main.append(el("section.panel", {},
+      seg(i18n.t("Show the weather"), [["on", i18n.t("On")], ["off", i18n.t("Off")]], w.on ? "on" : "off", (id) => { SET.setWeather({ on: id === "on" }); if (id === "off") try { localStorage.removeItem(WX_KEY); } catch (e) { /* private window */ } }),
+      seg(i18n.t("Temperature"), [["c", "°C"], ["f", "°F"]], unit, (id) => SET.setWeather({ unit: id })),
+      el("p.hint.dim", { text: i18n.t("The forecast for each day of a trip, on Today and on the Plan's days, up to 16 days ahead. It comes from Open-Meteo, a free weather service, which gets each day's rough location (about a kilometre) and the dates, nothing else. The last forecast stays on this device for when there's no signal.") }),
+      el("p.hint.dim", {}, i18n.t("Weather data: "), el("a", { href: "https://open-meteo.com", target: "_blank", rel: "noopener noreferrer", text: "Open-Meteo.com" }), " (CC BY 4.0)")));
+  }
+
   function renderAbout(main) {
     $("title").textContent = i18n.t("About");
     const link = (text, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer", text });
@@ -1910,6 +2013,7 @@
       el("li", {}, i18n.t("Icons: "), link("Lucide", "https://lucide.dev"), " (ISC)"),
       el("li", {}, i18n.t("Map: "), link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
       el("li", {}, i18n.t("Map data and Find by name: © "), link("OpenStreetMap", "https://www.openstreetmap.org/copyright"), i18n.t(" contributors, "), link("Nominatim", "https://nominatim.org")),
+      el("li", {}, i18n.t("Weather data: "), link("Open-Meteo.com", "https://open-meteo.com"), " (CC BY 4.0)"),
       el("li", {}, i18n.t("Hebrew and Arabic map labels: "), link("mapbox-gl-rtl-text", "https://github.com/mapbox/mapbox-gl-rtl-text"), " (BSD-2)"),
       el("li", {}, i18n.t("With your own key: "), link("Google Maps Platform", "https://developers.google.com/maps"), ", ", link("MapTiler", "https://www.maptiler.com")))]));
   }

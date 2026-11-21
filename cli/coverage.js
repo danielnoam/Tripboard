@@ -16,7 +16,7 @@ const PUBLISHED = ["list_trips", "get_trip", "create_trip", "update_trip", "dele
   "add_expense", "update_expense", "update_sharing", "delete_expense",
   "find_places", "get_board", "get_day", "list_categories", "get_file", "export_backup", "find_location", "set_trip_cover",
   "import_places", "add_file", "update_file", "delete_file", "remove_person", "add_category", "update_category", "delete_category",
-  "reset_categories", "import_backup"];
+  "reset_categories", "import_backup", "get_weather"];
 
 const made = "auto: made by core.js (ids, times, who changed it)";
 const fields = {
@@ -76,6 +76,7 @@ const settings = {
   map: "device: the map provider", search: "device: the search provider (find_location uses OpenStreetMap)", p: "device: a provider's key and style",
   sync: "device: the GitHub sync token; the CLI has its own (TRIPBOARD_TOKEN)",
   drive: "device: Google Drive backups sign in on the device; export_backup makes the same file",
+  weather: "device: whether this device shows the weather, and in °C or °F; get_weather gives a chat the same forecast",
   about: "device: version and credits",
 };
 

@@ -19,6 +19,7 @@ src/sync.js          GitHub sync: the trips in a private repo of yours, one comm
 src/share.js         shared trips: each device on one syncs that trip with the sharing server (server/), beside GitHub sync; invite links, joining, leaving
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) and its name; New trip can start from one, Edit trip imports into the trip (Node-tested)
+src/weather.js       the forecast per trip day from Open-Meteo: where each day's weather is for (its places' middle, rounded), one request for all of them, its answer read, when it's stale (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
 src/offline.js       a trip saved for no signal: OpenFreeMap's map around its places in the Cache API, the plan of tiles, and the tbo:// protocol the map reads it through (Node-tested)
 src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
@@ -44,6 +45,7 @@ test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
 test/merge.test.js   src/merge.js and the model's stamp()
 test/places.test.js  src/places.js
+test/weather.test.js src/weather.js
 test/offline.test.js src/offline.js's tile plan, keys and style rewrite
 test/listimport.test.js  src/listimport.js
 test/settings.test.js  src/settings.js
@@ -116,6 +118,21 @@ adds a line here.
   real way much longer. A routing service would fix it but sends every
   place to it, and Google's costs money. Navigate opens Google Maps with
   the place's location (or name) and Google id, only when tapped.
+- Weather (src/weather.js) comes from Open-Meteo (api.open-meteo.com, in
+  connect-src), off until the person says yes on Today or the Plan, or in
+  Settings › Weather. Once on, opening a trip within 16 days of its dates
+  sends Open-Meteo one point per day (the middle of that day's located
+  places, or its first when they spread over 30 km, rounded to 2 decimals,
+  about a kilometre) and the dates; never names, notes or anything else.
+  Open-Meteo sees the requesting IP, so it can tell where someone plans to
+  be and when. It's asked again after 3 hours, or when a place moves. The
+  last forecast is kept in localStorage ("tripboard.weather") on this
+  device only, never synced, so an offline trip shows it; turning weather
+  off deletes it. A day without located places borrows the nearest day's
+  point, so its weather can be for the wrong town. Further than 16 days
+  off there's nothing (no climate averages: they'd take a second service
+  and years of history per point). get_weather (CLI `weather`) sends the
+  same points, with a Tripboard-CLI user agent.
 - Distance sorting needs places with a location (Find by name, or a pin);
   places without one sort under "No location".
 - The map is MapLibre, about 1.7 MB in src/vendor/, cached with the app.

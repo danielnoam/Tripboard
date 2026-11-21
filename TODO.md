@@ -28,14 +28,9 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
 
 ## Trips
 
-- **Weather for each trip day** (Daniel, 2026-11-16). A forecast on
-  Today and on each day heading, and later other uses: a rain warning on
-  outdoor places, sunrise and sunset, what to pack. Open-Meteo is the
-  likely service: no key and it allows browser requests. Forecasts reach
-  only about 16 days ahead, so a trip further off shows climate averages
-  or nothing until it gets close. Privacy: the trip's place coordinates
-  go to the weather service. Its host goes in the CSP `connect-src`, and
-  offline trips would keep the last forecast.
+- **More from the weather** (Daniel, 2026-11-16; the forecast itself
+  shipped 2026-11-21). A rain warning on outdoor places, what to pack,
+  and typical weather for a trip more than 16 days off.
 
 ## With other people
 
