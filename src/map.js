@@ -215,7 +215,11 @@
       if (p.visited) el.classList.add("visited");
       if (p.id === selected) el.classList.add("selected");
       if (n) el.classList.add("numbered");
-      el.textContent = n ? String(n) : "";
+      // A day's route shows its order; otherwise the category's icon.
+      const T2 = window.Tripboard;
+      if (n) el.textContent = String(n);
+      else if (T2 && T2.icon) el.replaceChildren(T2.icon(T2.catIcon(p.category)));
+      else el.textContent = "";
       el.setAttribute("aria-label", p.name);
       m.setLngLat([p.lng, p.lat]);
     }

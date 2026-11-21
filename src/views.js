@@ -4,6 +4,7 @@
 (function () {
   const M = window.Tripboard.model;
   const icon = window.Tripboard.icon;
+  const catIcon = window.Tripboard.catIcon;
   const $ = (id) => document.getElementById(id);
 
   // el("div.card", { onclick, text, attrs }, children…)
@@ -643,7 +644,7 @@
             el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
               onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
             el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
-              el("span.card-name", { text: p.name }),
+              el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name),
               el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), " · " + meta.join(" · ")),
               p.note ? el("span.card-note", { text: p.note }) : null)),
           isNext ? el("div.next-row", {},
@@ -1031,9 +1032,6 @@
   const boardDist = (km) => (km < 1
     ? new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "meter", maximumFractionDigits: 0 }).format(Math.round(km * 1000))
     : new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "kilometer", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(km));
-  // Each category's icon; your own categories get a tag.
-  const CAT_ICON = { sight: "camera", food: "utensils", nature: "trees", museum: "landmark", shopping: "bag", nightlife: "wine", stay: "bed", transport: "train", other: "pin" };
-  const catIcon = (id) => CAT_ICON[id] || "tag";
   function cards(trip, list, g) {
     return el("ul.cards", {}, list.map((p) => {
       const meta = view.sort === "category" ? [] : [M.catName(cats(), trip, p.category)];
@@ -1046,7 +1044,7 @@
         el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
           onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
-          el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name),
+          el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name),
           el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), meta.length ? " · " + meta.join(" · ") : "",
             nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
           p.note ? el("span.card-note", { text: p.note }) : null));

@@ -72,4 +72,7 @@
   }
   window.Tripboard = window.Tripboard || {};
   window.Tripboard.icon = svg;
+  // Each built-in place category's icon; your own categories get a tag.
+  const CAT = { sight: "camera", food: "utensils", nature: "trees", museum: "landmark", shopping: "bag", nightlife: "wine", stay: "bed", transport: "train", other: "pin" };
+  window.Tripboard.catIcon = (id) => CAT[id] || "tag";
 })();

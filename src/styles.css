@@ -256,12 +256,17 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 
 /* A trip's bar at the bottom: a floating pill with the tabs (Plan, Map,
    Today, Expenses, Files, as icons) and, beside it at its inline end, the
-   + for what the tab adds, a rounded square of its own. The two are
-   centred together. The toast and the map's panel sit above them. */
+   + for what the tab adds, a rounded square of its own. The pill is centred
+   on the screen: an empty space as wide as the + balances it at the other
+   end, and gives way first when the screen is too narrow for both. The
+   toast and the map's panel sit above them. */
 .bottombar {
-  position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+  position: fixed; z-index: 7; left: 0; right: 0; margin-inline: auto; width: fit-content; bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
   display: flex; align-items: center; gap: var(--space-2); max-width: calc(100vw - 2 * var(--space-3));
 }
+.bottombar::before { content: ""; width: 48px; flex: 0 1 auto; min-width: 0; }
+.bottombar:has(.fab[hidden])::before { display: none; }
+.bottombar .tabbar { flex: none; }
 .bottombar[hidden] { display: none; }
 /* The selected tab sits on one circle that slides from tab to tab (views.js,
    slideBubble); it's placed by its offsetLeft, so it's pinned to the
@@ -334,10 +339,13 @@ body.on-map .bar { width: 100%; max-width: none; }
 .map-panel .addr { font-size: 14px; }
 .unplaced { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; }
 .pin {
-  width: 22px; height: 22px; padding: 0; border: 3px solid var(--surface); border-radius: 50%;
+  width: 28px; height: 28px; padding: 0; border: 2px solid var(--surface); border-radius: 50%;
   background: var(--want); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); cursor: pointer;
+  display: grid; place-items: center; color: var(--on-accent); line-height: 0;
 }
-.pin.imp-must { background: var(--must); width: 26px; height: 26px; }
+.pin .icon { width: 15px; height: 15px; }
+.pin.imp-must { background: var(--must); width: 32px; height: 32px; }
+.pin.imp-must .icon { width: 17px; height: 17px; }
 .pin.imp-maybe { background: var(--maybe); }
 .pin.visited { opacity: 0.55; }
 .pin.selected { outline: 3px solid var(--text); outline-offset: 2px; z-index: 2; }
@@ -635,6 +643,6 @@ body.on-board main.today-page { max-width: 640px; }
 .tomorrow-head .wx { margin-inline-start: auto; margin-inline-end: var(--space-3); }
 .wx-today-src { font-size: var(--fs-small); }
 .group-head .wx { margin-inline-end: var(--space-1); }
-.icon.cat { width: 16px; height: 16px; vertical-align: -3px; margin-inline-end: 4px; color: var(--text-dim); }
-.card-name .icon.cat { width: 18px; height: 18px; margin-inline-end: 6px; }
+/* A place category's icon: before a place's name, and before a group's title by category. */
+.card-name .icon.cat { width: 18px; height: 18px; vertical-align: -3px; margin-inline-end: 6px; color: var(--text-dim); }
 .group-head h2 .icon.cat { width: 20px; height: 20px; vertical-align: -3px; margin-inline-end: 8px; color: var(--accent); }
