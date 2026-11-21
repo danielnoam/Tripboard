@@ -35,17 +35,20 @@
   // are on) the newest build of main is offered too, from the site's
   // unreleased/ (keel's tools/unreleased.js).
   const releases = K.releases.create({ name: "Tripboard", repo: () => (K.platform.build && K.platform.build.repo) || null });
+  // The bar's Update downloads and installs it (src/update.js). A closed
+  // bar stays closed for that version until a newer one is out.
   if (K.platform.bundled) {
+    const updater = T.update.create(K.platform, K.releases.newer);
+    const SKIP = "tripboard.update.skip";
+    const skipped = () => { try { return localStorage.getItem(SKIP); } catch (e) { return null; } };
     K.platform.ready.then((b) => {
+      updater.clearOld(APP_VERSION);
       const kind = K.platform.desktopOs === "windows" ? "windows" : K.platform.os === "android" ? "android" : null;
       return releases.check({ version: APP_VERSION, sha: b && b.sha, at: b && b.builtAt }, kind);
-    }).then((r) => {
-      if (!r) return;
-      const el = $("update");
-      el.textContent = r.channel === "unreleased"
-        ? i18n.t("A newer unreleased build is ready ({sha}).", { sha: r.sha.slice(0, 7) })
-        : i18n.t("Version {version} is out.", { version: r.version });
-      el.hidden = false;
+    }).then((u) => {
+      if (!u || (u.channel === "unreleased" ? u.sha : u.version) === skipped()) return;
+      updater.offer(u, { bar: $("update"), text: $("updateText"), btn: $("updateBtn"), close: $("updateClose") }, i18n.t,
+        (key) => { try { localStorage.setItem(SKIP, key); } catch (e) { /* shown again next launch */ } });
     }).catch(() => { /* offline: ask again next launch */ });
   }
 

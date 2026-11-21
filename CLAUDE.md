@@ -16,10 +16,12 @@ and no dependencies**, started from keel's template.
 - `main` takes pull requests only. Open the PR, merge it once Tests is
   green, then check the runs.
 - Lines for the changelog go in `changes/<branch>.md`, never CHANGELOG.md.
-- **Web only for now** (2026-11-15): android.yml, desktop.yml and ios.yml
-  run only by hand until Daniel wants the apps; each says how to turn it
-  back on. Once on: builds are the web app, Windows and the APK by default. iOS and Linux
-  only when Daniel asks (run `ios.yml`, or `desktop.yml` with Linux ticked,
+- **Web only for now** (2026-11-15): desktop.yml and ios.yml run only by
+  hand until Daniel wants the apps; each says how to turn it back on.
+  android.yml runs on its own only for a release (a merge to main with a
+  new APP_VERSION), which publishes app-v<version> for the in-app updater.
+  Once on: builds are the web app, Windows and the APK by default. iOS and
+  Linux only when Daniel asks (run `ios.yml`, or `desktop.yml` with Linux ticked,
   or label the PR `test-ios` / `test-linux`).
 - To try a change on a phone before it merges, label its PR `test` and
   say the build is on the `test-<branch>` pre-release.

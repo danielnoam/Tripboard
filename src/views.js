@@ -2607,6 +2607,7 @@
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("sliders"));
+    $("updateClose").append(icon("x"));
     $("offlineBadge").prepend(icon("check"));
     $("newTrip").append(icon("plus"));
     $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));

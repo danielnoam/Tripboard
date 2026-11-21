@@ -27,7 +27,11 @@
     <button class="icon-btn" id="editTrip" type="button" aria-label="Edit trip" hidden data-t-attr="aria-label"></button>
     <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-t-attr="aria-label"></button>
   </header>
-  <p id="update" class="update" hidden></p>
+  <div id="update" class="update" role="status" hidden>
+    <span class="update-text" id="updateText"></span>
+    <button class="btn primary update-btn" id="updateBtn" type="button"></button>
+    <button class="icon-btn update-close" id="updateClose" type="button" aria-label="Not now" title="Not now" data-t-attr="aria-label,title"></button>
+  </div>
   <main id="app" tabindex="-1"></main>
   <section class="map-view" id="mapView" aria-label="Map" hidden data-t-attr="aria-label">
     <div class="map" id="map"></div>
@@ -229,6 +233,7 @@
   <script src="src/keel/platform.js?v=0.3.1"></script>
   <script src="src/keel/releases.js?v=0.3.1"></script>
   <script src="src/keel/motion.js?v=0.3.1"></script>
+  <script src="src/update.js?v=0.3.1"></script>
   <script src="src/model.js?v=0.3.1"></script>
   <script src="src/store.js?v=0.3.1"></script>
   <script src="src/settings.js?v=0.3.1"></script>

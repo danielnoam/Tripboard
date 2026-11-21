@@ -104,7 +104,11 @@ body.on-home .bar, body.on-home main { max-width: 960px; }
 main { max-width: 640px; margin: 0 auto; padding: 0 var(--space-3) calc(env(safe-area-inset-bottom) + 96px); }
 main:focus { outline: none; }
 body.on-board main { max-width: 1200px; }
-.update { max-width: 640px; margin: 0 auto var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.update { max-width: 640px; margin: 0 auto var(--space-3); padding: var(--space-2); padding-inline-start: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.update:not([hidden]) { display: flex; align-items: center; gap: var(--space-2); }
+.update-text { flex: 1 1 auto; min-width: 0; }
+.update-btn { flex: 0 0 auto; min-width: 5.5em; font-variant-numeric: tabular-nums; }
+.update-close { flex: 0 0 auto; }
 
 /* Buttons */
 .btn {
