@@ -101,7 +101,8 @@ body.on-home .bar, body.on-home main { max-width: 960px; }
 .icon-btn.small { min-width: 36px; min-height: 36px; margin-block: -4px; margin-inline: 0 -6px; }
 .icon-btn[hidden] { display: none; }
 
-main { max-width: 640px; margin: 0 auto; padding: 0 var(--space-3) calc(env(safe-area-inset-bottom) + 96px); }
+/* flow-root keeps a first child's top margin inside, so a screen's background reaches the top bar while it slides. */
+main { display: flow-root; max-width: 640px; margin: 0 auto; padding: 0 var(--space-3) calc(env(safe-area-inset-bottom) + 96px); }
 main:focus { outline: none; }
 body.on-board main { max-width: 1200px; }
 /* The app's update offer: a small pill floating at the bottom, above the
