@@ -100,6 +100,9 @@ function open({ token, repo, branch, fetch } = {}) {
       const carried = M.carryCats(clean, M.catList(ctx.cats ? ctx.cats.list : null));
       carried.trips = carried.trips.map((t, i) => (mayEdit(before, t.id, st.me) ? t : clean.trips[i]));
       const next = M.stamp(before, carried, undefined, st.me);
+      // The record a tool gives back is the one written, with its new updatedAt.
+      const written = result && result.id && next.trips.concat(next.places, next.expenses, next.files).find((r) => r.id === result.id);
+      const answer = written ? clone(written) : result;
       const writes = [];
       for (const id of new Set(G.tripIds(next).concat(Object.keys(bundles)))) {
         const b = G.bundleOf(next, id);
@@ -116,7 +119,7 @@ function open({ token, repo, branch, fetch } = {}) {
       if (ctx.catsChanged) writes.push({ path: "categories.json", text: text(ctx.cats) });
       for (const p of drops) writes.push({ path: p, sha: null });
       if (writes.concat([...puts.keys()].map((path) => ({ path }))).some((w) => w.path === AI_FILE)) throw new Error("Only the app changes " + AI_FILE + " (Settings › AI tools).");
-      if (!writes.length && !puts.size) return result;
+      if (!writes.length && !puts.size) return answer;
       try {
         for (const [p, bytes] of puts) writes.push({ path: p, sha: await gh.createBlob(new Uint8Array(bytes)) });
         await gh.commitFiles(writes, message || "Tripboard CLI: " + writes.length + (writes.length === 1 ? " file" : " files"), {
@@ -128,7 +131,7 @@ function open({ token, repo, branch, fetch } = {}) {
             if ((now && now.object.sha) !== head) { const e = new Error("moved"); e.moved = true; throw e; }
           },
         });
-        return result;
+        return answer;
       } catch (e) {
         if (!(e.moved || e.status === 422) || n >= 4) throw e;
       }
