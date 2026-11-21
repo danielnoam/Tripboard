@@ -635,3 +635,6 @@ body.on-board main.today-page { max-width: 640px; }
 .tomorrow-head .wx { margin-inline-start: auto; margin-inline-end: var(--space-3); }
 .wx-today-src { font-size: var(--fs-small); }
 .group-head .wx { margin-inline-end: var(--space-1); }
+.icon.cat { width: 16px; height: 16px; vertical-align: -3px; margin-inline-end: 4px; color: var(--text-dim); }
+.card-name .icon.cat { width: 18px; height: 18px; margin-inline-end: 6px; }
+.group-head h2 .icon.cat { width: 20px; height: 20px; vertical-align: -3px; margin-inline-end: 8px; color: var(--accent); }
