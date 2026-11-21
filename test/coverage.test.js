@@ -30,7 +30,7 @@ function covers(what, found, table) {
   const stale = Object.keys(table).filter((k) => !found.has(k));
   assert.deepStrictEqual(stale, [], "cli/coverage.js lists " + what + " the app no longer has: " + stale.join(", "));
   for (const [k, v] of Object.entries(table)) {
-    if (typeof v === "string") { assert.match(v, /^(device|auto|cli)\b/, what + " " + k + ": a reason starts with device: or auto:"); continue; }
+    if (typeof v === "string") { assert.match(v, /^(device|auto|cli|app)\b/, what + " " + k + ": a reason starts with device:, auto: or app:"); continue; }
     assert.ok(Array.isArray(v) && v.length, what + " " + k + ": give the tools, or a reason");
     for (const t of v) assert.ok(toolNames.has(t), what + " " + k + ": no tool " + t);
   }

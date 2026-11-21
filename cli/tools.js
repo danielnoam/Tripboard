@@ -292,13 +292,22 @@ function prep(t, a, via, env) {
   return t.before ? t.before(a, via, env) : a;
 }
 
+// Tools that delete, take someone off a trip or replace what's there. They
+// work only while the app's Settings › AI tools › Let AI tools delete is on
+// (ai.json in the sync repo, which no tool can change).
+const destructive = (t) => /^(delete|remove|reset|import_backup)/.test(t.tool);
+const OFF = "Deleting is off for AI tools. The person can turn it on in the Tripboard app: Settings › AI tools › Let AI tools delete. It can't be turned on from here.";
+
 // Runs a tool on a connection; `via` is "cli" or "mcp". Gives the answer.
 async function run(tb, t, args, via, env = {}) {
   const a = await prep(t, args, via, env);
-  if (t.kind === "write") return tb.change((doc, ctx) => core.ops[t.op](doc, a, ctx), "Tripboard " + via.toUpperCase() + ": " + (via === "cli" ? t.cmd : t.tool));
+  if (t.kind === "write") return tb.change((doc, ctx) => {
+    if (destructive(t) && !(ctx.ai && ctx.ai.deleting)) throw Object.assign(new Error(OFF), { deletingOff: true });
+    return core.ops[t.op](doc, a, ctx);
+  }, "Tripboard " + via.toUpperCase() + ": " + (via === "cli" ? t.cmd : t.tool));
   const st = await tb.snapshot();
   const r = t.run ? await t.run(st, a, env) : await core.queries[t.query](st, a);
   return t[via] ? t[via](r, a, env) : r;
 }
 
-module.exports = { TOOLS, run, prep, printTrip, done };
+module.exports = { TOOLS, run, prep, printTrip, done, destructive };

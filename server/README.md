@@ -87,8 +87,9 @@ editing an old one. A merge that changes `server/` deploys it.
 `mcp.js` makes the same Worker a remote MCP server, so Claude (Settings →
 Connectors), ChatGPT (developer mode) or another AI app can read and plan
 your trips from the cloud, phones included. It uses the same tools as the
-local MCP server (`cli/mcp.js`), minus the ones that delete, on your
-GitHub sync repo; your devices pick changes up on their next sync. You
+local MCP server (`cli/mcp.js`) on your GitHub sync repo (those that
+delete work only while the app's Settings › AI tools › Let AI tools
+delete is on); your devices pick changes up on their next sync. You
 sign in with GitHub through your own GitHub App, which reaches only the
 sync repo. Only the GitHub accounts in `TRIPBOARD_MCP_USERS` get in.
 

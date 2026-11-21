@@ -249,9 +249,17 @@ adds a line here.
   MCP client's config file, in plain text there. A chat with the MCP
   server can change and delete everything the app can: trips, places,
   expenses, files, covers, categories, people on a shared trip, and
-  restore a backup over trips. The tools tell it to ask before deleting
-  (and mark those tools destructiveHint), but nothing enforces that, and
-  git history is the way back.
+  restore a backup over trips, once Settings › AI tools › Let AI tools
+  delete is on (off at first). That switch is ai.json in the sync repo:
+  the app writes it, and core.js reads it before every tool that deletes,
+  removes or replaces, and refuses any write to it, so a chat with only
+  Tripboard's tools (CLI, local MCP, cloud connector) can't turn it on.
+  It is a safety catch, not a lock: anything that holds the token itself
+  (a shell, git, a chat that can run commands) can edit ai.json or the
+  trips directly. It's one setting for all your devices, because the
+  tools only see the repo. Even off, update tools can blank fields.
+  The tools also say to ask before deleting (and are destructiveHint),
+  and git history is the way back.
 - What a chat reads goes to its AI provider: trips, places, notes,
   expenses and people's names. Files' contents are the exception, off
   unless the person sets TRIPBOARD_MCP_FILES=1 (tickets and passports are
@@ -276,8 +284,9 @@ adds a line here.
   whoever controls the Cloudflare account and that secret could use it;
   the GitHub App limits it to the repos it's installed on, Contents only.
   The AI app holds Tripboard's own bearer token (an hour, refreshed for
-  up to 30 days): anyone who gets it can act as you until then. It can't
-  delete (no delete tools), but it can change or blank anything, and a
+  up to 30 days): anyone who gets it can act as you until then. It has
+  the delete tools, which work only while Let AI tools delete is on (as
+  above); off, it can still change or blank anything, and a
   place note or an imported list could carry text that steers it; git
   history is the way back. Sharing roles don't apply, as with the local
   MCP. Only the GitHub ids in TRIPBOARD_MCP_USERS get in, and a consent

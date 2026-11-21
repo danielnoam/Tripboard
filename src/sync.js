@@ -6,7 +6,8 @@
 // cover photo, covers/<id>.jpg, and each file kept with a trip,
 // files/<trip id>/<file id> (named by id only; its name is in the bundle),
 // me.json, the person id all your devices use, categories.json, your own
-// place categories (the newer list wins), and shares.json, the keys
+// place categories (the newer list wins), ai.json, whether AI tools may
+// delete (the newer change wins; only the app writes it), and shares.json, the keys
 // of the shared trips you're on (src/share.js). A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
@@ -100,6 +101,18 @@
     if (myCats() && myCats().at !== state.catsAt && (!state.catsAt || myCats().at > state.catsAt)) {
       writes.push({ path: "categories.json", text: text(myCats()) });
       state.catsAt = myCats().at;
+    }
+    // Whether AI tools may delete: the newer change wins, as with categories.
+    const myAi = () => T.settings.get().ai;
+    if (remote.has("ai.json") && state.aiSha !== remote.get("ai.json")) {
+      const got = await gh.getJson("ai.json");
+      if (got && got.data && T.settings.adoptAi(got.data) && T.views) T.views.render();
+      state.aiSha = remote.get("ai.json");
+      state.aiAt = (got && got.data && got.data.at) || "";
+    }
+    if (myAi().at && myAi().at !== state.aiAt && (!state.aiAt || myAi().at > state.aiAt)) {
+      writes.push({ path: "ai.json", text: text(myAi()) });
+      state.aiAt = myAi().at;
     }
 
     // Shared trips' keys travel to your other devices in shares.json, so

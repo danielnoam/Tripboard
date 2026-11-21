@@ -35,6 +35,18 @@ test("the chain is main then fallback; a fallback the same as main is dropped", 
   assert.strictEqual(S.ready("osm"), true);
 });
 
+test("AI tools may not delete until turned on; another device's newer choice wins", () => {
+  assert.deepStrictEqual(S.merge(null).ai, { deleting: false, at: "" });
+  assert.deepStrictEqual(S.merge({ ai: { deleting: "yes", at: "x" } }).ai, { deleting: false, at: "" });
+  assert.strictEqual(S.get().ai.deleting, false);
+  S.setAi(true);
+  const at = S.get().ai.at;
+  assert.ok(S.get().ai.deleting && at);
+  assert.strictEqual(S.adoptAi({ deleting: false, at: "2000-01-01T00:00:00.000Z" }), false);
+  assert.strictEqual(S.adoptAi({ deleting: false, at: "2999-01-01T00:00:00.000Z" }), true);
+  assert.deepStrictEqual(S.get().ai, { deleting: false, at: "2999-01-01T00:00:00.000Z" });
+});
+
 test("the theme is system, light or dark, and system by default", () => {
   assert.strictEqual(S.merge(null).appearance.theme, "system");
   assert.strictEqual(S.merge({ appearance: { theme: "dark" } }).appearance.theme, "dark");

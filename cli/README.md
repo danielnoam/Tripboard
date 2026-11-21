@@ -93,6 +93,13 @@ to any command for machine-readable output.
 
 `cli/mcp.js` is an MCP server over stdio, with the tools above. Each says
 whether it only reads (`readOnlyHint`) or deletes (`destructiveHint`).
+
+Deleting is off until you turn it on in the app: Settings › AI tools ›
+Let AI tools delete. Until then `delete_*`, `remove_person`,
+`reset_categories` and `import_backup` (and their commands) refuse. The
+switch is `ai.json` in the sync repo; these tools read it and never
+write it, so a chat can't turn it on. It isn't a lock against anything
+holding the token itself.
 For example, in Claude Desktop's `claude_desktop_config.json`:
 
 ```json
