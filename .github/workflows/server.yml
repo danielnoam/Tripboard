@@ -1,5 +1,7 @@
 # Deploys the sharing server (server/) to Cloudflare. It runs after a merge
-# that changes server/, or by hand. It needs, in the repo's settings:
+# that changes server/ or a file its bundle takes in (the cloud connector
+# serves cli/'s tools, which load src/'s model, merge, list import, places,
+# weather and keel's github.js), or by hand. It needs, in the repo's settings:
 #   secrets   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 #   variables TRIPBOARD_D1_ID, TRIPBOARD_KV_ID
 # and, for the cloud connector for AI apps (server/mcp.js), optionally:
@@ -11,7 +13,8 @@ name: Sharing server
 on:
   push:
     branches: [main]
-    paths: ["server/**"]
+    paths: ["server/**", "cli/**", "src/model.js", "src/merge.js", "src/listimport.js", "src/places.js", "src/weather.js",
+      "src/keel/github.js", ".github/workflows/server.yml"]
   workflow_dispatch:
 
 permissions:

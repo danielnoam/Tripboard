@@ -80,7 +80,8 @@ done yet (TODO.md).
 ## Changing it
 
 The tables change only through a new file in `migrations/`, never by
-editing an old one. A merge that changes `server/` deploys it.
+editing an old one. A merge that changes `server/`, `cli/` or a `src/` file the
+connector loads deploys it (`.github/workflows/server.yml` lists them).
 
 ## The cloud connector for AI apps (optional)
 
