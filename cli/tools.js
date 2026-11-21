@@ -172,7 +172,7 @@ const TOOLS = [
       throw new Error(r.file.name + " isn't text. Give --out to save it.");
     } },
   { tool: "export_backup", cmd: "export", kind: "read", query: "exportBackup",
-    description: "A backup like the app's Save a backup (Settings › Storage), which Restore takes back. All trips, or the ones named. Over MCP its covers and files' bytes come only with withBytes and TRIPBOARD_MCP_FILES=1.",
+    description: "A backup like the app's Save a backup (Settings › Data), which Restore takes back. All trips, or the ones named. Over MCP its covers and files' bytes come only with withBytes and TRIPBOARD_MCP_FILES=1.",
     args: [["trips", { type: "array", items: { type: "string" }, description: "Trip ids or names; all when left out. The CLI takes them comma-separated." }],
       ["withBytes", { type: "boolean" }, { cli: false }],
       ["out", { type: "string", description: "The file to write; tripboard-<date>.json by default." }, { mcp: false }]],

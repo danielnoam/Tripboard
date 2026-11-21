@@ -2342,7 +2342,7 @@
       pendingSetup = v; render();
     } });
     return el("section.panel", {}, el("h2", { text: i18n.t("Have a setup link?") }),
-      el("p.hint.dim", { text: i18n.t("From Settings › GitHub sync on a device that's already connected.") }),
+      el("p.hint.dim", { text: i18n.t("From Settings › Data on a device that's already connected.") }),
       el("div.link-row", {}, input, go), status);
   }
 
