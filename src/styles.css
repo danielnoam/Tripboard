@@ -585,3 +585,23 @@ body.on-board main.today-page { max-width: 640px; }
 .sync-qr { justify-self: center; padding: var(--space-2); border-radius: var(--radius-lg); background: #fff; line-height: 0; }
 .sync-qr svg { width: 200px; height: 200px; }
 .setup-ask { border: 2px solid var(--accent); }
+
+/* Weather (views.js, src/weather.js): a small chip on a day, a panel on Today. */
+.wx { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; font-size: 14px; font-variant-numeric: tabular-nums; }
+.wx .icon { width: 18px; height: 18px; color: var(--text-dim); }
+.wx-max { font-weight: 600; }
+.wx-min { color: var(--text-dim); }
+.wx-today { grid-template-columns: auto 1fr; align-items: center; gap: var(--space-3); }
+.wx-today-ic .icon { width: 40px; height: 40px; color: var(--accent); }
+.wx-today-text { display: grid; gap: 2px; }
+.wx-today-kind { font-weight: 600; }
+.wx-today-temps { display: flex; align-items: baseline; gap: var(--space-2); font-variant-numeric: tabular-nums; }
+.wx-today-temps .wx-max { font-size: var(--fs-big); line-height: 1.1; }
+.wx-today-temps .wx-min { font-size: var(--fs-title); }
+.wx-today-more { font-size: 14px; }
+.wx-ask { grid-template-columns: auto 1fr; align-items: start; gap: var(--space-3); }
+.wx-ask-ic .icon { width: 28px; height: 28px; color: var(--accent); }
+.wx-ask-text { display: grid; gap: var(--space-2); }
+.tomorrow-head .wx { margin-inline-start: auto; margin-inline-end: var(--space-3); }
+.wx-today-src { font-size: var(--fs-small); }
+.group-head .wx { margin-inline-end: var(--space-1); }

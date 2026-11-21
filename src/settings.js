@@ -5,6 +5,9 @@
 //   sync        GitHub sync's token and repo
 //   me          who you are on shared trips: an id (made once, or taken from
 //               the sync repo so all your devices share it), and your name
+//   weather     the forecast on Today and each day: on (true), off (false)
+//               or not asked yet (null), and the unit ("c", "f", or "" for
+//               this device's usual one)
 //   categories  your own list of place categories, once you change the
 //               defaults: { list: [{ id, name? }], at }. GitHub sync keeps it
 //               in categories.json, and the newer list wins.
@@ -33,6 +36,7 @@
     // GitHub sync: a fine-grained token for one private repo of yours.
     sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
     me: { id: "", name: "" },
+    weather: { on: null, unit: "" },
     categories: null,
   };
   const catsOf = (c) => {
@@ -52,6 +56,9 @@
       if (ok(s.main)) out[svc].main = s.main;
       if (s.fallback === "" || ok(s.fallback)) out[svc].fallback = s.fallback || "";
     }
+    const w = saved.weather || {};
+    if (typeof w.on === "boolean") out.weather.on = w.on;
+    if (["c", "f"].includes(w.unit)) out.weather.unit = w.unit;
     const th = saved.appearance && saved.appearance.theme;
     if (["system", "light", "dark"].includes(th)) out.appearance.theme = th;
     for (const k of Object.keys(out.sync)) if (saved.sync && typeof saved.sync[k] === "string") out.sync[k] = saved.sync[k];
@@ -72,6 +79,7 @@
     get: () => JSON.parse(JSON.stringify(cur)),
     provider: (id) => ({ ...cur.providers[id] }),
     setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
+    setWeather(patch) { cur.weather = { ...cur.weather, ...patch }; S.save(); },
     setTheme(theme) { cur.appearance = { theme }; S.save(); },
     setMe(patch) { cur.me = { ...cur.me, ...patch, id: cur.me.id }; cur.me.name = String(cur.me.name || "").trim().slice(0, 60); S.save(); },
     // Takes the id your other devices use (sync's me.json), remembering the

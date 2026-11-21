@@ -36,6 +36,7 @@ they always match.
 | A file kept with a trip (MCP: only with `TRIPBOARD_MCP_FILES=1`) | `file` | `get_file` |
 | A backup file, like the app's Save a backup | `export` | `export_backup` |
 | Where a place is, by name, from OpenStreetMap (as Find by name) | `locate` | `find_location` |
+| The weather for a trip's days, from Open-Meteo (as Today and the Plan show it) | `weather` | `get_weather` |
 
 | Change | CLI | MCP tool |
 |---|---|---|
@@ -78,6 +79,7 @@ node cli/tripboard.js trips
 node cli/tripboard.js show kyoto
 node cli/tripboard.js day kyoto 2026-12-01
 node cli/tripboard.js locate "Fushimi Inari, Kyoto"
+node cli/tripboard.js weather kyoto
 node cli/tripboard.js add-place kyoto --name "Fushimi Inari" --day 2026-12-01 --time 07:00 --importance must --lat 34.9671 --lng 135.7727
 node cli/tripboard.js add-expense kyoto --amount 48000 --currency JPY --title Ryokan --category stay
 node cli/tripboard.js add-file kyoto --path ~/Downloads/ryokan.pdf --place ryokan
