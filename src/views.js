@@ -4,6 +4,7 @@
 (function () {
   const M = window.Tripboard.model;
   const icon = window.Tripboard.icon;
+  const catIcon = window.Tripboard.catIcon;
   const $ = (id) => document.getElementById(id);
 
   // el("div.card", { onclick, text, attrs }, children…)
@@ -643,7 +644,7 @@
             el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
               onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
             el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
-              el("span.card-name", { text: p.name }),
+              el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name),
               el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), " · " + meta.join(" · ")),
               p.note ? el("span.card-note", { text: p.note }) : null)),
           isNext ? el("div.next-row", {},
@@ -936,7 +937,7 @@
     const isDay = !!g.day;
     const title = isDay ? (trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, g.day), date: dayLabel(g.day) }) : dayLabel(g.day)) : g.title;
     const head = el("div.group-head", {},
-      el("h2", { text: title }),
+      el("h2", {}, view.sort === "category" ? icon(catIcon(g.id), "cat") : null, title),
       isDay && wx && wx[g.day] ? wxChip(wx[g.day]) : null,
       el("span.count", { text: String(g.places.length) }),
       view.sort === "time" && mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
@@ -1043,7 +1044,7 @@
         el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
           onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
-          el("span.card-name", { text: p.name }),
+          el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name),
           el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), meta.length ? " · " + meta.join(" · ") : "",
             nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
           p.note ? el("span.card-note", { text: p.note }) : null));
