@@ -51,7 +51,7 @@ two GitHub addresses and the fallback in `tools/desktop-files.js`.
 
 One short line per feature, under its own heading, as they ship.
 
-- **Languages:** English and Hebrew (right to left), in Settings › Appearance › Language.
+- **Languages:** English and Hebrew (right to left), in Settings › Display › Language.
 
 ## Credits
 

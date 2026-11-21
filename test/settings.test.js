@@ -47,6 +47,12 @@ test("AI tools may not delete until turned on; another device's newer choice win
   assert.deepStrictEqual(S.get().ai, { deleting: false, at: "2999-01-01T00:00:00.000Z" });
 });
 
+test("the clock and date order follow the device until picked; nothing else is kept", () => {
+  assert.deepStrictEqual(S.merge(null).display, { clock: "", dates: "" });
+  assert.deepStrictEqual(S.merge({ display: { clock: "12", dates: "dm" } }).display, { clock: "12", dates: "dm" });
+  assert.deepStrictEqual(S.merge({ display: { clock: "13", dates: "ymd" } }).display, { clock: "", dates: "" });
+});
+
 test("the theme is system, light or dark, and system by default", () => {
   assert.strictEqual(S.merge(null).appearance.theme, "system");
   assert.strictEqual(S.merge({ appearance: { theme: "dark" } }).appearance.theme, "dark");

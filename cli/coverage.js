@@ -69,10 +69,11 @@ const sheets = {
 
 // Settings pages (#/settings/<page> in views.js).
 const settings = {
-  you: "device: your name is kept on each device; your id is me.json, which the CLI reads",
+  sharing: "device: your name is kept on each device (your id is me.json, which the CLI reads); the sharing server is its own page (server)",
+  data: "device: a page of links to sync, drive and storage",
   categories: ["list_categories", "add_category", "update_category", "delete_category", "reset_categories"],
   storage: ["export_backup", "import_backup"],
-  appearance: "device: theme and language",
+  appearance: "device: theme, language, °C or °F, clock and date order",
   services: "device: map and search providers and their keys, never given to a chat",
   map: "device: the map provider", search: "device: the search provider (find_location uses OpenStreetMap)", p: "device: a provider's key and style",
   sync: "device: the GitHub sync token; the CLI has its own (TRIPBOARD_TOKEN)",

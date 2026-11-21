@@ -1,6 +1,6 @@
 // Weather for a trip's days, from Open-Meteo (open-meteo.com): free, no
 // key, browser requests allowed, data under CC BY 4.0 (credited on Today,
-// in Settings › Weather and in About). Its forecast reaches 16 days (today
+// in Settings › Services › Weather and in About). Its forecast reaches 16 days (today
 // and 15 more), so a day further off has none yet.
 //   points(trip, places)   where each day's weather is for
 //   forecast(trip, places, { today, fetchFn, cached })  →  { at, sig, days }
