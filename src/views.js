@@ -278,7 +278,7 @@
       main.append(el("ul.trips", {}, trips.map((t) => {
         const n = placesOf(t.id).length;
         const when = whenLabel(t);
-        return el("li", {}, el("a.trip-card", { href: "#/trip/" + t.id + (M.tripStatus(t, today()) === "now" ? "/today" : "") },
+        return el("li", {}, el("a.trip-card", { href: "#/trip/" + t.id + (M.tripStatus(t, today()) === "now" ? "/today" : ""), "data-trip": t.id },
           coverBox(t, "trip-cover"),
           el("div.trip-text", {},
             el("strong", { text: t.name }),
@@ -2677,9 +2677,91 @@
     for (const t of ["pointerup", "pointercancel", "dragstart"]) document.addEventListener(t, up);
   }
 
+  // Home's quick menu: Edit and Delete for a trip, on a long press (touch)
+  // or a right-click (mouse, or the keyboard's menu key). A tap still opens
+  // the trip at once; only a press held LONG_PRESS ms without moving opens
+  // the menu, and the click that may follow it is swallowed.
+  const LONG_PRESS = 450;
+  function tripMenu() {
+    let box = null, timer = 0, from = null, swallow = false;
+    const cardAt = (n) => n && n.closest && n.closest(".trip-card[data-trip]");
+    const close = (refocus) => {
+      if (!box) return;
+      box.remove();
+      box = null;
+      if (refocus && from) from.focus();
+    };
+    function open(card, x, y, keyboard) {
+      const trip = findTrip(card.dataset.trip);
+      if (!trip || !mayEdit(trip)) return false;
+      close();
+      from = card;
+      const del = el("button.danger", { type: "button", role: "menuitem" }, icon("trash"), el("span", { text: i18n.t("Delete") }));
+      del.addEventListener("click", () => {
+        if (del.dataset.armed) { close(); deleteTrip(trip); return; }
+        del.dataset.armed = "1";
+        del.lastChild.textContent = i18n.t("Tap again to delete");
+        setTimeout(() => { delete del.dataset.armed; del.lastChild.textContent = i18n.t("Delete"); }, 3000);
+      });
+      box = el("div.quick-menu", { role: "menu", "aria-label": trip.name },
+        el("button", { type: "button", role: "menuitem", onclick: () => { close(); openTrip(trip, card); } }, icon("pencil"), el("span", { text: i18n.t("Edit") })),
+        del);
+      document.body.append(box);
+      const r = box.getBoundingClientRect(), M8 = 8, vw = innerWidth, vh = innerHeight;
+      if (keyboard) { const c = card.getBoundingClientRect(); x = i18n.dir === "rtl" ? c.right : c.left; y = c.bottom; }
+      const left = i18n.dir === "rtl" ? x - r.width : x;
+      const top = y + r.height + M8 > vh ? y - r.height : y;
+      box.style.left = Math.max(M8, Math.min(vw - r.width - M8, left)) + "px";
+      box.style.top = Math.max(M8, Math.min(vh - r.height - M8, top)) + "px";
+      if (!lessMotion() && box.animate) box.animate([{ opacity: 0, transform: "scale(0.92)" }, { opacity: 1, transform: "none" }], { duration: 120, easing: "ease-out" });
+      if (keyboard) box.querySelector("button").focus();
+      return true;
+    }
+    const cancel = () => { clearTimeout(timer); timer = 0; };
+    document.addEventListener("pointerdown", (e) => {
+      if (box && !box.contains(e.target)) { close(); swallow = true; return; }
+      const card = cardAt(e.target);
+      if (!card || e.pointerType === "mouse") return;
+      cancel();
+      const x0 = e.clientX, y0 = e.clientY;
+      timer = setTimeout(() => {
+        timer = 0;
+        if (open(card, x0, y0)) { swallow = true; if (navigator.vibrate) navigator.vibrate(10); }
+      }, LONG_PRESS);
+      const move = (m) => { if (Math.hypot(m.clientX - x0, m.clientY - y0) > 10) cancel(); };
+      card.addEventListener("pointermove", move);
+      const done = () => { cancel(); card.removeEventListener("pointermove", move); };
+      card.addEventListener("pointerup", done, { once: true });
+      card.addEventListener("pointercancel", done, { once: true });
+    }, true);
+    document.addEventListener("contextmenu", (e) => {
+      const card = cardAt(e.target);
+      if (!card) return;
+      if (box && from === card && swallow) { e.preventDefault(); return; }
+      if (open(card, e.clientX, e.clientY, !e.clientX && !e.clientY)) { e.preventDefault(); cancel(); }
+    });
+    document.addEventListener("click", (e) => {
+      if (!swallow || !cardAt(e.target)) { swallow = false; return; }
+      swallow = false;
+      e.preventDefault();
+    }, true);
+    document.addEventListener("keydown", (e) => {
+      if (!box) return;
+      if (e.key === "Escape") { e.preventDefault(); close(true); return; }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const items = [...box.querySelectorAll("button")];
+      const i = items.indexOf(document.activeElement);
+      items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    });
+    for (const t of ["hashchange", "resize", "blur"]) window.addEventListener(t, () => close());
+    document.addEventListener("scroll", () => close(), true);
+  }
+
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
     pressBounce();
+    tripMenu();
     doc = M.sanitizeDoc(doc);
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
