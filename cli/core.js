@@ -101,8 +101,9 @@ function open({ token, repo, branch, fetch } = {}) {
       carried.trips = carried.trips.map((t, i) => (mayEdit(before, t.id, st.me) ? t : clean.trips[i]));
       const next = M.stamp(before, carried, undefined, st.me);
       // The record a tool gives back is the one written, with its new updatedAt.
-      const written = result && result.id && next.trips.concat(next.places, next.expenses, next.files).find((r) => r.id === result.id);
-      const answer = written ? clone(written) : result;
+      const records = next.trips.concat(next.places, next.expenses, next.files);
+      const fresh = (r) => { const w = r && r.id && records.find((x) => x.id === r.id); return w ? clone(w) : r; };
+      const answer = result && Array.isArray(result.results) ? { ...result, results: result.results.map(fresh) } : fresh(result);
       const writes = [];
       for (const id of new Set(G.tripIds(next).concat(Object.keys(bundles)))) {
         const b = G.bundleOf(next, id);
@@ -221,7 +222,7 @@ async function sharesServers(reading) {
 // The edits both front ends offer, on a doc. Each gives the record it made
 // or changed. Fields are the app's own (see src/model.js); unknown ones
 // are kept, as the app keeps them.
-const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited"];
+const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "order"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
 const FILE_FIELDS = ["name", "place", "note"];
@@ -296,11 +297,47 @@ const ops = {
   updatePlace(doc, a) {
     const t = findTrip(doc, a.trip);
     const p = findPlace(doc, t, a.place);
+    // A new day starts without the old day's order, as in the app.
+    if (a.day !== undefined && a.day !== p.day && a.order === undefined) delete p.order;
     Object.assign(p, pick(a, PLACE_FIELDS));
     clear(p, a, PLACE_FIELDS);
     // A new location from anywhere but Google's id isn't Google's.
     if ((a.lat !== undefined || a.lng !== undefined) && a.placeId === undefined) delete p.geoAt;
     return p;
+  },
+  // A day's places in the order given: they get order 1, 2, 3…, and the
+  // day's other places follow in their current order. Times still come
+  // first, so a timed place stays at its time.
+  orderDay(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (!M.isDay(a.day)) throw new Error("A day is YYYY-MM-DD.");
+    const keys = a.places || [];
+    if (!keys.length) throw new Error("Give the day's places in the order you want them.");
+    const listed = keys.map((k) => findPlace(doc, t, k));
+    for (const p of listed) if (!M.onDay(p, a.day)) throw new Error(p.name + " isn't on " + a.day + ". Set its day first.");
+    const twice = listed.find((p, i) => listed.indexOf(p) !== i);
+    if (twice) throw new Error(twice.name + " is listed twice.");
+    const rest = M.dayPlan(placesOf(doc, t), a.day).filter((p) => !listed.includes(p));
+    listed.concat(rest).forEach((p, i) => { p.order = i + 1; });
+    // Numbered again as the plan now runs, timed places included, so each
+    // order is its place in the day.
+    const plan = M.dayPlan(placesOf(doc, t), a.day);
+    plan.forEach((p, i) => { p.order = i + 1; });
+    const out = { trip: t.name, day: a.day, plan: plan.map((p) => ({ id: p.id, name: p.name, ...(p.time ? { time: p.time } : {}), order: p.order })) };
+    const got = plan.filter((p) => listed.includes(p));
+    if (got.some((p, i) => p !== listed[i])) out.note = "Places with a time go by their time first, so the plan isn't exactly the order given. Change or clear their times to move them.";
+    return out;
+  },
+  // Several changes in one commit: each step is a write tool's op with its
+  // arguments, run in turn on the same doc, so a step sees the ones before
+  // it. If one fails nothing is written.
+  async batch(doc, a, ctx) {
+    const results = [];
+    for (const [i, s] of (a.steps || []).entries()) {
+      try { results.push(await ops[s.op](doc, s.args, ctx)); }
+      catch (e) { throw new Error("Step " + (i + 1) + " (" + s.tool + "): " + (e.message || e) + " Nothing was changed."); }
+    }
+    return { changes: results.length, results };
   },
   deletePlace(doc, a) {
     const t = findTrip(doc, a.trip);
@@ -527,7 +564,8 @@ const queries = {
     const next = M.nextOf(plan);
     const expenses = (st.doc.expenses || []).filter((x) => x.trip === t.id && x.day === day);
     return {
-      trip: t.name, day, dayNumber: M.dayIndex(t, day), status: M.tripStatus(t, day),
+      trip: t.name, day, dayNumber: M.dayIndex(t, day), status: M.tripStatus(t, today()),
+      when: day < today() ? "past" : day > today() ? "upcoming" : "today",
       plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p), fromPrevious: i ? M.leg(plan[i - 1], p) : null })),
       next: next ? { id: next.id, name: next.name } : null,
       expenses, totals: M.expenseTotals(expenses),

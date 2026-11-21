@@ -46,6 +46,7 @@ they always match.
 | Set or remove a trip's cover photo | `cover` | `set_trip_cover` |
 | Add a place | `add-place` | `add_place` |
 | Change a place (day, time, location, visited…) | `edit-place` | `update_place` |
+| Put a day's places in order (the Today plan and the map's route follow it) | `order-day` | `order_day` |
 | Delete a place | `delete-place` | `delete_place` |
 | Import a Google Maps list (its shared link or a file) into a trip, or into a new one | `import` (`--link` or `--path`) | `import_places` |
 | Add an expense | `add-expense` | `add_expense` |
@@ -61,6 +62,7 @@ they always match.
 | Remove a category (its places go to Other) | `delete-category` | `delete_category` |
 | Back to the built-in categories | `reset-categories` | `reset_categories` |
 | Restore a backup file | `restore` | `import_backup` |
+| Many adds and changes in one commit (any of the above but deleting and restoring) | `batch` (`--steps` JSON or `--path`) | `batch_update` |
 
 What stays on each device and out of reach: offline maps, map and search
 providers and their keys, theme and language, your name, the sync and
@@ -84,6 +86,8 @@ node cli/tripboard.js add-place kyoto --name "Fushimi Inari" --day 2026-12-01 --
 node cli/tripboard.js add-expense kyoto --amount 48000 --currency JPY --title Ryokan --category stay
 node cli/tripboard.js add-file kyoto --path ~/Downloads/ryokan.pdf --place ryokan
 node cli/tripboard.js import --path "~/Downloads/Kyoto.csv"
+node cli/tripboard.js order-day kyoto 2026-12-01 --places "Fushimi Inari,Tofuku-ji,Ryokan"
+node cli/tripboard.js batch --trip kyoto --steps '[{"tool":"update_place","args":{"place":"Ryokan","note":"Check in 15:00"}},{"tool":"add_place","args":{"name":"Nishiki Market","day":"2026-12-02"}}]'
 ```
 
 Run it with no command to see every command and its options. Add `--json`
@@ -115,5 +119,5 @@ Tools are added and never renamed or removed, so a chat that uses them
 keeps working.
 
 For an AI app in the cloud (claude.ai, the phone apps, ChatGPT), the
-sharing server serves these same tools, minus deleting, with a GitHub
+sharing server serves these same tools, with deleting behind the same switch, with a GitHub
 sign-in: see "The cloud connector" in server/README.md.

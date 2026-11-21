@@ -513,6 +513,81 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(r.updatedAt, saved.updatedAt);
   });
 
+  await test("order_day orders a day's places without times; moving day clears the order", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Alps", "--start", "2026-09-11", "--end", "2026-09-13"], env, out);
+    for (const n of ["Hotel", "Seealpsee", "Lunch", "Ebenalp"]) await cli.main(["add-place", "Alps", "--name", n, "--day", "2026-09-12"], env, out);
+    await cli.main(["add-place", "Alps", "--name", "Train", "--day", "2026-09-12", "--time", "08:00"], env, out);
+    const lines = [];
+    await cli.main(["order-day", "Alps", "2026-09-12", "--places", "Ebenalp,Seealpsee,Lunch"], env, (x) => lines.push(x));
+    assert.match(lines[0], /1\. 08:00 {2}Train\n {2}2\. Ebenalp\n {2}3\. Seealpsee\n {2}4\. Lunch\n {2}5\. Hotel/);
+    assert.doesNotMatch(lines[0], /time first/);
+    const lines2 = [];
+    await cli.main(["order-day", "Alps", "2026-09-12", "--places", "Hotel,Train"], env, (x) => lines2.push(x));
+    assert.match(lines2[0], /1\. 08:00 {2}Train\n {2}2\. Hotel/);
+    assert.match(lines2[0], /time first/);
+    await cli.main(["order-day", "Alps", "2026-09-12", "--places", "Ebenalp,Seealpsee,Lunch"], env, out);
+    const tb = core.open({ token: "tok", repo: "me/data", fetch: g.fetch });
+    const T = require("../cli/tools.js");
+    const q = (n, a) => T.run(tb, T.TOOLS.find((t) => t.tool === n), a, "mcp", env);
+    assert.deepStrictEqual((await q("get_day", { trip: "Alps", day: "2026-09-12" })).plan.map((p) => p.name), ["Train", "Ebenalp", "Seealpsee", "Lunch", "Hotel"]);
+    await assert.rejects(q("order_day", { trip: "Alps", day: "2026-09-13", places: ["Hotel"] }), /isn't on 2026-09-13/);
+    const moved = await q("update_place", { trip: "Alps", place: "Lunch", day: "2026-09-13" });
+    assert.strictEqual(moved.order, undefined);
+    const kept = await q("update_place", { trip: "Alps", place: "Hotel", order: 1 });
+    assert.strictEqual(kept.order, 1);
+  });
+
+  await test("get_day's status is the trip's against today, and when says if the day is past", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    await cli.main(["new-trip", "--name", "Old", "--start", "2020-09-11", "--end", "2020-09-22"], env, () => {});
+    const tb = core.open({ token: "tok", repo: "me/data", fetch: g.fetch });
+    const T = require("../cli/tools.js");
+    const d = await T.run(tb, T.TOOLS.find((t) => t.tool === "get_day"), { trip: "Old", day: "2020-09-12" }, "mcp", env);
+    assert.strictEqual(d.status, "past");
+    assert.strictEqual(d.when, "past");
+    assert.strictEqual(d.dayNumber, 2);
+  });
+
+  await test("batch_update makes many changes in one commit, all or nothing", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    await cli.main(["new-trip", "--name", "Ticino", "--start", "2026-09-14", "--end", "2026-09-16"], env, () => {});
+    const sent = [];
+    const s = mcp.server({ env, fetch: g.fetch, write: (l) => sent.push(JSON.parse(l)) });
+    const before = g.commits;
+    const r = await mcpCall(s, sent, "batch_update", { trip: "Ticino", steps: [
+      { tool: "add_place", args: { name: "Verzasca", day: "2026-09-14" } },
+      { tool: "add_place", args: { name: "Lugano", day: "2026-09-14" } },
+      { tool: "update_place", args: { place: "Verzasca", note: "Swim" } },
+      { tool: "order_day", args: { day: "2026-09-14", places: ["Lugano", "Verzasca"] } },
+      { tool: "add_expense", args: { amount: 40, currency: "CHF", title: "Boat", place: "Lugano" } },
+    ] });
+    assert.ok(!r.error, r.error);
+    assert.strictEqual(r.value.changes, 5);
+    assert.ok(r.value.results[2].updatedAt && r.value.results[2].note === "Swim");
+    assert.strictEqual(g.commits, before + 1);
+    const path = [...g.files().keys()].find((p) => p.startsWith("trips/"));
+    const b = g.read(path);
+    assert.deepStrictEqual(b.places.map((p) => [p.name, p.order]).sort(), [["Lugano", 1], ["Verzasca", 2]]);
+    assert.strictEqual(b.expenses[0].place, b.places.find((p) => p.name === "Lugano").id);
+
+    const bad = await mcpCall(s, sent, "batch_update", { trip: "Ticino", steps: [
+      { tool: "add_place", args: { name: "Bellinzona" } }, { tool: "update_place", args: { place: "Nowhere", note: "x" } }] });
+    assert.match(bad.error, /Step 2 \(update_place\).*Nothing was changed/);
+    const del = await mcpCall(s, sent, "batch_update", { steps: [{ tool: "delete_place", args: { trip: "Ticino", place: "Lugano" } }] });
+    assert.match(del.error, /aren't done in a batch/);
+    assert.strictEqual(g.commits, before + 1);
+
+    const lines = [];
+    await cli.main(["batch", "--trip", "Ticino", "--steps", JSON.stringify([{ tool: "edit-place", args: { place: "Lugano", visited: true } }])], env, (x) => lines.push(x));
+    assert.strictEqual(lines[0], "Done: 1 change in one commit.");
+    assert.strictEqual(g.read(path).places.find((p) => p.name === "Lugano").visited, true);
+  });
+
   await test("MCP tools say which only read and which delete", async () => {
     const s = mcp.server({ env, write: () => {} });
     const by = Object.fromEntries(s.TOOLS.map((t) => [t.name, t.annotations]));
