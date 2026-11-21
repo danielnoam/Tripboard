@@ -150,7 +150,7 @@ adds a line here.
   the place's location (or name) and Google id, only when tapped.
 - Weather (src/weather.js) comes from Open-Meteo (api.open-meteo.com, in
   connect-src), off until the person says yes on Today or the Plan, or in
-  Settings › Weather. Once on, opening a trip within 16 days of its dates
+  Settings › Services › Weather. Once on, opening a trip within 16 days of its dates
   sends Open-Meteo one point per day (the middle of that day's located
   places, or its first when they spread over 30 km, rounded to 2 decimals,
   about a kilometre) and the dates; never names, notes or anything else.
