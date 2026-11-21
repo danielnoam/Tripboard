@@ -33,7 +33,7 @@ src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
 src/keel/releases.js the update check and test builds (from keel)
-src/update.js        the update bar in the phone and desktop apps: on Android, Update downloads the release's APK into the app's cache (Capacitor Filesystem) and opens Android's installer (FileOpener); elsewhere it opens the download in the browser
+src/keel/update.js   the update bar: on Android, Update downloads the release's APK into the app's cache (Capacitor Filesystem) and opens Android's installer (FileOpener); elsewhere the browser has it (from keel)
 src/keel/motion.js   springs and moves, made in app.js (from keel)
 src/keel/sw-preview.js  the service worker's half of a test build (from keel)
 src/keel/i18n.js     languages: t()/tn() keyed by the English text, data-t in index.html, Intl dates and numbers (from keel)
@@ -44,7 +44,6 @@ src/lang/he.js       the Hebrew words, keyed by the English
 test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
-test/update.test.js  src/update.js, with the phone's plugins faked
 test/merge.test.js   src/merge.js and the model's stamp()
 test/places.test.js  src/places.js
 test/weather.test.js src/weather.js
@@ -296,7 +295,7 @@ adds a line here.
   which copy is newer.
 
 - **Setup link and code for another device** (Settings › GitHub sync). The link carries the sync token, owner and repo after the `#` (`#t=…&o=…&r=…`), which browsers never send to a server, and keel's qr.js draws the code on the device, so the token never goes to a QR service. The trade-off is that anyone who sees the code or gets the link can use the token. The page says to use them only on your own devices. Opening a link takes the token out of the address bar first, then asks before connecting, so a link someone else sends can't quietly point this device at their repo.
-- **The app installs its own updates** (src/update.js). The Android app has REQUEST_INSTALL_PACKAGES and downloads the APK from the repo's public GitHub release over HTTPS, then hands it to Android's installer. Android shows its own install screen every time and only installs over the app if the APK is signed with the same key, so a swapped file can't replace Tripboard; what this trusts is the GitHub account that publishes releases and the signing key. The APK sits in the app's cache until a later launch clears it.
+- **The app installs its own updates** (keel's src/keel/update.js). The Android app has REQUEST_INSTALL_PACKAGES and downloads the APK from the repo's public GitHub release over HTTPS, then hands it to Android's installer. Android shows its own install screen every time and only installs over the app if the APK is signed with the same key, so a swapped file can't replace Tripboard; what this trusts is the GitHub account that publishes releases and the signing key. The APK sits in the app's cache until a later launch clears it.
 
 ## Traps
 

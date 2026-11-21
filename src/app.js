@@ -1,7 +1,7 @@
 // Tripboard: the app's start. keel's files (src/keel/) load before it:
-// errlog.js first, then platform.js (where it runs), releases.js (updates)
-// and motion.js (springs and moves); then Tripboard's own model.js (the
-// data and the board's sorts), store.js (IndexedDB), icons.js and
+// errlog.js first, then platform.js (where it runs), releases.js and
+// update.js (updates) and motion.js (springs and moves); then
+// Tripboard's own model.js (the data and the board's sorts), store.js (IndexedDB), icons.js and
 // views.js (the screens and sheets).
 (function () {
   const APP_VERSION = "0.3.2";
@@ -35,20 +35,16 @@
   // are on) the newest build of main is offered too, from the site's
   // unreleased/ (keel's tools/unreleased.js).
   const releases = K.releases.create({ name: "Tripboard", repo: () => (K.platform.build && K.platform.build.repo) || null });
-  // The bar's Update downloads and installs it (src/update.js). A closed
-  // bar stays closed for that version until a newer one is out.
+  // The bar's Update downloads and installs it (keel's update.js). A
+  // closed bar stays closed for that version until a newer one is out.
   if (K.platform.bundled) {
-    const updater = T.update.create(K.platform, K.releases.newer);
-    const SKIP = "tripboard.update.skip";
-    const skipped = () => { try { return localStorage.getItem(SKIP); } catch (e) { return null; } };
+    const updater = K.update.create({ name: "Tripboard" });
     K.platform.ready.then((b) => {
-      updater.clearOld(APP_VERSION);
+      updater.clearOld({ version: APP_VERSION, sha: b && b.sha });
       const kind = K.platform.desktopOs === "windows" ? "windows" : K.platform.os === "android" ? "android" : null;
       return releases.check({ version: APP_VERSION, sha: b && b.sha, at: b && b.builtAt }, kind);
     }).then((u) => {
-      if (!u || (u.channel === "unreleased" ? u.sha : u.version) === skipped()) return;
-      updater.offer(u, { bar: $("update"), text: $("updateText"), btn: $("updateBtn"), close: $("updateClose") }, i18n.t,
-        (key) => { try { localStorage.setItem(SKIP, key); } catch (e) { /* shown again next launch */ } });
+      if (u) updater.offer(u, { bar: $("update"), text: $("updateText"), btn: $("updateBtn"), close: $("updateClose") }, i18n.t);
     }).catch(() => { /* offline: ask again next launch */ });
   }
 
