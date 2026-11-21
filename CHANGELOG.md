@@ -4,6 +4,24 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.3.3] - 2026-11-21
+
+### Added
+- AI tools can put a day's places in order without inventing times (order_day, or an order on a place). Today, the board and the map's route follow it; times still come first.
+- AI tools can make many changes in one go (batch_update): one commit instead of one call per place, and nothing changes if any step fails.
+- Settings › AI tools: a switch for whether AI chats and the command line may delete. It's off at first, only the app can turn it on, and it follows you to every synced device.
+- Settings › Display: a 12- or 24-hour clock and, in English, the date order (Nov 21 or 21 Nov). Both follow the device until you pick.
+
+### Changed
+- The cloud connector for AI apps now has the delete tools too, and they work only while that switch is on. On the command line and the local MCP, deleting now needs the switch as well.
+- Settings has six rows instead of ten: Display (theme, language, °C or °F, clock, dates), Categories, Services (map, search, weather, AI tools), Sharing (your name and the sharing server), Data (GitHub sync, backups, storage) and About.
+- Delete in a place's sheet deletes on the first tap. Undo in the message that follows brings the place back.
+- Importance has new colours: Must see is blue, Want to is green, Maybe is orange. Warnings keep their red.
+
+### Fixed
+- An AI tool's day view (get_day) called a day of a finished trip "now". Its status is now the trip's against today, and it says whether the day itself is past, today or upcoming.
+- An AI tool that changes a trip, place, expense or file now answers with the record as saved, including its new change time, instead of the time from before the change.
+
 ## [0.3.2] - 2026-11-21
 
 ### Added
