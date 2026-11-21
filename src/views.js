@@ -2250,9 +2250,9 @@
   let syncPaint = null;
   function ago(iso) {
     const s = Math.round((Date.now() - new Date(iso)) / 1000);
-    if (s < 60) return "just now";
-    if (s < 3600) return Math.round(s / 60) + " min ago";
-    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    if (s < 60) return i18n.t("just now");
+    if (s < 3600) return i18n.tn(Math.round(s / 60), "1 min ago", "{n} min ago");
+    if (s < 86400) return i18n.tn(Math.round(s / 3600), "1 h ago", "{n} h ago");
     return fmt({ day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
   }
   function syncSummary() {
@@ -2260,7 +2260,7 @@
     const st = SYNC.status, c = SET.get().sync;
     if (st.state === "error") return { text: i18n.t("Didn't finish. Open for why"), tone: "warn" };
     if (st.state === "syncing") return { text: i18n.t("Syncing…") };
-    return { text: c.owner + "/" + c.repo + (st.at ? ", synced " + ago(st.at) : "") };
+    return { text: st.at ? i18n.t("{repo}, synced {ago}", { repo: c.owner + "/" + c.repo, ago: ago(st.at) }) : c.owner + "/" + c.repo };
   }
   const SYNC_STEPS = [
     [i18n.t("On GitHub, make a private repo for your trips (tripboard-data is a good name). Tick Add a README, so it isn't empty."), "https://github.com/new?name=tripboard-data&visibility=private"],
