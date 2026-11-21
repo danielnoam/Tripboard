@@ -61,7 +61,9 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   };
   const asDate = (day) => new Date(day + "T12:00:00");
-  const fmt = (opts) => new Intl.DateTimeFormat(i18n.lang, opts);
+  // Dates and times, in Settings › Display's clock and (in English) date order.
+  const dateLang = () => { const d = SET.get().display.dates; return i18n.lang === "en" && d ? (d === "dm" ? "en-GB" : "en-US") : i18n.lang; };
+  const fmt = (opts) => { const c = SET.get().display.clock; return new Intl.DateTimeFormat(dateLang(), opts.hour && c ? { ...opts, hour12: c === "12" } : opts); };
   const dayLabel = (day) => fmt({ weekday: "short", day: "numeric", month: "short" }).format(asDate(day));
   function rangeLabel(t) {
     if (!t.start) return i18n.t("No dates yet");
@@ -77,7 +79,8 @@
     return "";
   }
   const daysLabel = (p) => (p.endDay ? dayLabel(p.day) + " – " + dayLabel(p.endDay) : dayLabel(p.day));
-  const timeLabel = (p) => (p.time ? p.time + (p.endTime ? "–" + p.endTime : "") : "");
+  const hm = (t) => (SET.get().display.clock === "12" ? fmt({ hour: "numeric", minute: "2-digit" }).format(new Date("2000-01-01T" + t + ":00")) : t);
+  const timeLabel = (p) => (p.time ? hm(p.time) + (p.endTime ? "–" + hm(p.endTime) : "") : "");
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
@@ -1172,7 +1175,7 @@
     } else if (st && st.state === "saved") {
       const gone = OFF.missing(st.points, points);
       const at = new Date(st.at);
-      const when = new Intl.DateTimeFormat(i18n.lang, at.toDateString() === new Date().toDateString() ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(at);
+      const when = fmt(at.toDateString() === new Date().toDateString() ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(at);
       kids.push(el("p.offline-title", { text: i18n.t("Saved for no signal") }),
         el("p.dim", { text: (where ? i18n.t("The map of {where} (zoomed in to street level), every place, cover and synced file.", { where })
           : i18n.t("The map around this trip's places (zoomed in to street level), every place, cover and synced file.")) + " "
@@ -1847,20 +1850,23 @@
   // Everything search can find: each page, and what's on it.
   function settingsIndex() {
     const out = [
-      ...(driveOn() ? [{ ico: "cloud", title: i18n.t("Google Drive"), where: i18n.t("Settings"), href: "#/settings/drive", words: "drive google backup backups restore automatic cloud copy" }] : []),
-      { ico: "refresh", title: i18n.t("GitHub sync"), where: i18n.t("Settings"), href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
-      { ico: "user", title: i18n.t("You"), where: i18n.t("Settings"), href: "#/settings/you", words: "name me profile person shared trips paid by who" },
+      { ico: "palette", title: i18n.t("Display"), where: i18n.t("Settings"), href: "#/settings/appearance", words: "appearance theme dark light system mode colours" },
+      { ico: "globe", title: i18n.t("Language"), where: i18n.t("Display"), href: "#/settings/appearance", words: "language english hebrew rtl right to left שפה עברית אנגלית" },
+      { ico: "cloudSun", title: i18n.t("Temperature"), where: i18n.t("Display"), href: "#/settings/appearance", words: "temperature celsius fahrenheit units degrees" },
+      { ico: "clock", title: i18n.t("Clock"), where: i18n.t("Display"), href: "#/settings/appearance", words: "clock time 12 24 hour am pm format" },
+      { ico: "calendar", title: i18n.t("Dates"), where: i18n.t("Display"), href: "#/settings/appearance", words: "dates date format order day month" },
       { ico: "tag", title: i18n.t("Categories"), where: i18n.t("Settings"), href: "#/settings/categories", words: "categories category kinds types places add rename remove order sights food stays" },
-      { ico: "database", title: i18n.t("Storage"), where: i18n.t("Settings"), href: "#/settings/storage", words: "space used trips places photos covers persistent keep safe delete browser" },
-      { ico: "database", title: i18n.t("Backup"), where: i18n.t("Storage"), href: "#/settings/storage", words: "backup restore file export import save json" },
-      { ico: "palette", title: i18n.t("Appearance"), where: i18n.t("Settings"), href: "#/settings/appearance", words: "theme dark light system mode colours" },
-      { ico: "globe", title: i18n.t("Language"), where: i18n.t("Appearance"), href: "#/settings/appearance", words: "language english hebrew rtl right to left שפה עברית אנגלית" },
       { ico: "plug", title: i18n.t("Services"), where: i18n.t("Settings"), href: "#/settings/services", words: "connections providers map search keys google maptiler openstreetmap openfreemap" },
       { ico: "map", title: i18n.t("Map"), where: i18n.t("Services"), href: "#/settings/map", words: "map tiles use fallback if it fails provider" },
       { ico: "search", title: i18n.t("Find by name"), where: i18n.t("Services"), href: "#/settings/search", words: "search find places geocoding use fallback if it fails provider" },
-      { ico: "users", title: i18n.t("Sharing server"), where: i18n.t("Settings"), href: "#/settings/server", words: "sharing server own self host cloudflare worker deploy address invite" },
-      { ico: "cloudSun", title: i18n.t("Weather"), where: i18n.t("Settings"), href: "#/settings/weather", words: "weather forecast rain temperature celsius fahrenheit open-meteo sunrise sunset" },
-      { ico: "key", title: i18n.t("AI tools"), where: i18n.t("Settings"), href: "#/settings/ai", words: "ai chat claude chatgpt mcp cli connector delete deleting allow permission" },
+      { ico: "cloudSun", title: i18n.t("Weather"), where: i18n.t("Services"), href: "#/settings/weather", words: "weather forecast rain open-meteo sunrise sunset" },
+      { ico: "key", title: i18n.t("AI tools"), where: i18n.t("Services"), href: "#/settings/ai", words: "ai chat claude chatgpt mcp cli connector delete deleting allow permission" },
+      { ico: "users", title: i18n.t("Sharing"), where: i18n.t("Settings"), href: "#/settings/sharing", words: "you name me profile person shared trips paid by who" },
+      { ico: "users", title: i18n.t("Sharing server"), where: i18n.t("Sharing"), href: "#/settings/server", words: "sharing server own self host cloudflare worker deploy address invite" },
+      { ico: "database", title: i18n.t("Data"), where: i18n.t("Settings"), href: "#/settings/data", words: "data sync backup storage" },
+      { ico: "refresh", title: i18n.t("GitHub sync"), where: i18n.t("Data"), href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
+      ...(driveOn() ? [{ ico: "cloud", title: i18n.t("Google Drive"), where: i18n.t("Data"), href: "#/settings/drive", words: "drive google backup backups restore automatic cloud copy" }] : []),
+      { ico: "database", title: i18n.t("Storage and backup"), where: i18n.t("Data"), href: "#/settings/storage", words: "storage space used trips places photos covers persistent keep safe delete browser backup restore file export import save json" },
       { ico: "info", title: i18n.t("About"), where: i18n.t("Settings"), href: "#/settings/about", words: "version credits licences privacy" },
     ];
     for (const [id, P] of Object.entries(SET.PROVIDERS)) {
@@ -1882,7 +1888,8 @@
   }
 
   // Settings' pages, and the page each one steps back to.
-  const SETTINGS_PARENT = { map: "services", search: "services", p: "services" };
+  const SETTINGS_PARENT = { map: "services", search: "services", p: "services", weather: "services", ai: "services",
+    server: "sharing", sync: "data", drive: "data", storage: "data" };
   const settingsParent = (page) => SETTINGS_PARENT[String(page).split("/")[0]] || "";
 
   function renderSettings(main, page) {
@@ -1890,10 +1897,11 @@
     if (page === "services") return renderServices(main);
     if (page === "drive") return renderDrive(main);
     if (page === "sync") return renderSync(main);
-    if (page === "you") return renderYou(main);
+    if (page === "you" || page === "sharing") return renderSharing(main);
+    if (page === "data") return renderData(main);
     if (page === "categories") return renderCategories(main);
     if (page === "storage") return renderStorage(main);
-    if (page === "appearance") return renderAppearance(main);
+    if (page === "appearance" || page === "display") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
     if (page === "weather") return renderWeather(main);
     if (page === "server") return renderServer(main);
@@ -1906,16 +1914,11 @@
     const results = el("div.settings-results");
     const needs = SERVICES.map(([svc]) => serviceStatus(svc, cfg)).find((st) => st.tone === "warn");
     const home = el("div.sgroup", {}, el("div.sgroup-card", {},
-      srow("#/settings/you", "user", i18n.t("You"), { text: cfg.me.name || i18n.t("Your name, for shared trips") }),
+      srow("#/settings/appearance", "palette", i18n.t("Display"), { text: i18n.t("Theme, language, temperature and clock") }),
       srow("#/settings/categories", "tag", i18n.t("Categories"), { text: cats().map(([, n]) => n).slice(0, 4).join(", ") + (cats().length > 4 ? "…" : "") }),
-      srow("#/settings/storage", "database", i18n.t("Storage"), { text: i18n.t("Space used, backup and restore") }),
-      srow("#/settings/appearance", "palette", i18n.t("Appearance"), { text: THEMES.find(([t]) => t === cfg.appearance.theme)[1] }),
-      srow("#/settings/services", "plug", i18n.t("Services"), needs || { text: i18n.t("Map and Find by name: {join}", { join: SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }) }),
-      srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
-      driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
-      srow("#/settings/server", "users", i18n.t("Sharing server"), { text: SHARE.server() === SHARE.DEFAULT ? i18n.t("Tripboard's server") : SHARE.host(SHARE.server()) }),
-      srow("#/settings/weather", "cloudSun", i18n.t("Weather"), { text: wxOn() ? i18n.t("On, from Open-Meteo") : i18n.t("Off") }),
-      srow("#/settings/ai", "key", i18n.t("AI tools"), { text: cfg.ai.deleting ? i18n.t("Can delete") : i18n.t("Can't delete") }),
+      srow("#/settings/services", "plug", i18n.t("Services"), needs || { text: i18n.t("Map, search, weather and AI tools") }),
+      srow("#/settings/sharing", "users", i18n.t("Sharing"), { text: i18n.join([cfg.me.name || i18n.t("No name yet"), SHARE.server() === SHARE.DEFAULT ? i18n.t("Tripboard's server") : SHARE.host(SHARE.server())]) }),
+      srow("#/settings/data", "database", i18n.t("Data"), dataSummary()),
       srow("#/settings/about", "info", i18n.t("About"), { text: i18n.t("Version {version} · credits", { version: window.Tripboard.version }) })));
     const paint = () => {
       const q = input.value.trim();
@@ -1937,25 +1940,36 @@
   function renderServices(main) {
     $("title").textContent = i18n.t("Services");
     const cfg = SET.get();
-    main.append(el("p.dim.hint.page-hint", { text: i18n.t("Where the map and place search come from. Pick one for each, and one to fall back on.") }),
-      sgroup(i18n.t("Use"), SERVICES.map(([svc, title]) => srow("#/settings/" + svc, S_ICON[svc], title, serviceStatus(svc, cfg)))),
+    main.append(el("p.dim.hint.page-hint", { text: i18n.t("What Tripboard uses from outside this device: the map, place search, the weather and AI tools. For the map and search, pick one provider and one to fall back on.") }),
+      sgroup(i18n.t("Use"), SERVICES.map(([svc, title]) => srow("#/settings/" + svc, S_ICON[svc], title, serviceStatus(svc, cfg))).concat(
+        srow("#/settings/weather", "cloudSun", i18n.t("Weather"), { text: wxOn() ? i18n.t("On, from Open-Meteo") : i18n.t("Off") }),
+        srow("#/settings/ai", "key", i18n.t("AI tools"), { text: cfg.ai.deleting ? i18n.t("Can delete") : i18n.t("Can't delete") }))),
       sgroup(i18n.t("Providers"), Object.entries(SET.PROVIDERS).map(([id, P]) => srow("#/settings/p/" + id, P_ICON[id], P.name, providerStatus(id)))));
   }
 
   const THEMES = [["system", i18n.t("Same as this device")], ["light", i18n.t("Light")], ["dark", i18n.t("Dark")]];
+  // Display: how things look and read on this device.
   function renderAppearance(main) {
-    $("title").textContent = i18n.t("Appearance");
+    $("title").textContent = i18n.t("Display");
+    const dp = SET.get().display;
+    const seg = (legend, opts, cur, pick) => el("fieldset.field", {}, el("legend", { text: legend }),
+      el("div.seg", { role: "radiogroup" }, opts.map(([id, label]) => el("button", { type: "button", role: "radio", dir: "auto", "aria-checked": String(cur === id), text: label, onclick: () => { pick(id); render(); } }))));
+    const at = new Date(2026, 10, 21, 13, 0);
+    const sample = (opts, lang) => new Intl.DateTimeFormat(lang || i18n.lang, opts).format(at);
     const cur = SET.get().appearance.theme;
     main.append(el("section.panel", {}, el("fieldset.field", {}, el("legend", { text: i18n.t("Theme") }),
       el("div.seg", { role: "radiogroup" }, THEMES.map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String(cur === id), text: id === "system" ? i18n.t("System") : label,
         onclick: () => { SET.setTheme(id); render(); } })))),
       el("fieldset.field", {}, el("legend", { text: i18n.t("Language") }),
         el("div.seg", { role: "radiogroup" }, [["", i18n.t("System")], ...i18n.list().map((l) => [l.code, l.name])].map(([code, label]) => el("button", { type: "button", role: "radio", "aria-checked": String((i18n.choice || "") === code), text: label,
-          onclick: () => { if (i18n.set(code)) location.reload(); } }))))));
+          onclick: () => { if (i18n.set(code)) location.reload(); } })))),
+      seg(i18n.t("Temperature"), [["c", "°C"], ["f", "°F"]], wxUnit(), (id) => SET.setWeather({ unit: id })),
+      seg(i18n.t("Clock"), [["", i18n.t("System")], ["12", sample({ hour: "numeric", minute: "2-digit", hour12: true })], ["24", sample({ hour: "2-digit", minute: "2-digit", hour12: false })]], dp.clock, (id) => SET.setDisplay({ clock: id })),
+      i18n.lang === "en" ? seg(i18n.t("Dates"), [["", i18n.t("System")], ["md", sample({ day: "numeric", month: "short" }, "en-US")], ["dm", sample({ day: "numeric", month: "short" }, "en-GB")]], dp.dates, (id) => SET.setDisplay({ dates: id })) : null));
   }
 
   async function renderStorage(main) {
-    $("title").textContent = i18n.t("Storage");
+    $("title").textContent = i18n.t("Storage and backup");
     const trips = doc.trips.length, places = doc.places.length, covers = doc.trips.filter((t) => t.cover).length, files = (doc.files || []).length;
     const used = el("p", { text: i18n.t("Working it out…") });
     const keep = el("p.hint.dim");
@@ -2082,12 +2096,12 @@
   // Weather: on or off on this device, and °C or °F.
   function renderWeather(main) {
     $("title").textContent = i18n.t("Weather");
-    const w = SET.get().weather, unit = wxUnit();
+    const w = SET.get().weather;
     const seg = (legend, opts, cur, pick) => el("fieldset.field", {}, el("legend", { text: legend }),
       el("div.seg", { role: "radiogroup" }, opts.map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String(cur === id), text: label, onclick: () => { pick(id); render(); } }))));
     main.append(el("section.panel", {},
       seg(i18n.t("Show the weather"), [["on", i18n.t("On")], ["off", i18n.t("Off")]], w.on ? "on" : "off", (id) => { SET.setWeather({ on: id === "on" }); if (id === "off") try { localStorage.removeItem(WX_KEY); } catch (e) { /* private window */ } }),
-      seg(i18n.t("Temperature"), [["c", "°C"], ["f", "°F"]], unit, (id) => SET.setWeather({ unit: id })),
+      el("p.hint.dim", { text: i18n.t("°C or °F is in Settings › Display.") }),
       el("p.hint.dim", { text: i18n.t("The forecast for each day of a trip, on Today and on the Plan's days, up to 16 days ahead. It comes from Open-Meteo, a free weather service, which gets each day's rough location (about a kilometre) and the dates, nothing else. The last forecast stays on this device for when there's no signal.") }),
       el("p.hint.dim", {}, i18n.t("Weather data: "), el("a", { href: "https://open-meteo.com", target: "_blank", rel: "noopener noreferrer", text: "Open-Meteo.com" }), " (CC BY 4.0)")));
   }
@@ -2123,14 +2137,28 @@
   }
 
   // ---------- You ----------
-  function renderYou(main) {
-    $("title").textContent = i18n.t("You");
+  // Sharing: your name on shared trips, and the server they go through.
+  function renderSharing(main) {
+    $("title").textContent = i18n.t("Sharing");
     const me = SET.get().me;
     const name = el("input", { value: me.name, autocomplete: "name", maxlength: "60", placeholder: i18n.t("Your name"),
       onchange: (e) => { SET.setMe({ name: e.target.value }); toast(i18n.t("Saved.")); } });
-    main.append(el("section.panel", {}, el("label.field", {}, i18n.t("Name"), name),
-      el("p.hint.dim", { text: i18n.t("Shown to people you share a trip with, next to what you add and what you paid. Sharing comes in a later version; trips you make now are already marked as yours.") })),
-    el("p.dim.hint", { text: i18n.t("Your devices that sync share one id for you, kept in the sync repo.") }));
+    main.append(el("section.panel", {}, el("label.field", {}, i18n.t("Your name"), name),
+      el("p.hint.dim", { text: i18n.t("Shown to people you share a trip with, next to what you add and what you paid. Your devices that sync share one id for you, kept in the sync repo.") })),
+    sgroup(i18n.t("Server"), [srow("#/settings/server", "users", i18n.t("Sharing server"), { text: SHARE.server() === SHARE.DEFAULT ? i18n.t("Tripboard's server") : SHARE.host(SHARE.server()) })]));
+  }
+
+  // Data: where your trips are kept, on this device and elsewhere.
+  function dataSummary() {
+    const sync = syncSummary();
+    if (sync.tone === "warn") return sync;
+    return { text: SYNC && SYNC.connected() ? i18n.t("GitHub sync on · backups") : i18n.t("On this device · backups") };
+  }
+  function renderData(main) {
+    $("title").textContent = i18n.t("Data");
+    main.append(sgroup(i18n.t("Your trips elsewhere"), [srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
+      driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null]),
+    sgroup(i18n.t("On this device"), [srow("#/settings/storage", "database", i18n.t("Storage and backup"), { text: i18n.t("Space used, backup and restore") })]));
   }
 
   // ---------- Categories ----------
@@ -2196,7 +2224,7 @@
     if (s < 60) return "just now";
     if (s < 3600) return Math.round(s / 60) + " min ago";
     if (s < 86400) return Math.round(s / 3600) + " h ago";
-    return new Date(iso).toLocaleDateString(i18n.lang);
+    return fmt({ day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
   }
   function syncSummary() {
     if (!SYNC || !SYNC.connected()) return { text: i18n.t("Off. Keep your trips on every device") };
@@ -2349,7 +2377,7 @@
   const driveOn = () => !!(DRIVE && DRIVE.available);
   let driveList = null, driveBusy = false;
   const deviceName = () => { const P = window.Keel.platform || {}; return P.native ? (P.os === "ios" ? "iPhone" : "Android") : P.desktop ? (P.desktopOs === "linux" ? "Linux" : "Windows") : "Browser"; };
-  const when = (at) => new Date(at).toLocaleString(i18n.lang, { dateStyle: "medium", timeStyle: "short" });
+  const when = (at) => fmt({ day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(at));
   function driveSummary() {
     if (!DRIVE.on) return { text: i18n.t("Off. Dated copies of your trips") };
     if (driveBusy) return { text: i18n.t("Backing up…") };
