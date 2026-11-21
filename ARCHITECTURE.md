@@ -274,6 +274,11 @@ adds a line here.
 
 Things that broke once and would again.
 
+- The app's web address is index.html's `keel-site` meta (and its repo
+  `keel-repo`); share links and setup links read it. Moving the repo or
+  adding a custom domain: change both first, ship a release, then move.
+  GitHub redirects the repo, not its Pages address (keel README, "Moving
+  an app").
 - `t` means a trip all through views.js, so words go through
   `i18n.t()` / `i18n.tn()`, never a bare `t()`. Files Node also loads
   (model, settings, places, sync, map) fall back to an English-only

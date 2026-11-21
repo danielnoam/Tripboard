@@ -18,7 +18,8 @@
   const G = T.merge;
   // The server (server/README.md). Empty: no sharing.
   const SERVER = "https://tripboard.danielnoam1999.workers.dev";
-  const APP_URL = "https://danielnoam.github.io/Tripboard/";
+  // The web copy shared links open: index.html's keel-site.
+  const APP_URL = window.Keel.releases.metaSite();
   const server = () => { try { return localStorage.getItem("tripboard.shareServer") || SERVER; } catch (e) { return SERVER; } };
 
   let ctx = null, state = {}, loaded = null, timer = null, running = null, again = false;

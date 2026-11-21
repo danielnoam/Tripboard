@@ -2117,7 +2117,8 @@
   // repo and token in the address's #, which never leaves the browser.
   // Opening it asks first: any link someone got you to open could otherwise
   // point this device at their repo and send your trips there.
-  const WEB = "https://danielnoam.github.io/Tripboard/";
+  // The web copy: index.html's keel-site.
+  const WEB = window.Keel.releases.metaSite();
   const setupBase = () => (/^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname) ? location.origin + location.pathname : WEB);
   function setupLink() {
     const c = SET.get().sync;
