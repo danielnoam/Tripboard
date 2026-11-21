@@ -66,6 +66,8 @@ const sheets = {
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
   fileSheet: ["update_file", "delete_file", "get_file"],
   addFilesSheet: ["add_file"],
+  confirmSheet: ["delete_trip", "delete_place"],
+  moveSheet: ["batch_update", "update_place"],
 };
 
 // Settings pages (#/settings/<page> in views.js).
@@ -90,6 +92,8 @@ const actions = {
   "Deleted {name}.": ["delete_trip", "delete_place", "delete_file"],
   "Deleted {title}.": ["delete_expense"],
   "Moved {name}.": ["update_place"],
+  "Moved 1 place.": ["batch_update", "update_place"],
+  "Deleted 1 place.": ["delete_place"],
   "Restored 1 trip ({replaced} replaced).": ["import_backup"],
   "Restored 1 trip.": ["import_backup"],
   "Removed {name}. Its places are in Other now.": ["delete_category"],

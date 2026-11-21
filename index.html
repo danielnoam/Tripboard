@@ -103,6 +103,34 @@
     </form>
   </dialog>
 
+  <div class="select-bar" id="selectBar" hidden>
+    <button class="icon-btn" id="selectDone" type="button" aria-label="Done" data-t-attr="aria-label"></button>
+    <span class="select-count" id="selectCount"></span>
+    <button class="btn" id="selectMove" type="button" data-t>Move</button>
+    <button class="btn danger" id="selectDelete" type="button" data-t>Delete</button>
+  </div>
+  <dialog class="sheet" id="moveSheet" aria-labelledby="moveTitle">
+    <div class="sheet-body">
+      <h2 id="moveTitle"></h2>
+      <div class="move-list" id="moveList"></div>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog class="sheet confirm" id="confirmSheet" aria-labelledby="confirmTitle">
+    <div class="sheet-body">
+      <h2 id="confirmTitle"></h2>
+      <p class="dim" id="confirmText"></p>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn destroy" type="button" id="confirmGo" data-t>Delete</button>
+      </div>
+    </div>
+  </dialog>
+
   <input id="fileAdd" type="file" multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
   <dialog class="sheet" id="addFilesSheet" aria-labelledby="addFilesTitle">
     <div class="sheet-body">
