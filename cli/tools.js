@@ -77,6 +77,7 @@ function printTrip(v) {
   const t = v.trip;
   const lines = [t.name + (t.start ? "  " + t.start + (t.end && t.end !== t.start ? " to " + t.end : "") : "") + "  (" + t.id + ")"];
   if (t.destinations.length) lines.push("  " + t.destinations.join(", "));
+  if (v.server) lines.push("  Shared through " + v.server);
   lines.push("", "Places (" + v.places.length + ")");
   for (const p of v.places) lines.push("  " + placeLine(p));
   lines.push("", "Expenses (" + v.expenses.length + ")" + (v.totals.length ? ": " + v.totals.map((x) => money(x.total, x.currency)).join(" + ") : ""));
@@ -105,7 +106,7 @@ const TOOLS = [
     description: "Every trip, in Home's order (under way, upcoming, undated, past): id, name, dates, destinations, status and how many places.",
     print: (l) => l.map((t) => t.name + (t.start ? "  " + t.start : "") + "  " + t.places + " places  (" + t.id + ")").join("\n") || "No trips yet." },
   { tool: "get_trip", cmd: "show", kind: "read", query: "getTrip", args: [tripArg],
-    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people and files (names only).",
+    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people (and, when it is shared, which sharing server it is on) and files (names only).",
     print: printTrip },
   { tool: "find_places", cmd: "places", kind: "read", query: "findPlaces",
     description: "A trip's places that match every filter given. With near, nearest first, with km.",

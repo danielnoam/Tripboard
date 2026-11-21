@@ -76,6 +76,7 @@ const settings = {
   map: "device: the map provider", search: "device: the search provider (find_location uses OpenStreetMap)", p: "device: a provider's key and style",
   sync: "device: the GitHub sync token; the CLI has its own (TRIPBOARD_TOKEN)",
   drive: "device: Google Drive backups sign in on the device; export_backup makes the same file",
+  server: "device: which sharing server this device shares through. A chat can't change it, since whoever runs a server reads the trips shared through it; get_trip says which server a shared trip is on",
   weather: "device: whether this device shows the weather, and in °C or °F; get_weather gives a chat the same forecast",
   about: "device: version and credits",
 };
@@ -99,7 +100,7 @@ const repo = {
   "files/": ["add_file", "get_file", "delete_file"],
   "me.json": "auto: read for your id (owner of new trips, `by`, what you may change)",
   "categories.json": ["list_categories", "add_category", "update_category", "delete_category", "reset_categories"],
-  "shares.json": "device: shared trips' keys for the sharing server, never given to a chat",
+  "shares.json": ["get_trip"],
 };
 
 // model.js's API: "cli" when cli/ uses it, or why it doesn't.

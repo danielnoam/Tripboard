@@ -36,7 +36,14 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
 - **Turn on the sharing server.** Built (server/); waits for Daniel's
   Cloudflare setup (server/README.md), then its address goes in
   src/share.js and the CSP.
-- **End-to-end encrypted sharing**, if Tripboard ever goes public.
+- **End-to-end encrypted sharing**, if Tripboard ever goes public. The
+  real fix for "the server's owner can read shared trips", for every
+  user; your own server (2026-11-21) only helps people who run one.
+- **A Deploy to Cloudflare button** for your own sharing server, instead
+  of forking. Needs server/ self-contained (mcp.js imports cli/), and the
+  button only takes public repos. server/README.md "Running your own".
+- **Your own sharing server in the phone and desktop apps.** Today only
+  the web app (sw.js widens the CSP); the bundled apps need their own way.
 - **Publishing a trip.** A read-only copy others can open (and later
   copy, which is where community trips start).
 
