@@ -2556,9 +2556,14 @@
       if (!lessMotion() && fab.animate) fab.animate([{ color: getComputedStyle(fab).getPropertyValue("--tab-on") }, { color: getComputedStyle(fab).color }],
         { duration: 600, easing: "ease-in" });
     });
-    $("fab").addEventListener("click", (e) => view.mode === "files" ? $("fileAdd").click()
-      : view.mode === "expenses" ? openExpense(null, findTrip(view.trip), e.currentTarget)
-      : openPlace(null, findTrip(view.trip), view.mode === "today" ? { day: today() } : null, e.currentTarget));
+    // A sheet would cover the + at once, so it waits for the swell's peak.
+    // The file picker can't wait: it needs the tap itself.
+    $("fab").addEventListener("click", (e) => {
+      const fab = e.currentTarget, trip = findTrip(view.trip), mode = view.mode;
+      if (mode === "files") { $("fileAdd").click(); return; }
+      const open = () => mode === "expenses" ? openExpense(null, trip, fab) : openPlace(null, trip, mode === "today" ? { day: today() } : null, fab);
+      if (lessMotion()) open(); else setTimeout(open, 200);
+    });
     window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
     wireSwipe();
