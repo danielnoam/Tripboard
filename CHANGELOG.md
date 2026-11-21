@@ -4,6 +4,18 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.3.4] - 2026-11-21
+
+### Added
+- Each category has an icon: before a place's name, on its group when grouped by category, and inside map pins.
+
+### Changed
+- The bottom bar is centred on the screen, with the + beside it.
+- A place saves itself: there's no Save or Add place button any more. Leaving the place's screen (Back, its arrow, or tapping outside) keeps what you typed. A new place is added with an Undo, and one left without a name isn't added.
+
+### Fixed
+- Android's Back button closes an open screen (a place, an expense, Settings' sheets) instead of leaving it open behind the page, and from the first screen it puts the app away.
+
 ## [0.3.3] - 2026-11-21
 
 ### Added
