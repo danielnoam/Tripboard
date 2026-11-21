@@ -66,6 +66,7 @@ const sheets = {
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
   fileSheet: ["update_file", "delete_file", "get_file"],
   addFilesSheet: ["add_file"],
+  mapStyleSheet: "device: the map's look is this device's map provider and style (Settings › Services › Map), never in the sync repo",
 };
 
 // Settings pages (#/settings/<page> in views.js).

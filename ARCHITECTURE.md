@@ -22,7 +22,7 @@ src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My M
 src/weather.js       the forecast per trip day from Open-Meteo: where each day's weather is for (its places' middle, rounded), one request for all of them, its answer read, when it's stale (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
 src/offline.js       a trip saved for no signal: OpenFreeMap's map around its places in the Cache API, the plan of tiles, and the tbo:// protocol the map reads it through (Node-tested)
-src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps
+src/map.js           the trip's map: MapLibre on OpenFreeMap, Google's 2D tiles or MapTiler, in Settings' order, loaded on first use; pins, fit, taps; its credit chip (the styles' credits, kept to text and https links); zoom and where-am-I for views.js's own map buttons (MapLibre's are hidden)
 src/vendor/          MapLibre GL 6.16.0 (BSD-3, MapLibre-LICENSE.txt): its module, worker and CSS
 src/vendor/rtl-text/ MapLibre's right-to-left text plugin: @mapbox/mapbox-gl-rtl-text 1.0.0 (BSD-2, LICENSE.md), rtl.js and its .wasm, loaded by plugin.mjs in the map's worker when a label needs it
 src/icons.js         the Lucide icons used, as SVG paths
@@ -90,6 +90,11 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 
 What the app gives up on purpose, said plainly. A change that adds one
 adds a line here.
+
+- Picking a map style that needs a key (Map style on the map) makes that
+  provider the map and OpenFreeMap its fallback, so a refused key still
+  shows a map; the style is sent nowhere else. The Street View link, like
+  the Google Maps one, tells Google the place's location only when tapped.
 
 - Google Drive backups hold every trip, with its covers and files, as
   plain JSON in the person's own Drive (a Tripboard folder): anyone who can

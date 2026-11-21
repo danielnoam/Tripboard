@@ -27,10 +27,10 @@
   // What each provider offers, and what it needs set up.
   const PROVIDERS = {
     openfreemap: { name: "OpenFreeMap", services: ["map"], key: false, note: i18n.t("Free map, no key."),
-      options: { style: [["light", i18n.t("Light (dark in dark mode)")], ["liberty", "Liberty"], ["bright", "Bright"]] } },
+      options: { style: [["light", i18n.t("Light (dark in dark mode)")], ["positron", i18n.t("Light")], ["dark", i18n.t("Dark")], ["liberty", "Liberty"], ["bright", "Bright"]] } },
     osm: { name: "OpenStreetMap", services: ["search"], key: false, note: i18n.t("Free search, no key, about one search a second.") },
     google: { name: "Google", services: ["map", "search"], key: true, note: i18n.t("Google's map and Places search, with your own key."),
-      options: { mapType: [["roadmap", i18n.t("Map")], ["satellite", i18n.t("Satellite")]] } },
+      options: { mapType: [["roadmap", i18n.t("Map")], ["satellite", i18n.t("Satellite")], ["terrain", i18n.t("Terrain")]] } },
     maptiler: { name: "MapTiler", services: ["map", "search"], key: true, note: i18n.t("Maps and search with a free MapTiler key (a monthly allowance)."),
       options: { style: [["streets", i18n.t("Streets")], ["outdoor", i18n.t("Outdoor")], ["satellite", i18n.t("Satellite")]] } },
   };

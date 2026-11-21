@@ -56,8 +56,8 @@ Words a person sees go through `i18n.t("...")` / `i18n.tn(...)` in JS or
 `data-t` / `data-t-attr` in index.html, keyed by the English, with a
 line in `src/lang/he.js` (`test/i18n.test.js` fails without it). Hebrew
 copy uses gender-neutral forms. CSS uses logical sides (`inset-inline-start`,
-`margin-inline-end`, `text-align: start`), not left/right, except over
-the map, whose controls don't flip. Dates and numbers go through Intl
+`margin-inline-end`, `text-align: start`), not left/right, except the
+map's place card, which doesn't flip (the map's buttons and credit do). Dates and numbers go through Intl
 with `i18n.lang`.
 
 **Every change works from the CLI and MCP.** Anything a person can do or

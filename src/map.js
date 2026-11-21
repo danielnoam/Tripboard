@@ -6,7 +6,8 @@
 //   TripMap.places(list, selectedId)   pins, by importance
 //   TripMap.fit(list)                  frames them
 //   TripMap.route(list)                a line through them in order (a day's plan)
-//   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …
+//   TripMap.zoom(±1), TripMap.locate()  the map's own buttons (views.js draws them)
+//   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …, TripMap.onLocateFail = () => …
 (function () {
   // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
   const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
@@ -22,7 +23,7 @@
     { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
     { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
   ];
-  let lib = null, map = null, applied = "", google = null;
+  let lib = null, map = null, applied = "", google = null, geo = null;
   const still = () => document.documentElement.dataset.motion === "off";
   const pins = new Map();
   const T = { onPin: null, onTap: null, get ready() { return !!map; } };
@@ -49,7 +50,7 @@
     } catch (e) { /* none kept */ }
     const hi = (window.devicePixelRatio || 1) > 1;
     const body = { mapType, language: lang, region: (lang.split("-")[1] || "US").toUpperCase(), scale: hi ? "scaleFactor2x" : "scaleFactor1x", highDpi: hi };
-    if (mapType === "satellite") body.layerTypes = ["layerRoadmap"];
+    if (mapType === "satellite" || mapType === "terrain") body.layerTypes = ["layerRoadmap"];
     if (dark && mapType === "roadmap") body.styles = NIGHT;
     const j = await getJson("https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(key), "Google",
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -60,7 +61,8 @@
   // Each provider's map as a MapLibre style object.
   const SOURCES = {
     async openfreemap(o, dark) {
-      const name = o.style === "liberty" || o.style === "bright" ? o.style : dark ? "dark" : "positron";
+      // "light" follows the app's theme; the others stay as picked.
+      const name = ["liberty", "bright", "positron", "dark"].includes(o.style) ? o.style : dark ? "dark" : "positron";
       // With a trip saved for offline, the map reads through its kept copy (offline.js).
       const off = window.Tripboard && window.Tripboard.offline;
       if (off && off.any()) return off.style(name);
@@ -73,7 +75,7 @@
     },
     async google(o, dark) {
       if (!o.key) throw new Error(i18n.t("{who} needs a key (Settings).", { who: "Google" }));
-      const type = o.mapType === "satellite" ? "satellite" : "roadmap";
+      const type = ["satellite", "terrain"].includes(o.mapType) ? o.mapType : "roadmap";
       const session = await googleSession(o.key, type, dark);
       return {
         version: 8,
@@ -112,24 +114,68 @@
     throw err;
   }
 
-  // Google asks that its map shows its name and the copyright for the area
-  // in view, which its viewport call gives.
+  // The map's credit: a short line that's always on the map (OpenStreetMap's
+  // licence and Google's terms ask for one), and the full credits under it
+  // when it's tapped. Google's names the copyright for the area in view,
+  // which its viewport call gives. The styles' credits are HTML from the
+  // provider: only their text and https links are kept.
   let attribTimer = null;
-  function googleAttribution() {
-    const box = document.getElementById("mapAttrib");
-    if (!box) return;
-    box.hidden = !google;
-    if (!google) return;
+  const SHORT = { openfreemap: "© OpenStreetMap", maptiler: "© MapTiler © OpenStreetMap" };
+  function credits() {
+    const out = [];
+    const style = map && map.getStyle && map.getStyle();
+    const seen = new Set();
+    for (const src of Object.values((style && style.sources) || {})) {
+      if (!src.attribution || seen.has(src.attribution)) continue;
+      seen.add(src.attribution);
+      const doc = new DOMParser().parseFromString(src.attribution, "text/html");
+      const p = document.createElement("span");
+      for (const n of doc.body.childNodes) {
+        const href = n.nodeName === "A" ? n.getAttribute("href") || "" : "";
+        if (/^https:\/\//.test(href)) {
+          const a = document.createElement("a");
+          Object.assign(a, { href, target: "_blank", rel: "noopener noreferrer", textContent: n.textContent });
+          p.append(a);
+        } else p.append(n.textContent);
+      }
+      if (out.length) out.push(" · ");
+      out.push(p);
+    }
+    return out;
+  }
+  function paintCredit() {
+    const box = document.getElementById("mapCredit"), full = document.getElementById("mapCredits");
+    if (!box || !map) return;
+    const label = box.querySelector(".map-credit-text");
+    full.hidden = true;
+    box.setAttribute("aria-expanded", "false");
+    box.hidden = false;
+    if (!google) {
+      label.textContent = SHORT[T.last && T.last.by] || "© OpenStreetMap";
+      full.replaceChildren(...credits());
+      return;
+    }
+    label.textContent = "Google";
+    full.replaceChildren("Google");
     clearTimeout(attribTimer);
     attribTimer = setTimeout(async () => {
       const b = map.getBounds();
       const u = new URL("https://tile.googleapis.com/tile/v1/viewport");
       for (const [k, v] of Object.entries({ session: google.session, key: google.key, zoom: Math.round(map.getZoom()),
         north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() })) u.searchParams.set(k, v);
-      try { const j = await getJson(u.href, "Google"); box.textContent = "Google" + (j.copyright ? " · " + j.copyright : ""); }
-      catch (e) { box.textContent = "Google"; }
+      let text = "Google";
+      try { const j = await getJson(u.href, "Google"); if (j.copyright) text += " · " + j.copyright; }
+      catch (e) { /* the name alone */ }
+      label.textContent = text;
+      full.replaceChildren(text);
     }, 400);
   }
+  T.toggleCredits = function () {
+    const box = document.getElementById("mapCredit"), full = document.getElementById("mapCredits");
+    if (!box || !full.childNodes.length) return;
+    full.hidden = !full.hidden;
+    box.setAttribute("aria-expanded", String(!full.hidden));
+  };
 
   // Opens the map, or brings it up to date with Settings and the theme.
   // One at a time, so quick re-renders don't make two maps.
@@ -152,24 +198,31 @@
     delete r.style.__google;
     applied = want;
     T.last = { by: r.by, skipped: r.skipped };
-    if (map) { map.setStyle(r.style); map.once("style.load", drawRoute); googleAttribution(); return T.last; }
+    if (map) { map.setStyle(r.style); map.once("style.load", () => { drawRoute(); paintCredit(); }); return T.last; }
     map = new lib.Map({
       container, style: r.style, center: [10, 25], zoom: 1.2,
-      attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false,
+      attributionControl: false, dragRotate: false, pitchWithRotate: false,
       // With motion off: zooms and moves jump, a flick doesn't glide on, labels don't fade in.
       ...(still() ? { reduceMotion: true, fadeDuration: 0 } : {}),
     });
     map.touchZoomRotate.disableRotation();
-    map.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
-    map.addControl(new lib.GeolocateControl({ positionOptions: { enableHighAccuracy: false } }), "top-right");
-    map.on("click", (e) => { if (T.onTap) T.onTap({ lat: e.lngLat.lat, lng: e.lngLat.lng }); });
-    map.on("moveend", googleAttribution);
+    // Where am I: MapLibre's own, with its button hidden (styles.css); the
+    // map's buttons are views.js's.
+    geo = new lib.GeolocateControl({ positionOptions: { enableHighAccuracy: false } });
+    geo.on("error", () => T.onLocateFail && T.onLocateFail());
+    map.addControl(geo, "top-right");
+    map.on("click", (e) => {
+      const full = document.getElementById("mapCredits");
+      if (full && !full.hidden) T.toggleCredits();
+      if (T.onTap) T.onTap({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+    });
+    map.on("moveend", () => google && paintCredit());
     map.on("style.load", () => { if (map.getLayer && !map.getLayer("tb-route")) drawRoute(); });
     await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error(i18n.t("The map took too long to load."))), 20000);
       map.once("load", () => { clearTimeout(t); res(); });
     });
-    googleAttribution();
+    paintCredit();
     drawRoute();
     return T.last;
   }
@@ -226,17 +279,23 @@
     for (const [id, m] of pins) if (!keep.has(id)) { m.remove(); pins.delete(id); }
   };
 
-  T.fit = function (list) {
+  T.fit = function (list, animate) {
     if (!map) return;
     const at = list.filter((p) => p.lat != null);
     if (!at.length) return;
-    if (at.length === 1) { map.jumpTo({ center: [at[0].lng, at[0].lat], zoom: 14 }); return; }
+    const move = animate && !still() ? {} : { duration: 0 };
+    if (at.length === 1) { map.easeTo({ center: [at[0].lng, at[0].lat], zoom: 14, ...move }); return; }
     const b = new lib.LngLatBounds();
     for (const p of at) b.extend([p.lng, p.lat]);
-    map.fitBounds(b, { padding: { top: 110, bottom: 160, left: 40, right: 40 }, maxZoom: 15, duration: 0 });
+    map.fitBounds(b, { padding: { top: 110, bottom: 160, left: 70, right: 70 }, maxZoom: 15, ...move });
   };
   T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(still() ? { duration: 0 } : {}) });
   T.resize = () => map && map.resize();
+  T.zoom = (d) => map && (d > 0 ? map.zoomIn(still() ? { duration: 0 } : {}) : map.zoomOut(still() ? { duration: 0 } : {}));
+  T.locate = () => {
+    if (!geo) return;
+    try { geo.trigger(); } catch (e) { if (T.onLocateFail) T.onLocateFail(); }
+  };
 
   window.Tripboard = window.Tripboard || {};
   T.SOURCES = SOURCES;
