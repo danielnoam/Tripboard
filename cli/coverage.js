@@ -88,6 +88,7 @@ const settings = {
 // What the app can undo (views.js's undoable(), by its English message).
 const actions = {
   "Imported 1 place.": ["import_places"],
+  "Added {name}.": ["add_place"],
   "Deleted {name}.": ["delete_trip", "delete_place", "delete_file"],
   "Deleted {title}.": ["delete_expense"],
   "Moved {name}.": ["update_place"],
