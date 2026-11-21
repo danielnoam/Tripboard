@@ -4,6 +4,21 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.3.2] - 2026-11-21
+
+### Added
+- Settings › Sharing server: share trips through a server you run yourself (your own free Cloudflare account) instead of Tripboard's. Invite links name the server, and joining a trip on someone else's server asks first. Web app only for now.
+
+### Changed
+- A release now builds and publishes the Android app by itself, so the update bar sees it without a hand-run build.
+
+### Fixed
+- Going Back no longer shows the screen underneath through the one sliding away.
+- Tapping a trip on Home, the +, or Save no longer waits for an animation first: the next screen or sheet comes up on the tap, with the motion running alongside.
+- Switching tabs again before a slide finishes carries on from where it was instead of jumping.
+- A screen sliding in or out no longer shows a strip of the one under it (such as a trip's cover) between it and the top bar.
+- The Android app's update offer is now a small bar at the bottom with an Update button: it downloads the new version inside the app, shows its progress, and opens Android's installer. The first time, Android asks to let Tripboard install apps. The bar can be closed until the next version.
+
 ## [0.3.1] - 2026-11-21
 
 ### Added
