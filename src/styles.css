@@ -539,6 +539,18 @@ dialog[tabindex="-1"]:focus { outline: none; }
   background: var(--bg);
 }
 
+/* Adding a place: a sheet from below over the trip, its title and its
+   button staying in view while the form scrolls. */
+#placeSheet:not(.page) { max-height: 80dvh; }
+#placeSheet:not(.page) .page-back { display: none; }
+#placeSheet:not(.page) .page-bar { position: sticky; top: 0; z-index: 1; padding: 0 0 var(--space-2); background: var(--surface); }
+#placeSheet:not(.page) .sheet-actions {
+  position: sticky; bottom: 0; z-index: 1;
+  padding: var(--space-2) 0 calc(env(safe-area-inset-bottom) + var(--space-2));
+  margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--space-3)));
+  background: var(--surface);
+}
+
 /* Offline: the trip's badge in the bar, and its card in Edit trip */
 .offline-badge {
   flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px var(--space-2); border-radius: 999px;
