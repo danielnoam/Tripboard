@@ -168,10 +168,11 @@ jobs:
             echo
             echo "---"
             echo "**Installing:** open this page on your phone, tap **Tripboard.apk**, and allow your browser to install apps the first time it asks. Updates install over the top and keep your data."
-            echo
-            echo "**iPhone:** **Tripboard.ipa** is added here only when an iOS build is run. It's unsigned: install it with AltStore or SideStore, which sign it with your own Apple ID."
-            echo
-            echo "**Windows:** **Tripboard-setup.exe** is added here a few minutes later (**Tripboard.AppImage** and Tripboard.deb only when a Linux build is run). Windows may warn that it doesn't know the publisher: choose More info, then Run anyway."
+            # desktop.yml and ios.yml run only by hand for now, so this
+            # promises no Windows or iPhone files. When desktop.yml runs on
+            # its own again, add back: "**Windows:** **Tripboard-setup.exe**
+            # is added here a few minutes later. Windows may warn that it
+            # doesn't know the publisher: choose More info, then Run anyway."
           } >> notes.md
           gh release create "app-v$V" Tripboard.apk --target "$GITHUB_SHA" --title "Tripboard $V" --notes-file notes.md
 
