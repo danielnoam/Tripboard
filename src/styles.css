@@ -443,6 +443,8 @@ p[data-tone="warn"] { color: var(--must); }
    on top when it goes Back, under the new one on a push. */
 .tab-leaving { position: fixed; z-index: 4; pointer-events: none; }
 main.tab-leaving { left: 0; right: 0; margin-inline: auto; }
+/* Solid, so the screen coming in under it on Back doesn't show through. */
+main.tab-leaving:not(.tab-under) { background: var(--bg); min-height: 100dvh; }
 .tab-leaving.tab-under { z-index: 0; }
 .tab-over { position: relative; z-index: 1; background: var(--bg); min-height: 100dvh; }
 /* With a mouse, the buttons at the top and the trips on Home grow a little
