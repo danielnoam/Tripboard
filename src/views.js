@@ -1126,6 +1126,19 @@
     };
   }
 
+  // "Delete …?" with Cancel and Delete; resolves true on Delete.
+  function confirmDelete(title, from) {
+    const d = $("confirmSheet");
+    $("confirmTitle").textContent = title;
+    $("confirmText").textContent = i18n.t("You can undo it right after.");
+    return new Promise((done) => {
+      let yes = false;
+      $("confirmGo").onclick = () => { yes = true; closeSheet(d); };
+      d.addEventListener("close", () => done(yes), { once: true });
+      openSheet(d, from);
+    });
+  }
+
   // Trip sheet
   let editingTrip = null, pendingCover;
   function showCoverPreview(url) {
@@ -2680,7 +2693,8 @@
   // Home's quick menu: Edit and Delete for a trip, on a long press (touch)
   // or a right-click (mouse, or the keyboard's menu key). A tap still opens
   // the trip at once; only a press held LONG_PRESS ms without moving opens
-  // the menu, and the click that may follow it is swallowed.
+  // the menu, and the click that may follow it is swallowed. Delete asks
+  // first in a small sheet (confirmDelete), then the toast offers Undo.
   const LONG_PRESS = 450;
   function tripMenu() {
     let box = null, timer = 0, from = null, swallow = false;
@@ -2696,13 +2710,7 @@
       if (!trip || !mayEdit(trip)) return false;
       close();
       from = card;
-      const del = el("button.danger", { type: "button", role: "menuitem" }, icon("trash"), el("span", { text: i18n.t("Delete") }));
-      del.addEventListener("click", () => {
-        if (del.dataset.armed) { close(); deleteTrip(trip); return; }
-        del.dataset.armed = "1";
-        del.lastChild.textContent = i18n.t("Tap again to delete");
-        setTimeout(() => { delete del.dataset.armed; del.lastChild.textContent = i18n.t("Delete"); }, 3000);
-      });
+      const del = el("button.danger", { type: "button", role: "menuitem", onclick: async () => { close(); if (await confirmDelete(i18n.t("Delete {name}?", { name: trip.name }), card)) deleteTrip(trip); } }, icon("trash"), el("span", { text: i18n.t("Delete") }));
       box = el("div.quick-menu", { role: "menu", "aria-label": trip.name },
         el("button", { type: "button", role: "menuitem", onclick: () => { close(); openTrip(trip, card); } }, icon("pencil"), el("span", { text: i18n.t("Edit") })),
         del);

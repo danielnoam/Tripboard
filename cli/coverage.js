@@ -66,6 +66,7 @@ const sheets = {
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
   fileSheet: ["update_file", "delete_file", "get_file"],
   addFilesSheet: ["add_file"],
+  confirmSheet: ["delete_trip", "delete_place"],
 };
 
 // Settings pages (#/settings/<page> in views.js).

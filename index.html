@@ -103,6 +103,18 @@
     </form>
   </dialog>
 
+  <dialog class="sheet confirm" id="confirmSheet" aria-labelledby="confirmTitle">
+    <div class="sheet-body">
+      <h2 id="confirmTitle"></h2>
+      <p class="dim" id="confirmText"></p>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn destroy" type="button" id="confirmGo" data-t>Delete</button>
+      </div>
+    </div>
+  </dialog>
+
   <input id="fileAdd" type="file" multiple class="visually-hidden" tabindex="-1" aria-hidden="true">
   <dialog class="sheet" id="addFilesSheet" aria-labelledby="addFilesTitle">
     <div class="sheet-body">
