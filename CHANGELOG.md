@@ -4,6 +4,11 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.3.1] - 2026-11-21
+
+### Added
+- An AI chat or a terminal can import a Google Maps list by its shared link too (`import --link`, or `import_places` with a link), into a trip or as a new trip named after the list, including through the cloud connector.
+
 ## [0.3.0] - 2026-11-21
 
 ### Added
