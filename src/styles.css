@@ -132,6 +132,7 @@ body.on-map .update { bottom: auto; top: 108px; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.quiet { border-color: transparent; background: transparent; }
 .btn.danger { border-color: transparent; background: transparent; color: var(--danger); padding: 0 var(--space-2); }
+.btn.destroy { background: var(--danger); border-color: var(--danger); color: var(--bg); }
 .btn[hidden] { display: none; }
 
 /* Home */
