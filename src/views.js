@@ -1365,10 +1365,11 @@
     paintPlaceFiles();
     lockForm(f, !mayEdit(trip));
     if (!mayEdit(trip)) $("placeSheetTitle").textContent = p.name;
-    if (place) armDelete($("placeDelete"), i18n.t("Delete"), () => {
+    // One tap: the toast's Undo brings it back.
+    if (place) $("placeDelete").onclick = () => {
       closeSheet($("placeSheet"));
       undoable(i18n.t("Deleted {name}.", { name: place.name }), () => { doc.places = doc.places.filter((x) => x !== place); });
-    });
+    };
     openSheet($("placeSheet"), from);
   }
   // "Until": for a place that lasts several days, the last of them. Offered
