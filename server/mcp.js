@@ -101,11 +101,14 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods
 const json = (body, status = 200, extra) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store", ...extra } });
 const oauthError = (error, description, status = 400) => json({ error, error_description: description }, status);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => "&#" + c.charCodeAt(0) + ";");
-function page(title, body, extra) {
+// formAction lists where the page's form may lead. Browsers check it on every
+// redirect after the submit too, so the Allow form names GitHub and the AI
+// app it hands back to, or the browser stops at the first redirect.
+function page(title, body, extra, formAction = "'self'") {
   const nonce = random(12);
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
 <style nonce="${nonce}">body{font:16px/1.5 system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem;color:#1d1d1f;background:#fff}@media(prefers-color-scheme:dark){body{color:#f2f2f2;background:#1c1c1e}}code{word-break:break-all}button{font:inherit;padding:.7rem 1.4rem;border-radius:.6rem;border:0;background:#0b63ce;color:#fff;min-height:44px}</style></head><body>${body}</body></html>`,
-    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`, "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", ...extra } });
+    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; form-action ${formAction}; frame-ancestors 'none'; base-uri 'none'`, "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", ...extra } });
 }
 const cookieOf = (req, name) => ((req.headers.get("Cookie") || "").split(/;\s*/).find((c) => c.startsWith(name + "=")) || "").slice(name.length + 1);
 async function form(req) {
@@ -123,6 +126,12 @@ export function okRedirect(uri) {
   if (u.protocol === "https:") return true;
   if (u.protocol === "http:") return ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
   return /^[a-z][a-z0-9+.-]*:$/.test(u.protocol) && !["javascript:", "data:", "file:", "vbscript:", "blob:", "about:", "ftp:", "ws:", "wss:"].includes(u.protocol);
+}
+
+// The CSP source for a redirect URI: its origin, or an app scheme like "claude:".
+function formTarget(uri) {
+  const u = new URL(uri);
+  return u.protocol === "https:" || u.protocol === "http:" ? u.origin : u.protocol;
 }
 
 // ---- the routes ----
@@ -191,7 +200,8 @@ async function ask(q, env) {
 <p>It will be able to read your trips and add and change trips, places and expenses in your GitHub sync repo. It can't delete anything.</p>
 <p>After you allow it, Tripboard sends you back to <strong>${esc(host)}</strong>. If you didn't just add Tripboard to an AI app there, close this page.</p>
 <form method="post" action="/authorize"><input type="hidden" name="ask" value="${esc(askToken)}"><button type="submit">Allow and sign in with GitHub</button></form>`,
-    { "Set-Cookie": `tb_mcp=${nonce}; Path=/; Max-Age=${ASK_TTL}; HttpOnly; Secure; SameSite=Lax` });
+    { "Set-Cookie": `tb_mcp=${nonce}; Path=/; Max-Age=${ASK_TTL}; HttpOnly; Secure; SameSite=Lax` },
+    `'self' https://github.com ${formTarget(redirect)}`);
 }
 
 async function allow(req, env) {
