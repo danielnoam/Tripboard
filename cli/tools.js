@@ -57,6 +57,19 @@ const people = { type: "string", description: "A person's id or name on the trip
 const filesOk = (env) => env.TRIPBOARD_MCP_FILES === "1";
 const FILES_OFF = "File contents stay out of the chat unless the person turns them on: TRIPBOARD_MCP_FILES=1 in this server's env.";
 
+// A shared Google Maps list's places, read by Tripboard's server
+// (server/googlelist.js); the cloud connector passes its own reader.
+const SERVER = "https://tripboard.danielnoam1999.workers.dev";
+async function googleList(url, env) {
+  if (env.googleList) return env.googleList(String(url));
+  const r = await (env.fetch || globalThis.fetch)((env.TRIPBOARD_SERVER || SERVER) + "/google-list", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: String(url) }) });
+  let body = null;
+  try { body = await r.json(); } catch (e) { /* not JSON */ }
+  if (!r.ok) throw new Error((body && body.error) || "Tripboard's server didn't read that list (" + r.status + ").");
+  return body;
+}
+
 const money = (n, cur) => { try { return new Intl.NumberFormat("en", { style: "currency", currency: cur }).format(n); } catch (e) { return n + " " + cur; } };
 const placeLine = (p) => [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
 
@@ -196,10 +209,16 @@ const TOOLS = [
   { tool: "delete_place", cmd: "delete-place", kind: "write", op: "deletePlace", args: [tripArg, placeArg(true)],
     description: "Delete a place from a trip." },
   { tool: "import_places", cmd: "import", kind: "write", op: "importPlaces", input: "bytes",
-    description: "Import a Google Maps list (Takeout CSV, My Maps KML, Saved Places JSON) into a trip, or with no trip into a new one named after the list. Names already in the trip are skipped. Places without a location stay unlocated: find_location finds them.",
-    args: [["trip", { type: "string", description: "The trip's id or name; leave out to make a new trip." }, { pos: 0 }], ...bytesArgs,
+    description: "Import a Google Maps list into a trip, or with no trip into a new one named after the list: its shared link (maps.app.goo.gl/…), or a file (Takeout CSV, My Maps KML, Saved Places JSON). Names already in the trip are skipped. Places without a location stay unlocated: find_location finds them. A link is read through Tripboard's server, which sees the link and the list's places; Google can change what it reads at any time, and then the file is the way.",
+    args: [["trip", { type: "string", description: "The trip's id or name; leave out to make a new trip." }, { pos: 0 }],
+      ["link", { type: "string", description: "A shared Google Maps list's link, instead of a file." }], ...bytesArgs,
       ["fileName", { type: "string", description: "The export's file name (its ending says the format; a CSV's name is the list's)." }, { mcp: true, cli: false }],
-      ["name", { type: "string", description: "The new trip's name, instead of the list's." }]] },
+      ["name", { type: "string", description: "The new trip's name, instead of the list's." }]],
+    before: async (a, via, env) => {
+      if (!a.link) return a;
+      if (a.bytes) throw new Error("Give a link or a file, not both.");
+      return { ...a, list: await googleList(a.link, env) };
+    } },
 
   // ---------- Expenses ----------
   { tool: "add_expense", cmd: "add-expense", kind: "write", op: "addExpense", args: [tripArg, ...expenseFields.map((f) => (f[0] === "amount" || f[0] === "currency" ? [f[0], f[1], { req: true }] : f))],
@@ -274,7 +293,7 @@ function prep(t, a, via, env) {
 
 // Runs a tool on a connection; `via` is "cli" or "mcp". Gives the answer.
 async function run(tb, t, args, via, env = {}) {
-  const a = prep(t, args, via, env);
+  const a = await prep(t, args, via, env);
   if (t.kind === "write") return tb.change((doc, ctx) => core.ops[t.op](doc, a, ctx), "Tripboard " + via.toUpperCase() + ": " + (via === "cli" ? t.cmd : t.tool));
   const st = await tb.snapshot();
   const r = t.run ? await t.run(st, a, env) : await core.queries[t.query](st, a);

@@ -100,7 +100,9 @@ adds a line here.
   Maps' own page loads. It isn't allowed by Google's terms for automated
   use and can stop working whenever Google changes it; the file import is
   the steady route. The server sees the link and the list's places, and
-  allows 60 lists a day per address. Imported locations are kept like a
+  allows 60 lists a day per address. The CLI and local MCP send a link
+  to the same server; the cloud connector reads it in the Worker itself
+  (60 a day per person). Imported locations are kept like a
   pin; places looked up afterwards follow Find by name's rules.
 - Shared trips live on the sharing server (server/), readable by whoever
   runs its Cloudflare account; they aren't end-to-end encrypted. The

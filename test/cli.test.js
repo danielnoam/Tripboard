@@ -327,6 +327,31 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(bundle(g).places.length, 3);
   });
 
+  await test("importing a Google Maps list by its link goes through Tripboard's server; its errors come back", async () => {
+    const g = fakeGitHub();
+    const asked = [];
+    const answers = [{ ok: true, status: 200, body: { title: "Rome eats", places: [{ name: "Two Sizes", lat: 41.898, lng: 12.4715 }, { name: "Pizza Florida" }, { name: "" }] } },
+      { ok: false, status: 400, body: { error: "That isn't a Google Maps link." } }];
+    globalThis.fetch = async (u, init) => {
+      if (String(u).endsWith("/google-list")) {
+        asked.push(JSON.parse(init.body).url);
+        const a = answers.shift();
+        return { ok: a.ok, status: a.status, json: async () => a.body };
+      }
+      return g.fetch(u, init);
+    };
+    const lines = [];
+    await cli.main(["import", "--link", "https://maps.app.goo.gl/rome123"], env, (x) => lines.push(x));
+    assert.match(lines[0], /Added 2 places to Rome eats/);
+    assert.deepStrictEqual(asked, ["https://maps.app.goo.gl/rome123"]);
+    const sent = [];
+    const s = mcp.server({ env, fetch: globalThis.fetch, write: (l) => sent.push(JSON.parse(l)) });
+    const r = await mcpCall(s, sent, "import_places", { trip: "rome", link: "https://evil.example/x" });
+    assert.match(String(r.error), /isn't a Google Maps link/);
+    const both = await mcpCall(s, sent, "import_places", { trip: "rome", link: "https://maps.app.goo.gl/x", text: "a,b" });
+    assert.match(String(both.error), /link or a file, not both/);
+  });
+
   await test("a backup exported with its cover and files restores after the trip is deleted", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;
