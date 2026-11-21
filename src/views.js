@@ -1549,20 +1549,37 @@
   }
 
   // ---------- Joining from a link ----------
-  function renderJoin(main, tripId, code) {
+  // host: the server the link names, when it isn't Tripboard's.
+  function renderJoin(main, tripId, code, host) {
     $("title").textContent = i18n.t("Join a trip");
     if (findTrip(tripId) && SHARE.shared(tripId)) { location.replace("#/trip/" + tripId); return; }
     if (!SHARE.enabled()) { main.append(el("div.empty", {}, el("p", { text: i18n.t("Sharing isn't set up in this copy of the app.") }))); return; }
+    const other = host ? SHARE.origin(host) : null;
+    if (host && !other) { main.append(el("div.empty", {}, el("p", { text: i18n.t("This invite link is broken.") }))); return; }
+    if (other && other !== SHARE.DEFAULT && !SHARE.allowed(other)) {
+      main.append(el("section.panel", {}, el("h2", { text: i18n.t("This trip is on another server") }),
+        el("p", { text: i18n.t("The invite link you opened is for a trip on a server someone runs themselves:") }),
+        el("p", {}, el("strong", { text: SHARE.host(other) })),
+        el("p.hint.dim", { text: i18n.t("Joining lets Tripboard talk to that server for this trip. Whoever runs it can read the trip. Tripboard opens again once to allow it.") }),
+        el("button.btn.primary", { type: "button", text: i18n.t("Join through it"), onclick: async () => {
+          if (!SHARE.canUseOwn()) { toast(i18n.t("Trips on other servers work in the web app for now.")); return; }
+          await SHARE.allowJoin(other);
+          location.reload();
+        } }), " ",
+        el("button.btn.quiet", { type: "button", text: i18n.t("Cancel"), onclick: async () => { await SHARE.allowJoin(null); location.replace("#/"); } })));
+      return;
+    }
     const me = SET.get().me;
     const name = el("input", { value: me.name, autocomplete: "name", maxlength: "60", placeholder: i18n.t("Your name") });
     const go = el("button.btn.primary", { type: "button", text: i18n.t("Join"), onclick: async () => {
       go.disabled = true;
       if (name.value.trim() !== me.name) SET.setMe({ name: name.value });
-      try { await SHARE.join(tripId, code); location.replace("#/trip/" + tripId); }
+      try { await SHARE.join(tripId, code, host); location.replace("#/trip/" + tripId); }
       catch (e) { go.disabled = false; toast(e.message); }
     } });
     main.append(el("section.panel", {},
       el("p", { text: i18n.t("Someone invited you to a trip. Joining brings it to this device, and the people on it see your name and what you add.") }),
+      other && other !== SHARE.DEFAULT ? el("p.hint.dim", { text: i18n.t("The trip is on {host}, a server someone runs themselves. Whoever runs it can read the trip.", { host: SHARE.host(other) }) }) : null,
       el("label.field", {}, i18n.t("Your name"), name),
       el("div", {}, go)));
   }
@@ -1828,6 +1845,7 @@
       { ico: "plug", title: i18n.t("Services"), where: i18n.t("Settings"), href: "#/settings/services", words: "connections providers map search keys google maptiler openstreetmap openfreemap" },
       { ico: "map", title: i18n.t("Map"), where: i18n.t("Services"), href: "#/settings/map", words: "map tiles use fallback if it fails provider" },
       { ico: "search", title: i18n.t("Find by name"), where: i18n.t("Services"), href: "#/settings/search", words: "search find places geocoding use fallback if it fails provider" },
+      { ico: "users", title: i18n.t("Sharing server"), where: i18n.t("Settings"), href: "#/settings/server", words: "sharing server own self host cloudflare worker deploy address invite" },
       { ico: "cloudSun", title: i18n.t("Weather"), where: i18n.t("Settings"), href: "#/settings/weather", words: "weather forecast rain temperature celsius fahrenheit open-meteo sunrise sunset" },
       { ico: "info", title: i18n.t("About"), where: i18n.t("Settings"), href: "#/settings/about", words: "version credits licences privacy" },
     ];
@@ -1864,6 +1882,7 @@
     if (page === "appearance") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
     if (page === "weather") return renderWeather(main);
+    if (page === "server") return renderServer(main);
     const pm = /^p\/(\w+)$/.exec(page || "");
     if (pm && SET.PROVIDERS[pm[1]]) return renderProvider(main, pm[1]);
     $("title").textContent = i18n.t("Settings");
@@ -1879,6 +1898,7 @@
       srow("#/settings/services", "plug", i18n.t("Services"), needs || { text: i18n.t("Map and Find by name: {join}", { join: SERVICES.map(([svc]) => SET.PROVIDERS[cfg[svc].main].name).join(", ") }) }),
       srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
       driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
+      srow("#/settings/server", "users", i18n.t("Sharing server"), { text: SHARE.server() === SHARE.DEFAULT ? i18n.t("Tripboard's server") : SHARE.host(SHARE.server()) }),
       srow("#/settings/weather", "cloudSun", i18n.t("Weather"), { text: wxOn() ? i18n.t("On, from Open-Meteo") : i18n.t("Off") }),
       srow("#/settings/about", "info", i18n.t("About"), { text: i18n.t("Version {version} · credits", { version: window.Tripboard.version }) })));
     const paint = () => {
@@ -1996,6 +2016,51 @@
     if (STEPS[id]) main.append(el("section.panel", {}, el("h2", { text: i18n.t("How to get a key") }),
       el("ol.steps", {}, STEPS[id].map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: i18n.t("Open") })] : null)))));
     if (P.key) main.append(el("p.dim.hint", { text: i18n.t("The key is kept in this browser only, and sent only to {name} when it's used.", { name: P.name }) }));
+  }
+
+  // Sharing server: Tripboard's, or one the person runs (server/README.md).
+  // A new address works after a reload, once sw.js adds it to the CSP.
+  const SERVER_GUIDE = "https://github.com/danielnoam/Tripboard/blob/main/server/README.md";
+  function renderServer(main) {
+    $("title").textContent = i18n.t("Sharing server");
+    const saved = SHARE.server() === SHARE.DEFAULT ? null : SHARE.server();
+    const own = view.ownServer !== undefined ? view.ownServer : !!saved;
+    const seg = el("fieldset.field", {}, el("legend", { text: i18n.t("Server") }),
+      el("div.seg", { role: "radiogroup" }, [["main", i18n.t("Tripboard's")], ["own", i18n.t("Your own")]].map(([id, label]) =>
+        el("button", { type: "button", role: "radio", "aria-checked": String((own ? "own" : "main") === id), text: label, onclick: async () => {
+          view.ownServer = id === "own";
+          if (id === "main" && saved) await SHARE.setServer(null);
+          render();
+        } }))));
+    const kids = [seg];
+    if (own) {
+      const input = el("input", { type: "url", inputmode: "url", value: saved || "", placeholder: "https://tripboard.you.workers.dev", autocomplete: "off", spellcheck: false, "aria-label": i18n.t("Server address") });
+      const status = el("p.hint");
+      const use = el("button.btn.primary", { type: "button", text: i18n.t("Use this server"), onclick: async () => {
+        if (!SHARE.canUseOwn()) { toast(i18n.t("Your own server works in the web app for now.")); return; }
+        try {
+          const r = await SHARE.setServer(input.value);
+          if (r.reload) { toast(i18n.t("Opening Tripboard again to reach it…")); setTimeout(() => location.reload(), 600); return; }
+          render();
+        } catch (e) { toast(e.message); }
+      } });
+      const same = () => saved && SHARE.origin(input.value) === saved && SHARE.allowed(saved);
+      use.hidden = same();
+      input.addEventListener("input", () => { use.hidden = same(); });
+      kids.push(el("label.field", {}, i18n.t("Server address"), input), status, use);
+      if (saved && !SHARE.allowed(saved)) status.textContent = i18n.t("Open Tripboard again to reach it.");
+      else if (saved) {
+        status.textContent = i18n.t("Checking…");
+        SHARE.check(saved).then((ok) => { status.textContent = ok ? i18n.t("✓ Reached it: a Tripboard sharing server.") : i18n.t("Couldn't reach a Tripboard sharing server there. Check the address, and that the server is deployed."); });
+      }
+      kids.push(el("p.hint.dim", { text: i18n.t("Trips you share from now on, and Google Maps list links, go to this server. A new address needs Tripboard to open again once. Trips you already share stay on the server they started on.") }));
+    } else {
+      kids.push(el("p.hint.dim", { text: i18n.t("Shared trips and Google Maps list links go to Tripboard's server, which its maker runs on Cloudflare. Whoever runs a server can read the trips shared through it.") }));
+    }
+    main.append(el("section.panel", {}, kids),
+      el("section.panel", {}, el("h2", { text: i18n.t("Run your own") }),
+        el("p.hint.dim", { text: i18n.t("It takes free GitHub and Cloudflare accounts and about 15 minutes: copy Tripboard on GitHub, and its setup makes the server and its database. Then paste the server's address here. People you invite join your trips through your server.") }),
+        el("a.btn", { href: SERVER_GUIDE, target: "_blank", rel: "noopener noreferrer", text: i18n.t("How to set it up") })));
   }
 
   // Weather: on or off on this device, and °C or °F.
@@ -2398,7 +2463,7 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     $("settingsBtn").hidden = settings;
-    const jm = /^#\/join\/([\w-]+)\/([\w-]+)/.exec(location.hash);
+    const jm = /^#\/join\/([\w-]+)\/([\w-]+)(?:\/([\w.:-]+))?/.exec(location.hash);
     const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     if (m && !trip) { location.replace("#/"); return; }
@@ -2433,7 +2498,7 @@
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip || !mayEdit(trip) || view.mode === "share";
     $("fab").hidden = !trip || !mayEdit(trip) || view.mode === "share";
-    if (jm) { $("back").hidden = false; renderJoin(main, jm[1], jm[2]); }
+    if (jm) { $("back").hidden = false; renderJoin(main, jm[1], jm[2], jm[3]); }
     else if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
     else if (trip && view.mode === "expenses") renderExpenses(main, trip);
     else if (trip && view.mode === "files") renderFiles(main, trip);

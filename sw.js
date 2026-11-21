@@ -22,7 +22,7 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== "tripboard-offline" && !k.startsWith(PREVIEW)).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== "tripboard-offline" && k !== SERVERS && !k.startsWith(PREVIEW)).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -37,8 +37,30 @@ const preview = self.KeelPreview.create(PREVIEW);
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== self.location.origin) return;
-  e.respondWith(preview.respond(e, fromRelease));
+  e.respondWith(preview.respond(e, (ev) => ev.request.mode === "navigate" ? withServers(fromRelease(ev)) : fromRelease(ev)));
 });
+
+// Sharing servers someone runs themselves (src/share.js): index.html's CSP
+// names only Tripboard's, so the page is served with the ones this device
+// uses added to connect-src, and nothing else. share.js keeps the list in
+// this cache; only https origins are taken.
+const SERVERS = "tripboard-servers";
+const ORIGIN = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/;
+function allowServers(html, origins) {
+  const ok = (Array.isArray(origins) ? origins : []).filter((o) => typeof o === "string" && ORIGIN.test(o));
+  if (!ok.length) return html;
+  return html.replace(/(<meta http-equiv="Content-Security-Policy" content="[^"]*?connect-src 'self')/, "$1 " + ok.join(" "));
+}
+async function withServers(responding) {
+  const res = await responding;
+  if (!res || !res.ok || !(res.headers.get("Content-Type") || "").includes("text/html")) return res;
+  let origins = [];
+  try { const got = await (await caches.open(SERVERS)).match("servers"); if (got) origins = await got.json(); }
+  catch (e) { return res; }
+  if (!origins.length) return res;
+  const html = allowServers(await res.clone().text(), origins);
+  return new Response(html, { status: res.status, statusText: res.statusText, headers: res.headers });
+}
 
 function fromRelease(e) {
   return caches.open(CACHE).then((cache) =>

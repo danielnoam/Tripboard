@@ -65,7 +65,7 @@ function open({ token, repo, branch, fetch } = {}) {
   // categories, the repo's paths, and a way to fetch a file's bytes.
   async function snapshot() {
     const st = await load();
-    return { ...st, raw: (path) => gh.getRaw(path, { ref: st.head, as: "bytes" }) };
+    return { ...st, raw: (path) => gh.getRaw(path, { ref: st.head, as: "bytes" }), servers: () => sharesServers(st.paths.has("shares.json") ? gh.getJson("shares.json", { ref: st.head }) : null) };
   }
 
   // fn(doc, ctx) changes the doc in place and gives a result. ctx: me,
@@ -190,6 +190,19 @@ function tripView(doc, trip, cats) {
     people: (trip.members || []).map((m) => { const a = M.access(trip, m.id); return { id: m.id, name: m.name, role: a.role, hidden: a.hide, own: a.own }; }),
     files: (doc.files || []).filter((f) => f.trip === trip.id).map(({ id, name, type, size, place, note }) => ({ id, name, type, size, place, note })),
   };
+}
+
+// Which sharing server each shared trip is on, from the app's shares.json
+// (src/share.js): a key alone is Tripboard's server, { key, server } one
+// someone runs. Only the servers come out; the keys stay here.
+async function sharesServers(reading) {
+  const got = reading ? await reading : null;
+  const out = {};
+  for (const [id, v] of Object.entries((got && got.data) || {})) {
+    if (typeof v === "string") out[id] = "Tripboard's server";
+    else if (v && typeof v.server === "string" && /^https:\/\/[a-z0-9.:-]+$/.test(v.server)) out[id] = v.server.slice(8);
+  }
+  return out;
 }
 
 // The edits both front ends offer, on a doc. Each gives the record it made
@@ -458,7 +471,11 @@ const queries = {
     const d = st.doc;
     return M.sortTrips(d.trips, today()).map((t) => ({ ...t, status: M.tripStatus(t, today()), places: d.places.filter((p) => p.trip === t.id).length }));
   },
-  getTrip(st, a) { return tripView(st.doc, findTrip(st.doc, a.trip), st.cats); },
+  async getTrip(st, a) {
+    const v = tripView(st.doc, findTrip(st.doc, a.trip), st.cats);
+    if (st.servers) v.server = (await st.servers())[v.trip.id] || null;
+    return v;
+  },
   // Places that match every filter given; with near, nearest first.
   findPlaces(st, a) {
     const t = findTrip(st.doc, a.trip);

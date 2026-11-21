@@ -44,6 +44,11 @@ function fakeEnv() {
     files: [{ id: "f1", trip: "kyoto", name: "pass.pdf", type: "application/pdf", size: 3 }], deleted: {} });
   let ana, ben, cy, code;
 
+  await test("the server says it's a Tripboard sharing server, for the app's address check", async () => {
+    const r = await call("GET", "/");
+    assert.deepStrictEqual([r.status, r.body], [200, { tripboard: "sharing" }]);
+  });
+
   await test("sharing a trip makes its owner a key; a second share of it is refused", async () => {
     const r = await call("POST", "/trips", { bundle: bundle(), person: { id: "ana", name: "Ana" } });
     assert.strictEqual(r.status, 201);
