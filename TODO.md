@@ -9,10 +9,9 @@ moves to DROPPED.md with his reason.
 Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW,
 "mockups, not built yet").
 
-- **Android app with Share into a trip.** In Google Maps, Share → Tripboard
-  asks which trip, then opens Add a place already filled in. Needs Daniel's
-  signing key as GitHub secrets (ANDROID_KEYSTORE_B64 / PASSWORD) and
-  android.yml turned back on.
+- **Share into a trip on Android.** In Google Maps, Share → Tripboard
+  asks which trip, then opens Add a place already filled in. The signed
+  APK itself ships from 0.3.0 (android.yml, still run by hand).
 
 ## Data
 

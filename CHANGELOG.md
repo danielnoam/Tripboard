@@ -4,6 +4,40 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.3.0] - 2026-11-21
+
+### Added
+- AI apps in the cloud (Claude's connectors, ChatGPT's developer mode) can connect to your trips with a GitHub sign-in, once the server is set up (server/README.md). They can read, add and change, but not delete.
+- Add another device: once GitHub sync is on, Settings › GitHub sync shows a code to scan and a setup link to copy. Opening it on the other device asks before connecting, then the trips come over. A device that isn't connected yet can also paste the link.
+- Tripboard for Android: Tripboard.apk on the GitHub release page installs Tripboard as a phone app. It has the whole app inside, so it opens with no connection from the first launch, and later versions install over it and keep your trips.
+- An AI chat or a terminal can now do everything the app can with your trips: besides trips, places and expenses, it can add, read, rename and delete files, set or remove cover photos, manage your categories, take someone off a shared trip, import a Google Maps list, back up and restore, look up where a place is, and ask for a trip's board, a day's plan (as Today shows it) or places matching filters.
+- A chat sees your files' contents only if you turn it on (TRIPBOARD_MCP_FILES=1).
+- Screens slide: opening a trip, Sharing, Settings and each page inside Settings come in from the right (the left in Hebrew) and settle with a small bounce, and Back sends them out the same way. The screen underneath drifts a little and dims.
+- On a phone, Edit trip and the place editor slide in from the side the same way.
+- The buttons at the top and the trips on Home bounce when pressed; with a mouse they also grow a little when you point at them. A trip opens just after its bounce.
+- The Settings button is now at the top of a trip too, in the same corner as on Home. Back from Settings returns to the trip you came from.
+- Sharing a trip is on: invite people with a link, and they see and edit it with you. Importing a Google Maps list by its link works too.
+- Swipe sideways to move between a trip's tabs (Today, Plan, Map, Expenses, Files): on the bottom bar anywhere, and on the page on every tab but Map, where a swipe still pans the map. In Hebrew the direction is mirrored.
+- Moving between a trip's tabs now slides: the new tab comes in from its side of the bar and settles with a small bounce, and the old one leaves the other way (mirrored in Hebrew). The circle in the bar slides to the new tab with a little stretch and bounce, and the icon swells, settles back and turns white. The circle never goes past the ends of the bar. With Reduced motion on in the device's settings the screens cross-fade quickly instead.
+- New trip can start from a Google Maps list: pick the list's file and the trip takes the list's name, and Create adds every place in it. Places without a location are then found on the map by name, so add the city under Destinations.
+- Weather for each trip day: the forecast on Today (high and low, chance of rain, sunrise and sunset) and beside each day on the Plan, from Open-Meteo, up to 16 days ahead. It's off until you say yes (it sends your places' rough locations), can be turned off or switched to °F in Settings › Weather, and the last forecast stays for when there's no signal.
+- `weather` in the CLI and `get_weather` in the MCP server give the same forecast.
+
+### Changed
+- The CLI acts as you when your sync repo knows who you are: new trips are yours, changes carry your id, and a trip shared with you to view can't be changed.
+- The + sits beside the bottom bar, at its end (the left in Hebrew), as a rounded square of its own, instead of on top of the bar.
+- Adding a place from the + opens a sheet that comes up from below over the trip, instead of a full screen. Editing a place is still a full screen.
+- Tapping the + makes its icon swell and flash green, like a tab's icon; the square itself stays still.
+- Animations are on again across the app, so sheets, windows and the map move too. With Reduced motion on in the device's settings, screens fade quickly instead and nothing bounces.
+- On a phone, a trip's "Ready offline" badge in the top bar shows only its tick, so the trip's name still fits next to the buttons. On a wider screen it keeps its words.
+- The selected tab's circle is solid green with a white icon.
+- While a trip is under way, Today is the middle tab: Plan, Map, Today, Expenses, Files.
+- The update check (phone and Windows apps, once they are on) follows keel's channels: releases by default, or the newest build of main on the unreleased channel. The web copy serves those builds under `unreleased/`, never the Releases page.
+
+### Fixed
+- Opening a trip's map straight from a link no longer leaves Home's new-trip + in the header.
+- The +'s swell now shows when it opens Add a place or Add an expense; before, the sheet covered it straight away.
+
 ## [0.2.0] - 2026-11-16
 
 ### Added

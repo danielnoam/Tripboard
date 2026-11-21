@@ -4,7 +4,7 @@
 // data and the board's sorts), store.js (IndexedDB), icons.js and
 // views.js (the screens and sheets).
 (function () {
-  const APP_VERSION = "0.2.0";
+  const APP_VERSION = "0.3.0";
   const K = window.Keel;
   const $ = (id) => document.getElementById(id);
   const T = window.Tripboard;
