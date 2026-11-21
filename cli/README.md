@@ -47,7 +47,7 @@ they always match.
 | Add a place | `add-place` | `add_place` |
 | Change a place (day, time, location, visited…) | `edit-place` | `update_place` |
 | Delete a place | `delete-place` | `delete_place` |
-| Import a Google Maps list into a trip, or into a new one | `import` | `import_places` |
+| Import a Google Maps list (its shared link or a file) into a trip, or into a new one | `import` (`--link` or `--path`) | `import_places` |
 | Add an expense | `add-expense` | `add_expense` |
 | Change an expense | `edit-expense` | `update_expense` |
 | Delete an expense | `delete-expense` | `delete_expense` |

@@ -282,14 +282,15 @@ const ops = {
     doc.places = doc.places.filter((x) => x !== p);
     return { deleted: p.name };
   },
-  // A Google Maps list (Takeout CSV, My Maps KML, Saved Places JSON) into
-  // a trip, or into a new one named after the list. Names already in the
-  // trip are skipped, as in the app.
+  // A Google Maps list (Takeout CSV, My Maps KML, Saved Places JSON, or
+  // a.list: one already read from a shared link) into a trip, or into a new
+  // one named after the list. Names already in the trip are skipped, as in the app.
   importPlaces(doc, a, ctx) {
     const src = a.bytes ? Buffer.from(a.bytes).toString("utf8") : "";
-    const items = LI.parse(src, a.fileName || "");
+    const items = a.list ? (a.list.places || []).filter((p) => p && typeof p.name === "string" && p.name.trim()) : LI.parse(src, a.fileName || "");
     if (!items.length) throw new Error("No places found in that.");
-    const t = a.trip ? findTrip(doc, a.trip) : ops.createTrip(doc, { name: a.name || LI.title(src, a.fileName || "") || "Imported places" }, ctx);
+    const title = a.list ? String(a.list.title || "") : LI.title(src, a.fileName || "");
+    const t = a.trip ? findTrip(doc, a.trip) : ops.createTrip(doc, { name: a.name || title || "Imported places" }, ctx);
     const have = new Set(placesOf(doc, t).map((p) => p.name.toLowerCase()));
     const added = [];
     for (const it of items) {
@@ -297,7 +298,7 @@ const ops = {
       have.add(it.name.toLowerCase());
       const p = { id: M.newId(), trip: t.id, name: it.name, category: "other", importance: "want", createdAt: now() };
       if (it.note) p.note = it.note;
-      if (it.lat != null) Object.assign(p, { lat: it.lat, lng: it.lng });
+      if (typeof it.lat === "number" && typeof it.lng === "number") Object.assign(p, { lat: it.lat, lng: it.lng });
       added.push(M.sanitizePlace(p));
     }
     doc.places.push(...added);

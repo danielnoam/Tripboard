@@ -221,6 +221,34 @@ const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
     assert.ok(g.calls.filter((c) => c.host === "api.github.com").every((c) => c.ua === "Tripboard-MCP"));
   });
 
+  await test("import_places takes a shared Google Maps list's link, read in the Worker, 60 a day", async () => {
+    const g = fakeGitHub();
+    const answer = ")]}'\n" + JSON.stringify([[null, null, null, null, "Rome eats", null, null, null, [
+      [null, [null, null, null, null, "", [null, null, 41.898, 12.4715]], "Two Sizes", ""],
+      [null, null, "Pizza Florida", "Cash only"],
+    ]]]);
+    const google = [];
+    const env = fakeEnv(g, { FETCH: async (u, init) => {
+      const h = new URL(u).host;
+      if (h === "maps.app.goo.gl") { google.push(u); return new Response(null, { status: 302, headers: { Location: "https://www.google.com/maps/@/data=!4m3!11m2!2sRomeList12345!3e3" } }); }
+      if (h === "www.google.com") { google.push(u); assert.ok(!(init && init.headers && init.headers.Authorization)); return new Response(answer); }
+      return g.fetch(u, init);
+    } });
+    const t = await tokens(env, await signIn(env));
+    const r = await rpc(env, t.access_token, "tools/call", { name: "import_places", arguments: { link: "https://maps.app.goo.gl/rome123" } });
+    assert.ok(!r.body.result.isError, r.body.result.content[0].text);
+    const out = JSON.parse(r.body.result.content[0].text);
+    assert.deepStrictEqual([out.trip, out.added, out.places.map((p) => p.located)], ["Rome eats", 2, [true, false]]);
+    assert.strictEqual(g.read("trips/" + out.tripId + ".json").places.find((p) => p.name === "Pizza Florida").note, "Cash only");
+    assert.strictEqual(google.length, 2);
+    const list = (await rpc(env, t.access_token, "tools/list")).body.result.tools;
+    assert.ok(list.find((x) => x.name === "import_places").inputSchema.properties.link);
+    for (const [k] of env.kv) if (k.startsWith("mcp:lists:")) env.kv.set(k, "60");
+    const over = await rpc(env, t.access_token, "tools/call", { name: "import_places", arguments: { link: "https://maps.app.goo.gl/rome123" } });
+    assert.ok(over.body.result.isError);
+    assert.match(over.body.result.content[0].text, /Too many lists today/);
+  });
+
   await test("a wrong or expired token is refused, and taking someone off MCP_USERS locks them out", async () => {
     const env = fakeEnv(fakeGitHub());
     const t = await tokens(env, await signIn(env));

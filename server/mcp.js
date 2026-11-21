@@ -29,6 +29,7 @@
 // comma-separated). Without them every route here answers 404.
 
 import mcpCli from "../cli/mcp.js";
+import * as GL from "./googlelist.js";
 
 const GH_LOGIN = "https://github.com/login/oauth";
 const GH_API = "https://api.github.com";
@@ -294,6 +295,16 @@ async function githubFor(env, id, g) {
   return t.token;
 }
 
+// Shared Google Maps lists read for one person, at most LISTS_PER_DAY a day.
+const LISTS_PER_DAY = 60;
+async function listFor(env, user, url) {
+  const k = "mcp:lists:" + user + ":" + new Date().toISOString().slice(0, 10);
+  const n = +((await env.FILES.get(k)) || 0);
+  if (n >= LISTS_PER_DAY) throw new Error("Too many lists today. Try tomorrow.");
+  await env.FILES.put(k, String(n + 1), { expirationTtl: 2 * 86400 });
+  return GL.places(url, env.FETCH || fetch);
+}
+
 async function mcp(req, env, origin) {
   const unauthorized = (why) => json({ error: "invalid_token", error_description: why }, 401, { "WWW-Authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp", error="invalid_token"` });
   const m = /^Bearer ([\w-]+)\.([\w-]+)$/.exec(req.headers.get("Authorization") || "");
@@ -319,6 +330,9 @@ async function mcp(req, env, origin) {
       return (env.FETCH || fetch)(u, { ...init, headers });
     },
     write: (line) => out.push(JSON.parse(line)),
+    // A list's link is read here, as the app's /google-list does, so the
+    // Worker doesn't call itself.
+    googleList: (url) => listFor(env, g.user, url),
   });
   const one = async (msg) => {
     if (!msg || typeof msg !== "object") return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } };

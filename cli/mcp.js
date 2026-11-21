@@ -24,9 +24,9 @@ function schema(t) {
 // annotations (readOnlyHint for reads, destructiveHint for anything that
 // deletes, removes or replaces), which clients use to skip or ask before a call.
 const LIST = TOOLS.map((t) => ({ name: t.tool, description: t.description, inputSchema: schema(t),
-  annotations: { readOnlyHint: t.kind === "read", destructiveHint: /^(delete|remove|reset|import_backup)/.test(t.tool), openWorldHint: t.tool === "find_location" } }));
+  annotations: { readOnlyHint: t.kind === "read", destructiveHint: /^(delete|remove|reset|import_backup)/.test(t.tool), openWorldHint: t.tool === "find_location" || t.tool === "import_places" } }));
 
-function server({ env = process.env, fetch, write = (s) => process.stdout.write(s) } = {}) {
+function server({ env = process.env, fetch, write = (s) => process.stdout.write(s), googleList } = {}) {
   let tb = null;
   const conn = () => tb || (tb = core.open({ token: env.TRIPBOARD_TOKEN, repo: env.TRIPBOARD_REPO, branch: env.TRIPBOARD_BRANCH, fetch }));
   const send = (msg) => write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\n");
@@ -35,7 +35,7 @@ function server({ env = process.env, fetch, write = (s) => process.stdout.write(
     const tool = TOOLS.find((t) => t.tool === name);
     if (!tool) throw Object.assign(new Error("Unknown tool " + name), { code: -32602 });
     try {
-      const out = await run(conn(), tool, args || {}, "mcp", { ...env, fetch });
+      const out = await run(conn(), tool, args || {}, "mcp", { ...env, fetch, googleList });
       return { content: [{ type: "text", text: JSON.stringify(out, null, 1) }] };
     } catch (e) {
       return { content: [{ type: "text", text: e.message || String(e) }], isError: true };
