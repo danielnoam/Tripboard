@@ -35,10 +35,22 @@
   <main id="app" tabindex="-1"></main>
   <section class="map-view" id="mapView" aria-label="Map" hidden data-t-attr="aria-label">
     <div class="map" id="map"></div>
-    <p class="map-note" id="mapNote" role="status" hidden></p>
-    <p class="map-attrib" id="mapAttrib" hidden>Google</p>
-    <div class="map-days" id="mapDays" role="group" aria-label="Show a day" hidden data-t-attr="aria-label"></div>
+    <div class="map-top">
+      <div class="map-days" id="mapDays" role="group" aria-label="Show a day" hidden data-t-attr="aria-label"></div>
+      <p class="map-note" id="mapNote" role="status" hidden></p>
+      <button class="map-credit" id="mapCredit" type="button" aria-expanded="false" aria-controls="mapCredits" title="Map credits" hidden data-t-attr="title"><span class="map-credit-chip"><span class="map-credit-text"></span><span class="map-credit-ic" id="mapCreditIc"></span></span></button>
+      <p class="map-credits" id="mapCredits" hidden></p>
+    </div>
     <div class="map-panel" id="mapPanel" hidden></div>
+    <div class="map-tools" id="mapTools" hidden>
+      <div class="map-zoom">
+        <button class="map-tool" id="mapZoomIn" type="button" aria-label="Zoom in" title="Zoom in" data-t-attr="aria-label,title"></button>
+        <button class="map-tool" id="mapZoomOut" type="button" aria-label="Zoom out" title="Zoom out" data-t-attr="aria-label,title"></button>
+      </div>
+      <button class="map-tool" id="mapStyleBtn" type="button" aria-label="Map style" title="Map style" data-t-attr="aria-label,title"></button>
+      <button class="map-tool" id="mapFit" type="button" aria-label="Show all places" title="Show all places" data-t-attr="aria-label,title"></button>
+      <button class="map-tool" id="mapLocate" type="button" aria-label="Where am I" title="Where am I" data-t-attr="aria-label,title"></button>
+    </div>
   </section>
   <div class="bottombar" id="bottomBar" hidden>
     <nav class="tabbar" id="tripBar" aria-label="Show" data-t-attr="aria-label"></nav>
@@ -103,6 +115,16 @@
     </form>
   </dialog>
 
+  <dialog class="sheet" id="mapStyleSheet" aria-labelledby="mapStyleTitle">
+    <div class="sheet-body">
+      <h2 id="mapStyleTitle" data-t>Map style</h2>
+      <div id="mapStyles"></div>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Close</button>
+      </div>
+    </div>
+  </dialog>
   <div class="select-bar" id="selectBar" hidden>
     <button class="icon-btn" id="selectDone" type="button" aria-label="Done" data-t-attr="aria-label"></button>
     <span class="select-count" id="selectCount"></span>

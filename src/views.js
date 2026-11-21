@@ -1680,6 +1680,7 @@
       mapMessage(mapFailed);
       return;
     }
+    $("mapTools").hidden = false;
     const note = $("mapNote");
     note.hidden = !(got && got.skipped.length);
     if (got && got.skipped.length) note.textContent = i18n.t("Showing {name}: {join}", { name: SET.PROVIDERS[got.by].name, join: got.skipped.map((x) => x.reason).join(" ") });
@@ -1694,6 +1695,7 @@
     panel.hidden = !panel.childNodes.length;
   }
   function mapMessage(text) {
+    $("mapTools").hidden = true;
     $("mapPanel").replaceChildren(el("p", { text }), el("button.btn", { type: "button", text: i18n.t("Try again"), onclick: () => { mapFailed = null; render(); } }));
     $("mapPanel").hidden = false;
   }
@@ -1729,7 +1731,7 @@
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
         sel.address ? el("span.dim.addr", { text: sel.address }) : null),
-        sees(trip, "files") && filesOn(sel.id).length ? el("ul.attached", {}, fileButtons(filesOn(sel.id))) : null,
+        ...(sees(trip, "files") && filesOn(sel.id).length ? [el("ul.attached", {}, fileButtons(filesOn(sel.id)))] : []),
         el("div.loc-actions", {},
           el("button.btn", { type: "button", text: mayEdit(trip) ? i18n.t("Edit") : i18n.t("Details"), onclick: (e) => openPlace(sel, trip, null, e.currentTarget) }),
           mayEdit(trip) ? el("button.btn.quiet", { type: "button", text: i18n.t("Move pin"), onclick: () => { view.pick = sel.id; view.sel = null; render(); } }) : null),
@@ -1744,6 +1746,74 @@
         onclick: () => { view.pick = p.id; render(); } })))));
   }
 
+  // The map's style: the free maps (OpenFreeMap's), then the ones that need
+  // a key. Picking one changes Settings › Services › Map: its provider
+  // becomes the map, with OpenFreeMap behind it if it fails. One that needs
+  // a key and has none opens that provider's setup.
+  const MAP_STYLES = [
+    { id: "auto", name: () => i18n.t("Auto"), sub: () => i18n.t("Follows the app"), at: [["openfreemap", "style", "light"]] },
+    { id: "light", name: () => i18n.t("Light"), at: [["openfreemap", "style", "positron"]] },
+    { id: "dark", name: () => i18n.t("Dark"), at: [["openfreemap", "style", "dark"]] },
+    { id: "liberty", name: () => "Liberty", sub: () => i18n.t("Colourful"), at: [["openfreemap", "style", "liberty"]] },
+    { id: "bright", name: () => "Bright", at: [["openfreemap", "style", "bright"]] },
+    { id: "streets", name: () => i18n.t("Streets"), sub: () => "MapTiler", at: [["maptiler", "style", "streets"]], only: true },
+    { id: "streets", name: () => i18n.t("Map"), sub: () => "Google", at: [["google", "mapType", "roadmap"]], only: true },
+    { id: "satellite", name: () => i18n.t("Satellite"), sub: (by) => by ? SET.PROVIDERS[by].name : "MapTiler, Google", at: [["maptiler", "style", "satellite"], ["google", "mapType", "satellite"]] },
+    { id: "outdoor", name: () => i18n.t("Outdoor"), sub: () => "MapTiler", at: [["maptiler", "style", "outdoor"]] },
+    { id: "terrain", name: () => i18n.t("Terrain"), sub: () => "Google", at: [["google", "mapType", "terrain"]] },
+  ];
+  function paintMapStyles() {
+    const cur = SET.get(), main = cur.map.main;
+    const isOn = ([id, k, v]) => main === id && (cur.providers[id] || {})[k] === v;
+    const tile = (st) => {
+      const at = st.at.find(isOn) || st.at.find(([id]) => SET.ready(id));
+      const on = !!st.at.find(isOn);
+      const locked = !at;
+      return el("button.mstyle" + (locked ? ".locked" : ""), { type: "button", "aria-pressed": String(on),
+        onclick: () => {
+          if (locked) { closeSheet($("mapStyleSheet")); location.hash = "#/settings/p/" + st.at[0][0]; return; }
+          const [id, k, v] = at;
+          SET.setProvider(id, { [k]: v });
+          if (main !== id) SET.setService("map", { main: id, fallback: id === "openfreemap" ? (cur.map.fallback === "openfreemap" ? "" : cur.map.fallback) : "openfreemap" });
+          closeSheet($("mapStyleSheet"));
+          render();
+        } },
+        el("span.mthumb." + st.id, {}, locked ? icon("key") : null),
+        st.name(), st.sub ? el("small", { text: st.sub(at && at[0] !== "openfreemap" && st.at.length > 1 ? at[0] : null) }) : null);
+    };
+    const free = MAP_STYLES.filter((st) => st.at[0][0] === "openfreemap");
+    const keyed = MAP_STYLES.filter((st) => st.at[0][0] !== "openfreemap" && (!st.only || SET.ready(st.at[0][0])));
+    const anyKey = SET.ready("maptiler") || SET.ready("google");
+    $("mapStyles").replaceChildren(
+      el("p.mstyle-group", { text: i18n.t("Free") }), el("div.mstyle-grid", {}, free.map(tile)),
+      el("p.mstyle-group", { text: anyKey ? i18n.t("With your key") : i18n.t("With your own key") }), el("div.mstyle-grid", {}, keyed.map(tile)),
+      anyKey ? null : el("p.mstyle-hint", {}, i18n.t("A free MapTiler key gives satellite and outdoor maps:") + " ",
+        el("a", { href: "#/settings/p/maptiler", text: i18n.t("set it up"), onclick: () => closeSheet($("mapStyleSheet")) })));
+  }
+  function mapButtons() {
+    $("mapZoomIn").append(icon("plus"));
+    $("mapZoomOut").append(icon("minus"));
+    $("mapStyleBtn").append(icon("layers"));
+    $("mapFit").append(icon("fit"));
+    $("mapLocate").append(icon("locate"));
+    $("mapCreditIc").append(icon("info"));
+    $("mapZoomIn").addEventListener("click", () => TM.zoom(1));
+    $("mapZoomOut").addEventListener("click", () => TM.zoom(-1));
+    $("mapStyleBtn").addEventListener("click", (e) => { paintMapStyles(); openSheet($("mapStyleSheet"), e.currentTarget); });
+    $("mapFit").addEventListener("click", () => {
+      const trip = findTrip(view.trip);
+      if (!trip) return;
+      const list = shownPlaces(trip);
+      TM.fit(list.some((p) => p.lat != null) ? list : placesOf(trip.id), true);
+    });
+    $("mapLocate").addEventListener("click", () => TM.locate());
+    TM.onLocateFail = () => toast(i18n.t("Couldn't find where you are. Check that location is allowed for Tripboard."));
+    $("mapCredit").addEventListener("click", () => TM.toggleCredits());
+    // The buttons rise above a place's card: its height, kept current.
+    const panel = $("mapPanel");
+    if (window.ResizeObserver) new ResizeObserver(() => $("mapView").style.setProperty("--panel-h", (panel.hidden ? 0 : panel.offsetHeight + 8) + "px")).observe(panel);
+  }
+
   // Links that open a place in another maps app: Google Maps by its id or
   // location, Apple Maps, and Waze (which needs a location).
   function openIn(p) {
@@ -1753,6 +1823,8 @@
     const a = "https://maps.apple.com/?q=" + name + (at ? "&ll=" + at : "");
     const links = [["Google Maps", g], ["Apple Maps", a]];
     if (at) links.push(["Waze", "https://waze.com/ul?ll=" + at + "&navigate=yes"]);
+    // Street View is Google Maps' own; it opens there, at the place.
+    if (at) links.push([i18n.t("Street View"), "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=" + at]);
     return el("p.open-in", {}, el("span.dim", { text: i18n.t("Open in ") }),
       links.map(([label, href], i) => [i ? el("span.dim", { text: " · " }) : null, el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label })]));
   }
@@ -2871,6 +2943,7 @@
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("sliders"));
     $("updateClose").append(icon("x"));
+    mapButtons();
     $("offlineBadge").prepend(icon("check"));
     $("newTrip").append(icon("plus"));
     $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));
