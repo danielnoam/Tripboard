@@ -1890,9 +1890,9 @@
       { ico: "users", title: i18n.t("Sharing"), where: i18n.t("Settings"), href: "#/settings/sharing", words: "you name me profile person shared trips paid by who" },
       { ico: "users", title: i18n.t("Sharing server"), where: i18n.t("Sharing"), href: "#/settings/server", words: "sharing server own self host cloudflare worker deploy address invite" },
       { ico: "database", title: i18n.t("Data"), where: i18n.t("Settings"), href: "#/settings/data", words: "data sync backup storage" },
-      { ico: "refresh", title: i18n.t("GitHub sync"), where: i18n.t("Data"), href: "#/settings/sync", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
+      { ico: "refresh", title: i18n.t("GitHub sync"), where: i18n.t("Data"), href: "#/settings/data", words: "sync devices github repo token connect disconnect backup cloud phone computer" },
       ...(driveOn() ? [{ ico: "cloud", title: i18n.t("Google Drive"), where: i18n.t("Data"), href: "#/settings/drive", words: "drive google backup backups restore automatic cloud copy" }] : []),
-      { ico: "database", title: i18n.t("Storage and backup"), where: i18n.t("Data"), href: "#/settings/storage", words: "storage space used trips places photos covers persistent keep safe delete browser backup restore file export import save json" },
+      { ico: "database", title: i18n.t("Storage and backup"), where: i18n.t("Data"), href: "#/settings/data", words: "storage space used trips places photos covers persistent keep safe delete browser backup restore file export import save json" },
       { ico: "info", title: i18n.t("About"), where: i18n.t("Settings"), href: "#/settings/about", words: "version credits licences privacy" },
     ];
     for (const [id, P] of Object.entries(SET.PROVIDERS)) {
@@ -1915,18 +1915,16 @@
 
   // Settings' pages, and the page each one steps back to.
   const SETTINGS_PARENT = { map: "services", search: "services", p: "services", weather: "services", ai: "services",
-    server: "sharing", sync: "data", drive: "data", storage: "data" };
+    server: "sharing", drive: "data" };
   const settingsParent = (page) => SETTINGS_PARENT[String(page).split("/")[0]] || "";
 
   function renderSettings(main, page) {
     if (page === "map" || page === "search") return renderService(main, page);
     if (page === "services") return renderServices(main);
     if (page === "drive") return renderDrive(main);
-    if (page === "sync") return renderSync(main);
     if (page === "you" || page === "sharing") return renderSharing(main);
-    if (page === "data") return renderData(main);
+    if (page === "data" || page === "sync" || page === "storage") return renderData(main);
     if (page === "categories") return renderCategories(main);
-    if (page === "storage") return renderStorage(main);
     if (page === "appearance" || page === "display") return renderAppearance(main);
     if (page === "about") return renderAbout(main);
     if (page === "weather") return renderWeather(main);
@@ -1994,36 +1992,36 @@
       i18n.lang === "en" ? seg(i18n.t("Dates"), [["", i18n.t("System")], ["md", sample({ day: "numeric", month: "short" }, "en-US")], ["dm", sample({ day: "numeric", month: "short" }, "en-GB")]], dp.dates, (id) => SET.setDisplay({ dates: id })) : null));
   }
 
-  async function renderStorage(main) {
-    $("title").textContent = i18n.t("Storage and backup");
+  // Storage and backup, on the Data page.
+  function storageParts() {
     const trips = doc.trips.length, places = doc.places.length, covers = doc.trips.filter((t) => t.cover).length, files = (doc.files || []).length;
-    const used = el("p", { text: i18n.t("Working it out…") });
+    const used = el("p.hint.dim", { text: i18n.t("Working it out…") });
     const keep = el("p.hint.dim");
     const keepBtn = el("button.btn", { type: "button", text: i18n.t("Keep my trips safe"), hidden: true });
-    main.append(el("section.panel", {}, el("h2", { text: i18n.t("On this device") }),
-      el("p", { text: i18n.join([i18n.tn(trips, "1 trip", "{n} trips"), i18n.tn(places, "1 place", "{n} places"), i18n.tn(covers, "1 cover photo", "{n} cover photos"), i18n.tn(files, "1 file", "{n} files")]) + "." }), used),
-    el("section.panel", {}, el("h2", { text: i18n.t("Kept safe") }), keep, el("div.loc-actions", {}, keepBtn)),
+    const S = navigator.storage;
+    (async () => {
+      if (S && S.estimate) {
+        try { const e = await S.estimate(); used.textContent = (e.quota ? i18n.t("About {mb} used, of {quota} this browser allows.", { mb: mb(e.usage), quota: mb(e.quota) }) : i18n.t("About {mb} used.", { mb: mb(e.usage) })); }
+        catch (err) { used.textContent = ""; }
+      } else used.textContent = "";
+      const persisted = S && S.persisted ? await S.persisted().catch(() => false) : false;
+      keep.textContent = persisted ? i18n.t("The browser won't clear Tripboard's data to free up space.")
+        : i18n.t("The browser may clear Tripboard's data when the device runs short of space. Asking it to keep the data stops that.");
+      keepBtn.hidden = persisted || !(S && S.persist);
+      keepBtn.onclick = async () => {
+        const ok = await S.persist().catch(() => false);
+        if (ok) render(); else keep.textContent = i18n.t("The browser said no. Installing Tripboard (Add to Home screen) usually lets it keep the data.");
+      };
+    })();
+    return [el("section.panel", {},
+      el("p", { text: i18n.join([i18n.tn(trips, "1 trip", "{n} trips"), i18n.tn(places, "1 place", "{n} places"), i18n.tn(covers, "1 cover photo", "{n} cover photos"), i18n.tn(files, "1 file", "{n} files")]) + "." }),
+      used, keep, el("div.loc-actions", {}, keepBtn)),
     el("section.panel", {}, el("h2", { text: i18n.t("Backup") }),
       el("p.hint.dim", { text: i18n.t("A file with your trips, places, expenses, cover photos and files. Restoring it adds its trips here, and replaces a trip that's already here.") }),
       el("div.loc-actions", {},
         el("button.btn", { type: "button", text: i18n.t("Save a backup"), disabled: !trips, onclick: () => saveBackup() }),
         el("label.btn.quiet", {}, i18n.t("Restore from a file"), el("input.visually-hidden", { type: "file", accept: ".json,application/json",
-          onchange: (e) => { const f = e.target.files && e.target.files[0]; if (f) restoreBackup(f); e.target.value = ""; } })))),
-    el("p.dim.hint.page-hint", { text: SYNC && SYNC.connected() ? i18n.t("Your trips are also in your GitHub repo, so clearing this site's data loses only what hasn't synced yet.")
-      : i18n.t("Without GitHub sync, trips live in this browser only. Clearing this site's data deletes them.") }));
-    const S = navigator.storage;
-    if (S && S.estimate) {
-      try { const e = await S.estimate(); used.textContent = (e.quota ? i18n.t("About {mb} used, of {quota} this browser allows.", { mb: mb(e.usage), quota: mb(e.quota) }) : i18n.t("About {mb} used.", { mb: mb(e.usage) })); }
-      catch (err) { used.textContent = ""; }
-    } else used.textContent = "";
-    const persisted = S && S.persisted ? await S.persisted().catch(() => false) : false;
-    keep.textContent = persisted ? i18n.t("The browser won't clear Tripboard's data to free up space.")
-      : i18n.t("The browser may clear Tripboard's data when the device runs short of space. Asking it to keep the data stops that.");
-    keepBtn.hidden = persisted || !(S && S.persist);
-    keepBtn.onclick = async () => {
-      const ok = await S.persist().catch(() => false);
-      if (ok) render(); else keep.textContent = i18n.t("The browser said no. Installing Tripboard (Add to Home screen) usually lets it keep the data.");
-    };
+          onchange: (e) => { const f = e.target.files && e.target.files[0]; if (f) restoreBackup(f); e.target.value = ""; } }))))];
   }
   const mb = (bytes) => (bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : Math.max(0.1, bytes / 1e6).toFixed(1) + " MB");
 
@@ -2180,11 +2178,16 @@
     if (sync.tone === "warn") return sync;
     return { text: SYNC && SYNC.connected() ? i18n.t("GitHub sync on · backups") : i18n.t("On this device · backups") };
   }
+  // Data: GitHub sync, storage and backups, all on one page.
   function renderData(main) {
     $("title").textContent = i18n.t("Data");
-    main.append(sgroup(i18n.t("Your trips elsewhere"), [srow("#/settings/sync", "refresh", i18n.t("GitHub sync"), syncSummary()),
-      driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null]),
-    sgroup(i18n.t("On this device"), [srow("#/settings/storage", "database", i18n.t("Storage and backup"), { text: i18n.t("Space used, backup and restore") })]));
+    const label = (t) => el("h2.sgroup-label.data-label", { text: t });
+    main.append(label(i18n.t("GitHub sync")), ...syncParts(),
+      ...(driveOn() ? [sgroup(i18n.t("Backups elsewhere"), [srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary())])] : []),
+      label(i18n.t("On this device")), ...storageParts(),
+      el("p.dim.hint.page-hint", { text: SYNC && SYNC.connected() ? i18n.t("Your trips are also in your GitHub repo, so clearing this site's data loses only what hasn't synced yet.")
+        : i18n.t("Without GitHub sync, trips live in this browser only. Clearing this site's data deletes them.") }));
+    if (syncPaint) syncPaint();
   }
 
   // ---------- Categories ----------
@@ -2317,6 +2320,8 @@
     const box = el("div.sync-qr", { role: "img", "aria-label": i18n.t("Setup code") });
     const svg = Q && Q.fits(link) ? Q.svg(link, { size: 200 }) : null;
     if (svg) box.innerHTML = svg;
+    box.hidden = true;
+    const show = el("button.btn", { type: "button", text: i18n.t("Show setup code"), hidden: !svg, onclick: () => { box.hidden = !box.hidden; show.textContent = box.hidden ? i18n.t("Show setup code") : i18n.t("Hide setup code"); } });
     const copy = async () => {
       try { await navigator.clipboard.writeText(link); toast(i18n.t("Setup link copied. Only send it to yourself.")); }
       catch (e) { toast(i18n.t("Couldn't copy the link.")); }
@@ -2325,7 +2330,7 @@
       el("h2", { text: i18n.t("Add another device") }),
       el("p.hint.dim", { text: i18n.t("Point the other device's camera at this code, or send yourself the link and open it there. Tripboard asks before it connects.") }),
       svg ? box : null,
-      el("div.loc-actions", {}, el("button.btn", { type: "button", text: i18n.t("Copy setup link"), onclick: copy })),
+      el("div.loc-actions", {}, show, el("button.btn", { type: "button", text: i18n.t("Copy setup link"), onclick: copy })),
       el("p.hint.warn", { text: i18n.t("The code and the link hold your token. Only use them on your own devices.") }));
   }
   function pastePanel() {
@@ -2341,15 +2346,13 @@
       el("div.link-row", {}, input, go), status);
   }
 
-  function renderSync(main) {
-    $("title").textContent = i18n.t("GitHub sync");
+  // GitHub sync, on the Data page: the setup form, or the repo and its status.
+  function syncParts() {
     const c = SET.get().sync;
     const status = el("p.hint", { role: "status" });
-    if (pendingSetup) {
-      main.append(setupPanel());
-      if (!SYNC.connected()) return;
-    }
+    const out = pendingSetup ? [setupPanel()] : [];
     if (!SYNC.connected()) {
+      if (pendingSetup) return out;
       const owner = el("input", { value: c.owner, autocomplete: "off", spellcheck: false, autocapitalize: "off", placeholder: "your-user-name" });
       const repo = el("input", { value: c.repo, autocomplete: "off", spellcheck: false, autocapitalize: "off" });
       const token = el("input", { type: "password", autocomplete: "off", spellcheck: false, placeholder: "github_pat_…" });
@@ -2359,17 +2362,17 @@
         if (!v.owner || !v.repo || !v.token) { status.textContent = i18n.t("All three are needed."); return; }
         if (await connectSync(v, status, go)) render();
       };
-      main.append(el("p.dim.hint.page-hint", { text: i18n.t("Sync keeps your trips in a private GitHub repo of yours, so your phone and computer see the same trips. Tripboard has no server: your trips go only to GitHub.") }),
-        el("section.panel", {}, el("h2", { text: i18n.t("Set it up") }),
+      out.push(el("section.panel", {},
+        el("p", { text: i18n.t("Sync keeps your trips in a private GitHub repo of yours, so your phone and computer see the same trips. Tripboard has no server: your trips go only to GitHub.") }),
+        el("details.sync-steps", {}, el("summary", { text: i18n.t("How to make the repo and token") }),
           el("ol.steps", {}, SYNC_STEPS.map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: i18n.t("Open") })] : null)))),
-        el("section.panel", {},
-          el("label.field", {}, i18n.t("GitHub user name"), owner),
-          el("label.field", {}, i18n.t("Repo"), repo),
-          el("label.field", {}, i18n.t("Token"), token),
-          el("div.loc-actions", {}, go), status),
-        pastePanel(),
-        el("p.dim.hint", { text: i18n.t("The token is kept in this browser and sent only to GitHub. Anyone who can open this browser's Tripboard can use it, so give it only that one repo.") }));
-      return;
+        el("label.field", {}, i18n.t("GitHub user name"), owner),
+        el("label.field", {}, i18n.t("Repo"), repo),
+        el("label.field", {}, i18n.t("Token"), token),
+        el("div.loc-actions", {}, go), status,
+        el("p.hint.dim", { text: i18n.t("The token is kept in this browser and sent only to GitHub. Anyone who can open this browser's Tripboard can use it, so give it only that one repo.") })),
+      pastePanel());
+      return out;
     }
     const line = el("p");
     const now = el("button.btn", { type: "button", text: i18n.t("Sync now"), onclick: () => SYNC.now() });
@@ -2381,7 +2384,7 @@
       line.dataset.tone = st.state === "error" ? "warn" : "";
     };
     const repoUrl = "https://github.com/" + encodeURIComponent(c.owner) + "/" + encodeURIComponent(c.repo);
-    main.append(el("section.panel", {}, el("h2", {}, el("a", { href: repoUrl, target: "_blank", rel: "noopener noreferrer", text: c.owner + "/" + c.repo })),
+    out.push(el("section.panel", {}, el("h2", {}, el("a", { href: repoUrl, target: "_blank", rel: "noopener noreferrer", text: c.owner + "/" + c.repo })),
       line, el("p.hint.dim", { text: i18n.t("It syncs a few seconds after each change, when Tripboard opens, and every few minutes while it's open.") }),
       el("div.loc-actions", {}, now,
         el("button.btn.danger", { type: "button", text: i18n.t("Disconnect"), onclick: async () => {
@@ -2389,10 +2392,10 @@
           await SYNC.forget();
           render();
           toast(i18n.t("Disconnected. Your trips stay on this device and in the repo."));
-        } }))),
-    addDevicePanel(),
-    el("p.dim.hint", { text: i18n.t("Each trip is a file in the repo (trips/), with its cover photo (covers/). Changes made on two devices at once are merged; when both changed the same thing, the later change wins.") }));
-    syncPaint();
+        } })),
+      el("p.hint.dim", { text: i18n.t("Each trip is a file in the repo (trips/), with its cover photo (covers/). Changes made on two devices at once are merged; when both changed the same thing, the later change wins.") })),
+    addDevicePanel());
+    return out;
   }
 
   // ---------- Google Drive backups (src/drive.js) ----------
@@ -2642,7 +2645,7 @@
   function takeSetupLink() {
     if (!/^#t=/.test(location.hash)) return false;
     const v = setupIn(location.hash);
-    history.replaceState(history.state, "", location.pathname + location.search + "#/settings/sync");
+    history.replaceState(history.state, "", location.pathname + location.search + "#/settings/data");
     if (v) pendingSetup = v; else toast(i18n.t("That setup link is incomplete. Make a new one on the other device."));
     render();
     return true;
