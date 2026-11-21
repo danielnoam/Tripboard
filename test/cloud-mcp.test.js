@@ -140,6 +140,8 @@ const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
     assert.match(s.ask.body, /Let Claude use your trips\?/);
     assert.match(s.ask.body, /claude\.ai/);
     assert.match(s.ask.headers.get("Content-Security-Policy"), /frame-ancestors 'none'/);
+    // Browsers check form-action on the redirects after Allow: GitHub, then back to the app.
+    assert.match(s.ask.headers.get("Content-Security-Policy"), /form-action 'self' https:\/\/github\.com https:\/\/claude\.ai;/);
     assert.match(s.ask.headers.get("Set-Cookie"), /HttpOnly; Secure; SameSite=Lax/);
     const other = new URLSearchParams({ response_type: "code", client_id: s.reg.body.client_id, redirect_uri: "https://evil.test/cb", code_challenge: s.challenge, code_challenge_method: "S256" });
     assert.match((await call(env, "GET", "/authorize?" + other)).body, /doesn't work/);
