@@ -429,8 +429,14 @@
     const hash = location.hash || "#/";
     shownHash = hash;
     if (tabMove && tabMove.to === hash) { tabMove.hold(); return; }
+    // A saved sheet slides away while what it changed is already drawn
+    // under it; the screen under it doesn't move as well.
+    const sheetUp = !!document.querySelector("dialog[open]");
+    // A move cut short by the next one: the screen it was bringing in
+    // leaves from where it got to, not from its place, so nothing jumps.
+    const cut = tabMove ? { into: tabMove.into, x: new DOMMatrix(getComputedStyle(tabMove.into).transform).m41 } : null;
     if (tabMove) tabMove.end();
-    if (b.hash == null || b.hash === hash || !document.body.animate) return;
+    if (sheetUp || b.hash == null || b.hash === hash || !document.body.animate) return;
     const trip = view.trip === b.trip && b.mode !== view.mode && findTrip(view.trip);
     const modes = trip ? tripTabs(trip).map(([m]) => m) : [], i = modes.indexOf(b.mode), j = modes.indexOf(view.mode);
     const d0 = depthOf(b.hash), d1 = depthOf(hash);
@@ -458,7 +464,8 @@
     }
     const into = view.mode === "map" && out !== map ? map : main;
     const w = window.innerWidth * (i18n.dir === "rtl" ? -1 : 1);
-    const at = (k) => "translateX(" + k * w + "px)";
+    const fx = cut && cut.into === (out === map ? map : main) ? cut.x : 0;
+    const at = (k, x = 0) => "translateX(" + (k * w + x) + "px)";
     const DIM = "brightness(0.9)";
     // The screen on top during the move: the new one on a push, the old one on Back.
     if (kind === "push") { out.classList.add("tab-under"); into.classList.add("tab-over"); }
@@ -466,14 +473,14 @@
     if (lessMotion()) anims = [into.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 }), out.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: "forwards" })];
     else if (kind === "tab") {
       const k = j > i ? 1 : -1;
-      anims = [into.animate([{ transform: at(k) }, { transform: "none" }], onSpring(TAB_PAGE)),
-        out.animate([{ transform: "none" }, { transform: at(-k) }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
+      anims = [into.animate([{ transform: at(k, fx) }, { transform: "none" }], onSpring(TAB_PAGE)),
+        out.animate([{ transform: at(0, fx) }, { transform: at(-k) }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
     } else if (kind === "push") {
       anims = [into.animate([{ transform: at(1) }, { transform: "none" }], onSpring(TAB_PAGE)),
-        out.animate([{ transform: "none", filter: "none" }, { transform: at(-0.25), filter: DIM }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
+        out.animate([{ transform: at(0, fx), filter: "none" }, { transform: at(-0.25), filter: DIM }], { ...onSpring(TAB_PAGE), fill: "forwards" })];
     } else {
       anims = [into.animate([{ transform: at(-0.25), filter: DIM }, { transform: "none", filter: "none" }], onSpring(PAGE_OUT)),
-        out.animate([{ transform: "none" }, { transform: at(1) }], { ...onSpring(PAGE_OUT), fill: "forwards" })];
+        out.animate([{ transform: at(0, fx) }, { transform: at(1) }], { ...onSpring(PAGE_OUT), fill: "forwards" })];
     }
     document.documentElement.classList.add("tab-moving");
     const end = () => {
@@ -488,7 +495,7 @@
         map.hidden = view.mode !== "map";
       } else out.remove();
     };
-    tabMove = { to: hash, end, hold };
+    tabMove = { to: hash, end, hold, into };
     Promise.all(anims.map((a) => a.finished)).then(end, end);
   }
 
@@ -813,8 +820,9 @@
     form.name.removeAttribute("aria-invalid");
     Object.assign(editingFile, { name: form.name.value, place: form.place.value, note: form.note.value });
     if (fileLocal) editingFile.local = true; else delete editingFile.local;
-    await closeSheet($("fileSheet"));
+    const closing = closeSheet($("fileSheet"));
     save();
+    await closing;
   });
   // Opens a file's bytes in a new tab, or says why it can't.
   async function viewFile(f) {
@@ -916,8 +924,9 @@
     if (!$("expensePaidRow").hidden) x.paidBy = $("expensePaidBy").value;
     try { localStorage.setItem("tripboard.currency", x.currency); } catch (err) { /* private window */ }
     if (!editingExpense) { doc.expenses = doc.expenses || []; doc.expenses.push(x); }
-    await closeSheet($("expenseSheet"));
+    const closing = closeSheet($("expenseSheet"));
     save();
+    await closing;
   });
 
   function group(trip, g, wx) {
@@ -1229,9 +1238,10 @@
       trip.coverAt = stamp;
     }
     if (!editingTrip) doc.trips.push(trip);
-    await closeSheet($("tripSheet"));
+    const closing = closeSheet($("tripSheet"));
     save();
     if (!editingTrip) location.hash = "#/trip/" + trip.id;
+    await closing;
     const list = !editingTrip && pendingList;
     pendingList = null;
     if (list) await importList(doc.trips.find((t) => t.id === trip.id) || trip, list.places);
@@ -1391,8 +1401,9 @@
       else if (loc.address) p.address = loc.address;
     }
     if (!editingPlace) doc.places.push(p);
-    await closeSheet($("placeSheet"));
+    const closing = closeSheet($("placeSheet"));
     save();
+    await closing;
     return p;
   }
   for (const id of ["daySelect", "dayInput"]) $(id).addEventListener("change", () => paintUntil(null, placeTrip.start ? $("untilSelect").value : $("untilInput").value));
@@ -2563,8 +2574,8 @@
   }
   // The buttons at the top and the trips on Home sink under a finger or
   // the mouse and spring back past their size when let go (hover, in
-  // styles.css, grows them a little). A trip opens once its bounce has
-  // shown, a moment after the press.
+  // styles.css, grows them a little). The bounce never holds anything up:
+  // a trip opens on the tap, and the card bounces as it slides away.
   function pressBounce() {
     const DEPTH = [[".bar .icon-btn", 0.84], [".trip-card", 0.96]];
     let held = null;
@@ -2586,13 +2597,6 @@
       a.id = "press";
     };
     for (const t of ["pointerup", "pointercancel", "dragstart"]) document.addEventListener(t, up);
-    document.addEventListener("click", (e) => {
-      const a = e.target.closest && e.target.closest("a.trip-card");
-      if (!a || lessMotion() || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      e.preventDefault();
-      const to = a.getAttribute("href");
-      setTimeout(() => { location.hash = to; }, 150);
-    });
   }
 
   function start(ctx) {
@@ -2623,13 +2627,12 @@
       if (!lessMotion() && fab.animate) fab.animate([{ color: getComputedStyle(fab).getPropertyValue("--tab-on") }, { color: getComputedStyle(fab).color }],
         { duration: 600, easing: "ease-in" });
     });
-    // A sheet would cover the + at once, so it waits for the swell's peak.
-    // The file picker can't wait: it needs the tap itself.
+    // What the + opens comes up at once, with the swell under it.
     $("fab").addEventListener("click", (e) => {
       const fab = e.currentTarget, trip = findTrip(view.trip), mode = view.mode;
-      if (mode === "files") { $("fileAdd").click(); return; }
-      const open = () => mode === "expenses" ? openExpense(null, trip, fab) : openPlace(null, trip, mode === "today" ? { day: today() } : null, fab);
-      if (lessMotion()) open(); else setTimeout(open, 200);
+      if (mode === "files") $("fileAdd").click();
+      else if (mode === "expenses") openExpense(null, trip, fab);
+      else openPlace(null, trip, mode === "today" ? { day: today() } : null, fab);
     });
     window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
