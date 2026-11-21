@@ -308,6 +308,15 @@ body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 
   border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text);
   font-size: var(--fs-body); font-weight: 400;
 }
+/* Chromium and Android's WebView draw their own arrow flush with the edge,
+   ignoring padding, so the arrow is drawn here: two gradients make a chevron. */
+.field select {
+  appearance: none; padding-inline-end: 40px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 21px) 50%, calc(100% - 16px) 50%;
+  background-size: 5px 5px; background-repeat: no-repeat;
+}
+[dir="rtl"] .field select { background-position: 16px 50%, 21px 50%; }
 .field textarea { resize: vertical; }
 .field [aria-invalid="true"] { border-color: var(--danger); }
 .field input[hidden], .field select[hidden] { display: none; }
@@ -557,7 +566,7 @@ dialog[tabindex="-1"]:focus { outline: none; }
 }
 .page-bar .page-back { margin-inline-start: calc(-1 * var(--space-2)); }
 .sheet.page .page-bar h2 { flex: 1; font-size: var(--fs-big); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet.page .field input, .sheet.page .field select, .sheet.page .field textarea { background: var(--surface); }
+.sheet.page .field input, .sheet.page .field select, .sheet.page .field textarea { background-color: var(--surface); }
 .sheet.page .sheet-actions {
   position: sticky; bottom: 0;
   padding: var(--space-2) 0 calc(env(safe-area-inset-bottom) + var(--space-2));
