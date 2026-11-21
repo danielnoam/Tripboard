@@ -548,4 +548,13 @@ Keel.i18n.strings("he", {
   "Your own": "משלך",
   "Your own server works in the web app for now.": "בינתיים שרת משלך עובד רק באפליקציית הרשת.",
   "✓ Reached it: a Tripboard sharing server.": "✓ נמצא: שרת שיתוף של Tripboard.",
+  "AI tools": "כלי AI",
+  "Can delete": "יכולים למחוק",
+  "Can't delete": "לא יכולים למחוק",
+  "AI chats and the Tripboard command line reach your trips through your GitHub sync repo. They can always read, add and change.": "צ'אטים של AI ושורת הפקודה של Tripboard מגיעים לטיולים דרך מאגר הסנכרון ב-GitHub. הם תמיד יכולים לקרוא, להוסיף ולשנות.",
+  "Let AI tools delete": "לאפשר לכלי AI למחוק",
+  "On, they can also delete trips, places, expenses, files and categories, take people off a trip, and restore a backup over your trips. Only this app can turn it on, and your other devices follow.": "כשזה פועל, הם יכולים גם למחוק טיולים, מקומות, הוצאות, קבצים וקטגוריות, להסיר אנשים מטיול ולשחזר גיבוי במקום הטיולים הקיימים. רק האפליקציה הזו יכולה להפעיל את זה, והמכשירים האחרים מתעדכנים.",
+  "GitHub sync is off, so AI tools can't reach your trips yet.": "הסנכרון עם GitHub כבוי, כך שכלי AI עדיין לא מגיעים לטיולים.",
+  "What it guards": "ממה זה מגן",
+  "It stops a chat that only has Tripboard's tools. It isn't a lock: anything with your sync token can still change the repo directly. What's deleted stays in the repo's history on GitHub.": "זה עוצר צ'אט שיש לו רק את הכלים של Tripboard. זה לא מנעול: כל מי שמחזיקים בטוקן הסנכרון עדיין יכולים לשנות את המאגר ישירות. מה שנמחק נשאר בהיסטוריה של המאגר ב-GitHub.",
 });

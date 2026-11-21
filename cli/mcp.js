@@ -10,7 +10,7 @@
 //
 // Tools are added, never renamed or removed, so a chat's tools keep working.
 const core = require("./core");
-const { TOOLS, run } = require("./tools");
+const { TOOLS, run, destructive } = require("./tools");
 
 const VERSION = "0.2.0";
 
@@ -23,8 +23,8 @@ function schema(t) {
 // What tools/list gives: each tool's name, description, input schema, and
 // annotations (readOnlyHint for reads, destructiveHint for anything that
 // deletes, removes or replaces), which clients use to skip or ask before a call.
-const LIST = TOOLS.map((t) => ({ name: t.tool, description: t.description, inputSchema: schema(t),
-  annotations: { readOnlyHint: t.kind === "read", destructiveHint: /^(delete|remove|reset|import_backup)/.test(t.tool), openWorldHint: t.tool === "find_location" || t.tool === "import_places" } }));
+const LIST = TOOLS.map((t) => ({ name: t.tool, description: t.description + (destructive(t) ? " Works only while the app's Settings › AI tools › Let AI tools delete is on (off at first); no tool can turn it on." : ""), inputSchema: schema(t),
+  annotations: { readOnlyHint: t.kind === "read", destructiveHint: destructive(t), openWorldHint: t.tool === "find_location" || t.tool === "import_places" } }));
 
 function server({ env = process.env, fetch, write = (s) => process.stdout.write(s), googleList } = {}) {
   let tb = null;

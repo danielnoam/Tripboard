@@ -20,6 +20,7 @@ function fakeGitHub() {
   const g = { head: putCommit(putTree(new Map([["README.md", putBlob(Buffer.from("# data\n"))]])), []), userId: 110013928, tokenLife: 28800, exchanges: [], calls: [] };
   g.files = () => trees.get(commits.get(g.head).tree);
   g.read = (path) => JSON.parse(blobs.get(g.files().get(path)).toString());
+  g.put = (path, text) => { const map = new Map(g.files()); map.set(path, putBlob(Buffer.from(text))); g.head = putCommit(putTree(map), [g.head]); };
   const res = (status, body) => ({ ok: status < 300, status, headers: { get: () => "" }, json: async () => body, text: async () => JSON.stringify(body), arrayBuffer: async () => body });
   g.fetch = async (url, { method = "GET", body, headers = {} } = {}) => {
     const u = new URL(url);
@@ -193,18 +194,20 @@ const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
     assert.deepStrictEqual(C.users({ MCP_USERS: "1=a/b, 2=c/d@trips, junk" }), { 1: { repo: "a/b", branch: "" }, 2: { repo: "c/d", branch: "trips" } });
   });
 
-  await test("MCP over HTTP: the local MCP's tools without deleting, and changes land in the sync repo", async () => {
+  await test("MCP over HTTP: the local MCP's tools, deleting only while the app allows it, and changes land in the sync repo", async () => {
     const g = fakeGitHub();
     const env = fakeEnv(g);
     const t = await tokens(env, await signIn(env));
     const init = await rpc(env, t.access_token, "initialize", { protocolVersion: "2025-06-18" });
     assert.strictEqual(init.body.result.serverInfo.name, "tripboard");
-    assert.match(init.body.result.instructions, /Deleting isn't offered/);
+    assert.match(init.body.result.instructions, /Let AI tools delete/);
     assert.strictEqual((await call(env, "POST", "/mcp", { body: { jsonrpc: "2.0", method: "notifications/initialized" }, headers: { Authorization: "Bearer " + t.access_token } })).status, 202);
     const list = (await rpc(env, t.access_token, "tools/list")).body.result.tools;
     const names = list.map((x) => x.name);
     assert.ok(names.includes("add_place") && names.includes("list_trips"));
-    assert.ok(!names.some((n) => /^(delete|remove)_/.test(n)), names.join());
+    assert.ok(names.includes("delete_trip") && names.includes("remove_person"), names.join());
+    assert.strictEqual(list.find((x) => x.name === "delete_place").annotations.destructiveHint, true);
+    assert.strictEqual(list.find((x) => x.name === "add_place").annotations.destructiveHint, false);
     assert.strictEqual(list.find((x) => x.name === "list_trips").annotations.readOnlyHint, true);
     assert.strictEqual(list.find((x) => x.name === "add_place").annotations.readOnlyHint, false);
     const made = await rpc(env, t.access_token, "tools/call", { name: "create_trip", arguments: { name: "Kyoto", start: "2026-12-01", end: "2026-12-04" } });
@@ -215,8 +218,13 @@ const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
     assert.deepStrictEqual([bundle.trip.name, bundle.places.map((p) => p.name)], ["Kyoto", ["Fushimi Inari"]]);
     const del = await rpc(env, t.access_token, "tools/call", { name: "delete_trip", arguments: { trip: "kyoto" } });
     assert.ok(del.body.result.isError);
-    assert.match(del.body.result.content[0].text, /isn't offered in the cloud/);
+    assert.match(del.body.result.content[0].text, /Deleting is off for AI tools/);
     assert.ok(g.read("trips/" + id + ".json").trip.name === "Kyoto" && !g.read("trips/" + id + ".json").trip.deletedAt);
+    // The app turns it on (ai.json); then the same call deletes.
+    g.put("ai.json", JSON.stringify({ deleting: true, at: "2026-11-21T20:00:00.000Z" }));
+    const del2 = await rpc(env, t.access_token, "tools/call", { name: "delete_trip", arguments: { trip: "kyoto" } });
+    assert.ok(!del2.body.result.isError, del2.body.result.content[0].text);
+    assert.ok(g.read("trips/" + id + ".json").trip.deletedAt);
     // GitHub got a User-Agent and only GitHub got the token.
     assert.ok(g.calls.filter((c) => c.host === "api.github.com").every((c) => c.ua === "Tripboard-MCP"));
   });

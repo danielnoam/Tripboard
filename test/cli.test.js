@@ -12,13 +12,16 @@ async function test(name, fn) {
   catch (e) { process.exitCode = 1; console.log("  FAIL - " + name + "\n    " + (e.stack || e.message)); }
 }
 
-function fakeGitHub() {
+// AI tools may delete in these (the app's switch, ai.json), unless deleting: false.
+function fakeGitHub({ deleting = true } = {}) {
   const blobs = new Map(), trees = new Map(), commits = new Map();
   const sha = (s) => crypto.createHash("sha1").update(s).digest("hex");
   const putBlob = (buf) => { const s = sha(Buffer.concat([Buffer.from("blob " + buf.length + "\0"), buf])); blobs.set(s, buf); return s; };
   const putTree = (map) => { const s = sha(JSON.stringify([...map].sort())); trees.set(s, map); return s; };
   const putCommit = (tree, parents) => { const s = sha(tree + parents.join() + Math.random()); commits.set(s, { tree, parents }); return s; };
-  const g = { head: putCommit(putTree(new Map([["README.md", putBlob(Buffer.from("# data\n"))]])), []), commits: 0, moveBeforeNextPatch: null };
+  const start = new Map([["README.md", putBlob(Buffer.from("# data\n"))]]);
+  if (deleting) start.set("ai.json", putBlob(Buffer.from(JSON.stringify({ deleting: true, at: "2026-11-21T00:00:00.000Z" }))));
+  const g = { head: putCommit(putTree(start), []), commits: 0, moveBeforeNextPatch: null };
   g.files = () => trees.get(commits.get(g.head).tree);
   g.read = (path) => JSON.parse(blobs.get(g.files().get(path)).toString());
   g.raw = (path) => blobs.get(g.files().get(path));
@@ -469,6 +472,32 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     const out = [];
     await cli.main(["weather", "kyoto"], env, (l) => out.push(l));
     assert.match(out.join("\n"), /rain  12°\/5°C  rain 70%  sun 06:41–16:44/);
+  });
+
+  await test("deleting works only while the app's switch (ai.json) is on, and no tool can write ai.json", async () => {
+    const g = fakeGitHub({ deleting: false });
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Bern"], env, out);
+    await cli.main(["add-place", "Bern", "--name", "Zytglogge"], env, out);
+    const commits = g.commits;
+    for (const args of [["delete-place", "Bern", "Zytglogge"], ["delete-trip", "Bern"], ["reset-categories"]]) {
+      await assert.rejects(cli.main(args, env, out), /Deleting is off for AI tools.*Settings › AI tools/);
+    }
+    assert.strictEqual(g.commits, commits);
+    assert.strictEqual(bundle(g).places.length, 1);
+    // Off when ai.json says anything but deleting: true.
+    g.put("ai.json", JSON.stringify({ deleting: "yes", at: "2026-11-21T00:00:00.000Z" }));
+    await assert.rejects(cli.main(["delete-place", "Bern", "Zytglogge"], env, out), /Deleting is off/);
+    g.put("ai.json", JSON.stringify({ deleting: true, at: "2026-11-21T00:00:00.000Z" }));
+    await cli.main(["delete-place", "Bern", "Zytglogge"], env, out);
+    assert.strictEqual(bundle(g).places.length, 0);
+    // Nothing in cli/ may write or drop ai.json, even an op that tries.
+    const tb = core.open({ token: "tok", repo: "me/data" });
+    g.put("ai.json", JSON.stringify({ deleting: false, at: "2026-11-21T01:00:00.000Z" }));
+    await assert.rejects(tb.change((doc, ctx) => { ctx.put("ai.json", Buffer.from('{"deleting":true}')); }), /Only the app changes ai\.json/);
+    await assert.rejects(tb.change((doc, ctx) => { ctx.drop("ai.json"); }), /Only the app changes ai\.json/);
+    assert.strictEqual(g.read("ai.json").deleting, false);
   });
 
   await test("MCP tools say which only read and which delete", async () => {

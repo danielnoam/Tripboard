@@ -1,8 +1,10 @@
 // Tripboard as a remote MCP server, so an AI app in the cloud (Claude's
 // connectors, ChatGPT's developer mode, Gemini, any agent that speaks MCP
 // over HTTP) can read and plan your trips. It serves the same tools as the
-// local MCP server (cli/mcp.js) on the same GitHub sync repo, minus the
-// ones that delete: the apps pick changes up on their next sync.
+// local MCP server (cli/mcp.js) on the same GitHub sync repo: the apps pick
+// changes up on their next sync. Those that delete, remove or replace work
+// only while the app's Settings › AI tools › Let AI tools delete is on
+// (ai.json in the sync repo, which cli/core.js never writes).
 //
 // Sign-in is OAuth 2.1 with PKCE and dynamic client registration, which is
 // what the AI apps expect. Behind it, the person signs in with GitHub
@@ -40,10 +42,8 @@ const ASK_TTL = 600;
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-// Tools that delete or remove stay on the local MCP only (Daniel, 2026-11-20).
-export const allowed = (t) => !/^(delete|remove)_/.test(t.name) && !(t.annotations && t.annotations.destructiveHint);
 const readOnly = (t) => (t.annotations && t.annotations.readOnlyHint) ?? /^(list|get|find|search|show)_/.test(t.name);
-export const TOOLS = mcpCli.TOOLS.filter(allowed);
+export const TOOLS = mcpCli.TOOLS;
 
 export function ready(env) {
   return !!(env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_CLIENT_SECRET && env.MCP_SECRET && env.MCP_USERS && env.FILES);
@@ -198,7 +198,7 @@ async function ask(q, env) {
   const askToken = await sign(env, { k: "ask", nonce, client_id: q.get("client_id"), redirect, challenge: q.get("code_challenge"), state: q.get("state") || "", exp: Math.floor(Date.now() / 1000) + ASK_TTL });
   const host = new URL(redirect).host || new URL(redirect).protocol;
   return page("Connect to Tripboard", `<h1>Let ${esc(c.name)} use your trips?</h1>
-<p>It will be able to read your trips and add and change trips, places and expenses in your GitHub sync repo. It can't delete anything.</p>
+<p>It will be able to read your trips and add and change trips, places and expenses in your GitHub sync repo. It can delete only while Let AI tools delete is on in the app (Settings › AI tools), which it can't turn on itself.</p>
 <p>After you allow it, Tripboard sends you back to <strong>${esc(host)}</strong>. If you didn't just add Tripboard to an AI app there, close this page.</p>
 <form method="post" action="/authorize"><input type="hidden" name="ask" value="${esc(askToken)}"><button type="submit">Allow and sign in with GitHub</button></form>`,
     { "Set-Cookie": `tb_mcp=${nonce}; Path=/; Max-Age=${ASK_TTL}; HttpOnly; Secure; SameSite=Lax` },
@@ -337,16 +337,13 @@ async function mcp(req, env, origin) {
   const one = async (msg) => {
     if (!msg || typeof msg !== "object") return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } };
     const n = out.length;
-    if (msg.method === "tools/call" && !TOOLS.some((t) => t.name === (msg.params && msg.params.name))) {
-      return { jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: "This tool isn't offered in the cloud. Deleting is done in the app." }], isError: true } };
-    }
     await s.handle(msg);
     const r = out.slice(n).find((x) => x.id === msg.id);
     if (r && msg.method === "tools/list" && r.result) {
       r.result.tools = TOOLS.map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema,
-        annotations: { openWorldHint: false, ...annotations, readOnlyHint: readOnly({ name, annotations }), destructiveHint: false } }));
+        annotations: { openWorldHint: false, ...annotations, readOnlyHint: readOnly({ name, annotations }), destructiveHint: !!(annotations && annotations.destructiveHint) } }));
     }
-    if (r && msg.method === "initialize" && r.result) r.result.instructions = "Tripboard's trips, places and expenses, from the person's GitHub sync repo. Changes reach their devices on the next sync. Deleting isn't offered here; the person does that in the app.";
+    if (r && msg.method === "initialize" && r.result) r.result.instructions = "Tripboard's trips, places and expenses, from the person's GitHub sync repo. Changes reach their devices on the next sync. Deleting works only while the person has turned on Settings › AI tools › Let AI tools delete in the app; it can't be turned on from here.";
     return r;
   };
   if (Array.isArray(body)) {

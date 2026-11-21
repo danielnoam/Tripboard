@@ -1,11 +1,17 @@
 // The trips in a GitHub sync repo, read and changed from Node, for the CLI
 // (cli/tripboard.js) and the MCP server (cli/mcp.js), whose commands both
 // come from cli/tools.js. It acts as one more device: it reads every
-// trip's bundle (and me.json, categories.json), changes the doc, stamps
+// trip's bundle (and me.json, categories.json, ai.json), changes the doc, stamps
 // what changed (updatedAt, by, tombstones) with the app's own model.js,
 // and writes what differs in one commit: trip bundles, categories.json,
 // covers/<trip>.jpg and files/<trip>/<file>. The apps then merge that like
 // any other device's change. No dependencies: Node 18+ and the app's files.
+//
+// ai.json is the app's Settings › AI tools switch: whether these tools may
+// delete. They read it and never write it (writes to it are refused here),
+// so a chat can't turn deleting on for itself. Whoever holds the token can
+// still change the repo by other means: it is a safety catch for chats, not
+// a lock against the token's holder.
 //
 //   const tb = require("./core").open({ token, repo: "owner/name", branch });
 //   const doc = await tb.read();
@@ -17,6 +23,7 @@ const G = require("../src/merge.js");
 const LI = require("../src/listimport.js");
 const K = globalThis.Keel;
 
+const AI_FILE = "ai.json";
 const empty = () => ({ trips: [], places: [], expenses: [], files: [], deleted: {} });
 const text = (b) => JSON.stringify(b, null, 1);
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -40,7 +47,7 @@ function open({ token, repo, branch, fetch } = {}) {
   async function load() {
     const branch = await whichBranch();
     const head = await gh.json("GET", "git/ref/heads/" + encodeURIComponent(branch));
-    if (!head) return { doc: empty(), head: null, bundles: {}, paths: new Map(), me: null, cats: null };
+    if (!head) return { doc: empty(), head: null, bundles: {}, paths: new Map(), me: null, cats: null, ai: { deleting: false } };
     const tree = await gh.json("GET", "git/trees/" + head.object.sha + "?recursive=1");
     const paths = new Map((tree.tree || []).filter((f) => f.type !== "tree").map((f) => [f.path, f.sha]));
     const ids = [...paths.keys()].map((p) => (/^trips\/([\w-]+)\.json$/.exec(p) || [])[1]).filter(Boolean);
@@ -57,7 +64,9 @@ function open({ token, repo, branch, fetch } = {}) {
     const me = meData && M.isCatId(meData.id) ? meData.id : null;
     const c = await json("categories.json");
     const cats = c && Array.isArray(c.list) && typeof c.at === "string" ? c : null;
-    return { doc: M.sanitizeDoc(doc), head: head.object.sha, bundles, paths, me, cats };
+    const a = await json("ai.json");
+    const ai = { deleting: !!(a && a.deleting === true) };
+    return { doc: M.sanitizeDoc(doc), head: head.object.sha, bundles, paths, me, cats, ai };
   }
 
   async function read() { return (await load()).doc; }
@@ -69,7 +78,7 @@ function open({ token, repo, branch, fetch } = {}) {
   }
 
   // fn(doc, ctx) changes the doc in place and gives a result. ctx: me,
-  // cats, setCats(list), put(path, bytes), drop(path), raw(path). Retried
+  // cats, ai, setCats(list), put(path, bytes), drop(path), raw(path). Retried
   // on a fresh read if the repo moved meanwhile.
   async function change(fn, message) {
     for (let n = 1; ; n++) {
@@ -78,7 +87,7 @@ function open({ token, repo, branch, fetch } = {}) {
       const before = clone(doc);
       const puts = new Map(), drops = new Set();
       const ctx = {
-        me: st.me, cats: st.cats, paths: st.paths, catsChanged: false,
+        me: st.me, cats: st.cats, ai: st.ai, paths: st.paths, catsChanged: false,
         setCats(list) { ctx.cats = { list, at: new Date().toISOString() }; ctx.catsChanged = true; },
         put(path, bytes) { puts.set(path, bytes); drops.delete(path); },
         drop(path) { puts.delete(path); if (st.paths.has(path)) drops.add(path); },
@@ -106,6 +115,7 @@ function open({ token, repo, branch, fetch } = {}) {
       }
       if (ctx.catsChanged) writes.push({ path: "categories.json", text: text(ctx.cats) });
       for (const p of drops) writes.push({ path: p, sha: null });
+      if (writes.concat([...puts.keys()].map((path) => ({ path }))).some((w) => w.path === AI_FILE)) throw new Error("Only the app changes " + AI_FILE + " (Settings › AI tools).");
       if (!writes.length && !puts.size) return result;
       try {
         for (const [p, bytes] of puts) writes.push({ path: p, sha: await gh.createBlob(new Uint8Array(bytes)) });

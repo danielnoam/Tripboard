@@ -1858,6 +1858,7 @@
       { ico: "search", title: i18n.t("Find by name"), where: i18n.t("Services"), href: "#/settings/search", words: "search find places geocoding use fallback if it fails provider" },
       { ico: "users", title: i18n.t("Sharing server"), where: i18n.t("Settings"), href: "#/settings/server", words: "sharing server own self host cloudflare worker deploy address invite" },
       { ico: "cloudSun", title: i18n.t("Weather"), where: i18n.t("Settings"), href: "#/settings/weather", words: "weather forecast rain temperature celsius fahrenheit open-meteo sunrise sunset" },
+      { ico: "key", title: i18n.t("AI tools"), where: i18n.t("Settings"), href: "#/settings/ai", words: "ai chat claude chatgpt mcp cli connector delete deleting allow permission" },
       { ico: "info", title: i18n.t("About"), where: i18n.t("Settings"), href: "#/settings/about", words: "version credits licences privacy" },
     ];
     for (const [id, P] of Object.entries(SET.PROVIDERS)) {
@@ -1894,6 +1895,7 @@
     if (page === "about") return renderAbout(main);
     if (page === "weather") return renderWeather(main);
     if (page === "server") return renderServer(main);
+    if (page === "ai") return renderAi(main);
     const pm = /^p\/(\w+)$/.exec(page || "");
     if (pm && SET.PROVIDERS[pm[1]]) return renderProvider(main, pm[1]);
     $("title").textContent = i18n.t("Settings");
@@ -1911,6 +1913,7 @@
       driveOn() ? srow("#/settings/drive", "cloud", i18n.t("Google Drive"), driveSummary()) : null,
       srow("#/settings/server", "users", i18n.t("Sharing server"), { text: SHARE.server() === SHARE.DEFAULT ? i18n.t("Tripboard's server") : SHARE.host(SHARE.server()) }),
       srow("#/settings/weather", "cloudSun", i18n.t("Weather"), { text: wxOn() ? i18n.t("On, from Open-Meteo") : i18n.t("Off") }),
+      srow("#/settings/ai", "key", i18n.t("AI tools"), { text: cfg.ai.deleting ? i18n.t("Can delete") : i18n.t("Can't delete") }),
       srow("#/settings/about", "info", i18n.t("About"), { text: i18n.t("Version {version} · credits", { version: window.Tripboard.version }) })));
     const paint = () => {
       const q = input.value.trim();
@@ -2085,6 +2088,22 @@
       seg(i18n.t("Temperature"), [["c", "°C"], ["f", "°F"]], unit, (id) => SET.setWeather({ unit: id })),
       el("p.hint.dim", { text: i18n.t("The forecast for each day of a trip, on Today and on the Plan's days, up to 16 days ahead. It comes from Open-Meteo, a free weather service, which gets each day's rough location (about a kilometre) and the dates, nothing else. The last forecast stays on this device for when there's no signal.") }),
       el("p.hint.dim", {}, i18n.t("Weather data: "), el("a", { href: "https://open-meteo.com", target: "_blank", rel: "noopener noreferrer", text: "Open-Meteo.com" }), " (CC BY 4.0)")));
+  }
+
+  // Whether AI tools (the CLI, its MCP, the cloud connector) may delete.
+  // GitHub sync carries it to them in ai.json, which they never write.
+  function renderAi(main) {
+    $("title").textContent = i18n.t("AI tools");
+    const on = SET.get().ai.deleting;
+    main.append(el("p.dim.hint.page-hint", { text: i18n.t("AI chats and the Tripboard command line reach your trips through your GitHub sync repo. They can always read, add and change.") }),
+      el("section.panel", {},
+        el("fieldset.field", {}, el("legend", { text: i18n.t("Let AI tools delete") }),
+          el("div.seg", { role: "radiogroup" }, [["off", i18n.t("Off")], ["on", i18n.t("On")]].map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String((on ? "on" : "off") === id), text: label,
+            onclick: () => { if ((id === "on") === on) return; SET.setAi(id === "on"); if (SYNC && SYNC.connected()) SYNC.soon(); render(); } })))),
+        el("p.hint.dim", { text: i18n.t("On, they can also delete trips, places, expenses, files and categories, take people off a trip, and restore a backup over your trips. Only this app can turn it on, and your other devices follow.") }),
+        !SYNC || !SYNC.connected() ? el("p.hint", { "data-tone": "warn", text: i18n.t("GitHub sync is off, so AI tools can't reach your trips yet.") }) : null),
+      el("section.panel", {}, el("h2", { text: i18n.t("What it guards") }),
+        el("p.hint.dim", { text: i18n.t("It stops a chat that only has Tripboard's tools. It isn't a lock: anything with your sync token can still change the repo directly. What's deleted stays in the repo's history on GitHub.") })));
   }
 
   function renderAbout(main) {

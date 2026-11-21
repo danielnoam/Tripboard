@@ -11,6 +11,10 @@
 //   categories  your own list of place categories, once you change the
 //               defaults: { list: [{ id, name? }], at }. GitHub sync keeps it
 //               in categories.json, and the newer list wins.
+//   ai          whether AI tools (the CLI, the MCP and the cloud connector)
+//               may delete: { deleting, at }. Off until you turn it on.
+//               GitHub sync keeps it in ai.json, the newer change wins, and
+//               those tools read it but never write it.
 // A service tries its main provider; if that fails (no key, an error, a
 // quota used up) it uses the fallback and says so. Keys are sent only to
 // their own provider, when it's used.
@@ -38,7 +42,9 @@
     me: { id: "", name: "" },
     weather: { on: null, unit: "" },
     categories: null,
+    ai: { deleting: false, at: "" },
   };
+  const aiOf = (c) => (c && typeof c.deleting === "boolean" && typeof c.at === "string" ? { deleting: c.deleting, at: c.at } : null);
   const catsOf = (c) => {
     if (!c || !Array.isArray(c.list) || typeof c.at !== "string") return null;
     const list = c.list.filter((x) => x && typeof x.id === "string" && /^[\w-]{1,40}$/.test(x.id)).slice(0, 60)
@@ -66,6 +72,7 @@
     if (typeof me.id === "string" && /^[\w-]{4,40}$/.test(me.id)) out.me.id = me.id;
     if (typeof me.name === "string") out.me.name = me.name.trim().slice(0, 60);
     out.categories = catsOf(saved.categories);
+    out.ai = aiOf(saved.ai) || out.ai;
     if (Array.isArray(me.was)) out.me.was = me.was.filter((x) => typeof x === "string" && /^[\w-]{4,40}$/.test(x)).slice(-5);
     return out;
   };
@@ -95,6 +102,15 @@
       const got = catsOf(c);
       if (!got || (cur.categories && cur.categories.at >= got.at)) return false;
       cur.categories = got;
+      S.save();
+      return true;
+    },
+    setAi(deleting) { cur.ai = { deleting: !!deleting, at: new Date().toISOString() }; S.save(); },
+    // Another device's choice (sync's ai.json), if it's newer than this one's.
+    adoptAi(c) {
+      const got = aiOf(c);
+      if (!got || (cur.ai.at && cur.ai.at >= got.at)) return false;
+      cur.ai = got;
       S.save();
       return true;
     },

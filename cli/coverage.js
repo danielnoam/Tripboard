@@ -5,7 +5,8 @@
 // when something there isn't listed here. Each entry is the tools (MCP
 // names, from cli/tools.js) that cover it, or a string saying why none
 // does: "device:" for what lives on one device only (never in the sync
-// repo), "auto:" for what core.js keeps up by itself.
+// repo), "auto:" for what core.js keeps up by itself, "app:" for what only
+// the app may change, on purpose.
 //
 // Adding to the app? Add the tool first (cli/tools.js, core.js), then the
 // line here. A "device:" or "auto:" answer is for things a chat really
@@ -78,6 +79,7 @@ const settings = {
   drive: "device: Google Drive backups sign in on the device; export_backup makes the same file",
   server: "device: which sharing server this device shares through. A chat can't change it, since whoever runs a server reads the trips shared through it; get_trip says which server a shared trip is on",
   weather: "device: whether this device shows the weather, and in °C or °F; get_weather gives a chat the same forecast",
+  ai: "app: whether AI tools may delete; a chat that could turn it on would make it pointless, so core.js refuses to write ai.json. The destructive tools say when it's off",
   about: "device: version and credits",
 };
 
@@ -101,6 +103,7 @@ const repo = {
   "me.json": "auto: read for your id (owner of new trips, `by`, what you may change)",
   "categories.json": ["list_categories", "add_category", "update_category", "delete_category", "reset_categories"],
   "shares.json": ["get_trip"],
+  "ai.json": "app: Settings › AI tools; read by core.js before any tool that deletes, never written by it",
 };
 
 // model.js's API: "cli" when cli/ uses it, or why it doesn't.
