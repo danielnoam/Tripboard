@@ -1096,10 +1096,23 @@
       : d.animate([{ transform: "none" }, { transform: off }], { ...onSpring(PAGE_OUT), fill: "forwards" });
     return a.finished.then(() => a.cancel(), () => {});
   }
+  // Leaving a sheet (Back, Escape, its back arrow, a tap outside) goes
+  // through its onLeave when it has one: the place sheet saves on the way out.
+  const leaveSheet = (d) => (d.onLeave ? d.onLeave() : closeSheet(d));
   for (const d of document.querySelectorAll("dialog.sheet")) {
-    d.addEventListener("cancel", (e) => { e.preventDefault(); closeSheet(d); });
-    d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-close]")) closeSheet(d); });
+    d.addEventListener("cancel", (e) => { e.preventDefault(); leaveSheet(d); });
+    d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-close]")) leaveSheet(d); });
   }
+  // The phone's Back button: leaves the open sheet first, then goes back a
+  // screen, and from the first screen puts the app away.
+  const appPlugin = window.Keel.platform && window.Keel.platform.plugin("App");
+  if (appPlugin) appPlugin.addListener("backButton", ({ canGoBack }) => {
+    const d = [...document.querySelectorAll("dialog[open]")].pop();
+    if (d) { if (d.dispatchEvent(new Event("cancel", { cancelable: true }))) d.close(); return; }
+    if (canGoBack) history.back();
+    else if (appPlugin.minimizeApp) appPlugin.minimizeApp();
+    else appPlugin.exitApp();
+  });
   // A delete button asks once more by changing its words, rather than a
   // browser confirm() box.
   function armDelete(btn, label, act) {
@@ -1331,7 +1344,6 @@
     f.reset();
     const p = place || { category: cats()[0][0], importance: "want", ...(preset || {}) };
     $("placeSheetTitle").textContent = place ? i18n.t("Edit place") : i18n.t("Add a place");
-    $("placeSave").textContent = place ? i18n.t("Save") : i18n.t("Add place");
     f.name.value = p.name || "";
     // Your categories, and the place's own if it isn't one of them (a shared trip's).
     const list = cats();
@@ -1394,6 +1406,8 @@
     const day = placeTrip.start ? $("daySelect").value : $("dayInput").value;
     const until = placeTrip.start ? $("untilSelect").value : $("untilInput").value;
     const p = editingPlace || { id: M.newId(), trip: placeTrip.id, createdAt: stamp };
+    const raw = editingPlace && JSON.stringify(p);
+    const same = (a, b) => JSON.stringify(M.sanitizePlace({ ...a, updatedAt: 0 })) === JSON.stringify(M.sanitizePlace({ ...b, updatedAt: 0 }));
     if (day && until > day) p.endDay = until; else delete p.endDay;
     if (day !== p.day) delete p.order;
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
@@ -1406,12 +1420,22 @@
       if (loc.source === "google") Object.assign(p, { placeId: loc.placeId, geoAt: new Date().toISOString().slice(0, 10) });
       else if (loc.address) p.address = loc.address;
     }
-    if (!editingPlace) doc.places.push(p);
     const closing = closeSheet($("placeSheet"));
-    save();
+    if (!editingPlace) undoable(i18n.t("Added {name}.", { name: p.name }), () => doc.places.push(p));
+    else if (!same(p, JSON.parse(raw))) save();
+    // Opened and left without a change: nothing to sync.
+    else { for (const k of Object.keys(p)) delete p[k]; Object.assign(p, JSON.parse(raw)); }
     await closing;
     return p;
   }
+  // There's no Save: leaving the sheet keeps what's in it. A new place
+  // without a name is let go; an edited one keeps its old name.
+  $("placeSheet").onLeave = () => {
+    const f = $("placeForm");
+    if (!mayEdit(placeTrip) || (!editingPlace && !f.name.value.trim())) return closeSheet($("placeSheet"));
+    if (!f.name.value.trim()) f.name.value = editingPlace.name;
+    return commitPlace();
+  };
   for (const id of ["daySelect", "dayInput"]) $(id).addEventListener("change", () => paintUntil(null, placeTrip.start ? $("untilSelect").value : $("untilInput").value));
   $("placeForm").addEventListener("submit", async (e) => {
     e.preventDefault();
