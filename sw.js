@@ -7,7 +7,7 @@
 // CACHE goes up with every release (tools/release.js). A file added to or
 // removed from the app goes in or out of ASSETS (test/app.test.js checks);
 // src/vendor/maplibre-gl.* is the map, loaded when a map first opens.
-const CACHE = "tripboard-v7";
+const CACHE = "tripboard-v8";
 const ASSETS = [
   "./", "./index.html", "./manifest.json", "./icon.svg",
   "./src/styles.css", "./src/model.js", "./src/store.js", "./src/settings.js", "./src/merge.js", "./src/sync.js", "./src/share.js", "./src/drive.js", "./src/places.js", "./src/weather.js", "./src/listimport.js", "./src/offline.js", "./src/map.js", "./src/icons.js", "./src/views.js", "./src/app.js",

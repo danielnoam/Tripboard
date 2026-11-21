@@ -4,6 +4,24 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.3.5] - 2026-11-21
+
+### Added
+- The map has its own buttons above the +: Map style, Show all places and Where am I (zoom buttons too, on a computer). They move up over a place's card when one is open, and to the left in Hebrew.
+- Map style: pick Auto, Light, Dark, Liberty or Bright for free, or Satellite, Outdoor and Terrain with a MapTiler or Google key. Settings › Services › Map has the same choices, plus Terrain for Google.
+- A place on the map has a Street View link, which opens Google Maps there.
+- Pick several places on the Plan: hold one (or right-click it on a computer), tap more, then Move them to another day and time, category or importance, or Delete them all. On a computer, dragging one of the picked places moves them all.
+- Hold a trip on Home (or right-click it on a computer) for a quick menu with Edit and Delete. A tap still opens the trip at once; Delete asks "Delete …?" first, then shows Undo.
+
+### Changed
+- Settings › Data shows GitHub sync, storage and backup on the page itself, with no pages to step into. The setup steps fold away, and the code for adding another device shows only when you tap Show setup code, since it holds your sync token.
+- The map's credit is a short "© OpenStreetMap" chip at the top left; tap it for the full credits. It was hidden under the bottom bar.
+
+### Fixed
+- A place picked on the map no longer shows the word "null" when it has no files.
+- The arrow in drop-downs no longer touches the right edge (the left edge in Hebrew); it now sits inside the field with room around it.
+- "Synced 2 min ago" and the GitHub sync line in Settings are now in Hebrew too, not left in English.
+
 ## [0.3.4] - 2026-11-21
 
 ### Added
