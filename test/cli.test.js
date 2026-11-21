@@ -96,6 +96,26 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(g.commits, 3);
   });
 
+  await test("show says which sharing server a shared trip is on, never its key", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const lines = [];
+    const out = (s) => lines.push(s);
+    await cli.main(["new-trip", "--name", "Lisbon"], env, out);
+    await cli.main(["new-trip", "--name", "Porto"], env, out);
+    const ids = [...g.files().keys()].map((p) => (/^trips\/(.+)\.json$/.exec(p) || [])[1]).filter(Boolean);
+    const lisbon = ids.find((id) => g.read("trips/" + id + ".json").trip.name === "Lisbon");
+    const porto = ids.find((id) => id !== lisbon);
+    g.put("shares.json", JSON.stringify({ [lisbon]: { key: "secret-own", server: "https://tripboard.maya.workers.dev" }, [porto]: "secret-main" }));
+    lines.length = 0;
+    await cli.main(["show", "lisbon"], env, out);
+    await cli.main(["show", "porto"], env, out);
+    const text = lines.join("\n");
+    assert.match(lines[0], /Shared through tripboard\.maya\.workers\.dev/);
+    assert.match(lines[1], /Shared through Tripboard's server/);
+    assert.ok(!/secret/.test(text));
+  });
+
   await test("deleting through the CLI leaves a tombstone the apps merge", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;

@@ -17,6 +17,7 @@
 //   - someone taken off trip.members loses their keys.
 //
 // API (JSON; "Authorization: Bearer <key>" where a key is needed):
+//   GET    /                          -> { tripboard: "sharing" } (a server someone runs is checked with it)
 //   POST   /trips                     { bundle, person }  -> { key, version }
 //   GET    /trips/:id[?v=N]           -> { version, bundle, hidden, role } or { same: true }
 //   PUT    /trips/:id                 { version, bundle } -> { version } or 409 with the current copy
@@ -101,6 +102,8 @@ export async function handle(req, env) {
   const parts = url.pathname.split("/").filter(Boolean);
   const db = env.DB;
   try {
+    // The app's Settings › Sharing server asks this to check an address.
+    if (!parts.length && req.method === "GET") return json({ tripboard: "sharing" });
     if (parts[0] === "google-list" && req.method === "POST") return await googleList(req, env);
     if (parts[0] !== "trips") return fail(404, "Not here.");
     const tripId = parts[1];
