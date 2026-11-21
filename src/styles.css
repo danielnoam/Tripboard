@@ -655,3 +655,8 @@ body.on-board main.today-page { max-width: 640px; }
 /* A place category's icon: before a place's name, and before a group's title by category. */
 .card-name .icon.cat { width: 18px; height: 18px; vertical-align: -3px; margin-inline-end: 6px; color: var(--text-dim); }
 .group-head h2 .icon.cat { width: 20px; height: 20px; vertical-align: -3px; margin-inline-end: 8px; color: var(--accent); }
+.data-label { margin: var(--space-3) 0 var(--space-2); }
+.data-label:first-child { margin-top: var(--space-1); }
+.sync-qr[hidden] { display: none; }
+.sync-steps summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.sync-steps .steps { margin-top: var(--space-2); }
