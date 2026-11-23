@@ -4,7 +4,7 @@
 // Tripboard's own model.js (the data and the board's sorts), store.js (IndexedDB), icons.js and
 // views.js (the screens and sheets).
 (function () {
-  const APP_VERSION = "0.5.1";
+  const APP_VERSION = "0.5.2";
   const K = window.Keel;
   const $ = (id) => document.getElementById(id);
   const T = window.Tripboard;

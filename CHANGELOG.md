@@ -4,6 +4,17 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.5.2] - 2026-11-23
+
+### Changed
+- A provider's Key field in Settings shows how the key last went, beside the word Key: a green dot when it worked, red when the provider refused it, amber until it's been tried. Test sets it, and so does the map or a search refusing the key. A new key starts over.
+- The key's show and hide button is now an eye icon inside the field.
+- Home on a computer: trips fill the width in as many columns as fit, the New trip button has its label, and a dashed card at the end of the list starts a new trip.
+- Adding or editing a place on a computer: a panel down the side over the map, so the plan stays in view. A click outside it or x closes it.
+- Settings on a computer: two panes, the list and search on one side and the open page on the other (Display when none is). Back from a top page goes to Home.
+- New trip and Edit trip on a computer: a wide dialog over the page, with the name, dates and destinations on the left and the cover, places to start with, offline and backup on the right. It closes with x.
+- The phone's Plan uses the List look too, one row a place with its rating, category and time, or Expanded with the details and note under the name (View sheet). Rows stay finger-sized. The old cards are gone.
+
 ## [0.5.1] - 2026-11-23
 
 ### Added
