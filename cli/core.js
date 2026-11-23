@@ -331,7 +331,7 @@ const ops = {
     // order is its place in the day.
     const plan = M.dayPlan(placesOf(doc, t), a.day);
     plan.forEach((p, i) => { p.order = i + 1; });
-    const out = { trip: t.name, day: a.day, plan: plan.map((p) => ({ id: p.id, name: p.name, ...(p.time ? { time: p.time } : {}), order: p.order })) };
+    const out = { trip: t.name, day: a.day, plan: plan.map((p) => ({ id: p.id, name: p.name, ...(M.timeOn(p, a.day) ? { time: M.timeOn(p, a.day) } : {}), order: p.order })) };
     const got = plan.filter((p) => listed.includes(p));
     if (got.some((p, i) => p !== listed[i])) out.note = "Places with a time go by their time first, so the plan isn't exactly the order given. Change or clear their times to move them.";
     return out;
@@ -587,7 +587,7 @@ const queries = {
   getBoard(st, a) {
     const t = findTrip(st.doc, a.trip);
     const cats = catsOf(st.cats);
-    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}) });
+    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, endTime: p.endTime, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}) });
     const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, from: nearOf(st.doc, t, a.near), cats });
     return groups.map((g) => ({ id: g.id, title: g.title, ...(g.day ? { dayNumber: M.dayIndex(t, g.day) } : {}),
       ...(g.slots ? { slots: g.slots.map((s) => ({ id: s.id, title: s.title, places: s.places.map(brief) })) } : { places: g.places.map((p) => ({ ...brief(p), ...(g.km ? { km: Math.round(g.km.get(p.id) * 100) / 100 } : {}) })) }) }));
@@ -605,7 +605,7 @@ const queries = {
     return {
       trip: t.name, day, dayNumber: M.dayIndex(t, day), status: M.tripStatus(t, today()),
       when: day < today() ? "past" : day > today() ? "upcoming" : "today",
-      plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p), fromPrevious: i ? M.leg(plan[i - 1], p) : null })),
+      plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p, day), ...(M.stayPart(p, day) ? { stay: M.stayPart(p, day) } : {}), fromPrevious: i ? M.leg(plan[i - 1], p) : null })),
       next: next ? { id: next.id, name: next.name } : null,
       expenses, totals: M.expenseTotals(expenses),
     };

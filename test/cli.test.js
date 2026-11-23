@@ -539,6 +539,20 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(kept.order, 1);
   });
 
+  await test("a stay's check-in and check-out: get_day gives the one on that day", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    await cli.main(["new-trip", "--name", "Osaka", "--start", "2027-02-04", "--end", "2027-02-07"], env, () => {});
+    const tb = core.open({ token: "tok", repo: "me/data", fetch: g.fetch });
+    const T = require("../cli/tools.js");
+    const q = (n, a) => T.run(tb, T.TOOLS.find((t) => t.tool === n), a, "mcp", env);
+    const p = await q("add_place", { trip: "Osaka", name: "Hotel", category: "stay", day: "2027-02-04", endDay: "2027-02-06", time: "15:00", endTime: "11:00" });
+    assert.strictEqual(p.endTime, "11:00");
+    const at = async (day) => (await q("get_day", { trip: "Osaka", day })).plan[0];
+    assert.deepStrictEqual([await at("2027-02-04"), await at("2027-02-05"), await at("2027-02-06")].map((x) => [x.stay, x.slot]),
+      [["in", "afternoon"], ["night", "any"], ["out", "morning"]]);
+  });
+
   await test("get_day's status is the trip's against today, and when says if the day is past", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;

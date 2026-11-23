@@ -124,7 +124,7 @@ const model = {
   sanitizeFile: "cli", MAX_FILE_MB: "cli", MAX_NOTE: "cli", hasBytes: "cli", linkUrl: "cli", linkHost: "auto: sanitizeFile names a link after its site with it", SECTIONS: "cli", access: "cli", can: "cli", ownTrip: "cli", EXPENSE_CATEGORIES: "cli", CATEGORY: "cli",
   sanitizeExpense: "cli", expenseTotals: "cli", expensesByCategory: "cli", onDay: "cli", catList: "cli", catName: "cli", carryCats: "cli", isCatId: "cli",
   CATEGORIES: "cli", IMPORTANCE: "cli", newId: "cli", isDay: "cli", sanitizeTrip: "cli", sanitizePlace: "cli", sanitizeDoc: "cli", stamp: "cli",
-  tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", distanceKm: "cli", board: "cli", backupOf: "cli",
+  tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", timeOn: "cli", stayPart: "cli", isStay: "auto: sanitizePlace, timeOn and stayPart use it", distanceKm: "cli", board: "cli", backupOf: "cli",
   mergeBackup: "cli", COVER_ART: "cli", dayPlan: "cli", leg: "cli", nextOf: "cli", KNOWN: "auto: test/coverage.test.js checks fields against it",
   ROLES: "auto: sanitizeTrip checks roles", join: "device: a device joining a shared trip adds itself", renamePerson: "auto: the app's sync moves ids to me.json's",
   EXPENSE_CATEGORY: "auto: sanitizeExpense checks it", CURRENCIES: "device: the currency picker's first choices; any ISO code is taken",

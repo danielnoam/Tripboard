@@ -143,6 +143,23 @@ test("today's plan: timed places by time, then the rest by importance, stays inc
   assert.strictEqual(M.nextOf([]), null);
 });
 
+test("a stay's times are check-in on its first day and check-out on its last, nothing between", () => {
+  const hotel = P({ id: "hotel", category: "stay", day: "2026-11-17", endDay: "2026-11-19", time: "15:00", endTime: "11:00" });
+  assert.strictEqual(hotel.endTime, "11:00");
+  assert.strictEqual(P({ category: "stay", day: "2026-11-17", endDay: "2026-11-19", endTime: "11:00" }).endTime, "11:00");
+  assert.strictEqual(P({ category: "stay", day: "2026-11-17", time: "15:00", endTime: "11:00" }).endTime, undefined);
+  assert.strictEqual(P({ category: "sight", day: "2026-11-17", endDay: "2026-11-19", time: "15:00", endTime: "11:00" }).endTime, undefined);
+  assert.deepStrictEqual(["2026-11-17", "2026-11-18", "2026-11-19"].map((d) => [M.timeOn(hotel, d), M.slotOf(hotel, d), M.stayPart(hotel, d)]),
+    [["15:00", "afternoon", "in"], [null, "any", "night"], ["11:00", "morning", "out"]]);
+  assert.strictEqual(M.stayPart(P({ day: "2026-11-17", endDay: "2026-11-19" }), "2026-11-17"), null);
+  const festival = P({ category: "other", day: "2026-11-17", endDay: "2026-11-19", time: "10:00" });
+  assert.strictEqual(M.timeOn(festival, "2026-11-18"), "10:00");
+  const sight = P({ id: "sight", day: "2026-11-19", time: "12:00" });
+  assert.deepStrictEqual(M.dayPlan([sight, hotel], "2026-11-19").map((p) => p.id), ["hotel", "sight"]);
+  const g = M.board(trip, [hotel], "time");
+  assert.deepStrictEqual(g.slice(0, 3).map((d) => d.slots.map((s) => s.id)), [["afternoon"], ["any"], ["morning"]]);
+});
+
 test("a day's order: sorts places without a time and ties at a time; times still come first; kept only with a day", () => {
   const list = [
     P({ id: "lunch", day: "2026-11-18", importance: "maybe", order: 2 }),

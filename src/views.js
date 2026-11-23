@@ -81,7 +81,18 @@
   }
   const daysLabel = (p) => (p.endDay ? dayLabel(p.day) + " – " + dayLabel(p.endDay) : dayLabel(p.day));
   const hm = (t) => (SET.get().display.clock === "12" ? fmt({ hour: "numeric", minute: "2-digit" }).format(new Date("2000-01-01T" + t + ":00")) : t);
-  const timeLabel = (p) => (p.time ? hm(p.time) + (p.endTime ? "–" + hm(p.endTime) : "") : "");
+  // On a day: a stay's check-in or check-out, when it's that day. Without
+  // one (sorts other than time, the map): both.
+  function timeLabel(p, day) {
+    if (M.isStay(p)) {
+      const part = day ? M.stayPart(p, day) : null;
+      const cin = p.time && part !== "out" && part !== "night" ? i18n.t("Check-in {time}", { time: hm(p.time) }) : "";
+      const cout = p.endTime && part !== "in" && part !== "night" ? i18n.t("Check-out {time}", { time: hm(p.endTime) }) : "";
+      // A non-breaking hyphen, so "Check-in" doesn't break over two lines.
+      return [cin, cout].filter(Boolean).join(" · ").replace(/-/g, "\u2011");
+    }
+    return p.time ? hm(p.time) + (p.endTime ? "–" + hm(p.endTime) : "") : "";
+  }
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
@@ -687,8 +698,8 @@
         }
         const isNext = p === next;
         const meta = catWords() ? [M.catName(cats(), trip, p.category)] : [];
-        if (p.endDay) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) + 1 }));
-        if (p.time) meta.push(timeLabel(p));
+        if (p.endDay && !["in", "out"].includes(M.stayPart(p, day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) + 1 }));
+        if (timeLabel(p, day)) meta.push(timeLabel(p, day));
         const toHere = isNext && i ? M.leg(plan[i - 1], p) : null;
         list.append(el("li.card.imp-" + p.importance + (p.visited ? ".visited" : "") + (isNext ? ".next" : ""), { "data-id": p.id },
           el("div.card-row", {},
@@ -1149,7 +1160,9 @@
         // A place over several days moves as a whole: it starts on the day it's dropped on.
         if (p.endDay) p.endDay = M.addDays(groupId, M.daySpan(p));
         p.day = groupId;
-        if (slot === "any") { delete p.time; delete p.endTime; }
+        // A stay keeps its check-out; the slot sets its check-in.
+        if (M.isStay(p)) { if (slot === "any") delete p.time; else if (slot && (!p.time || M.slotOf(p) !== slot)) p.time = SLOT_TIME[slot]; }
+        else if (slot === "any") { delete p.time; delete p.endTime; }
         else if (slot && (!p.time || M.slotOf(p) !== slot)) {
           const len = p.time && p.endTime ? mins(p.endTime) - mins(p.time) : 0;
           p.time = SLOT_TIME[slot];
@@ -1220,8 +1233,8 @@
     return el("ul.cards", {}, list.map((p) => {
       const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
       if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
-      else if (p.endDay && g.day) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
-      if (p.time) meta.push(timeLabel(p));
+      else if (p.endDay && g.day && !["in", "out"].includes(M.stayPart(p, g.day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
+      if (timeLabel(p, g.day)) meta.push(timeLabel(p, g.day));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
       const on = !!(picked && picked.has(p.id));
@@ -1488,7 +1501,13 @@
     $("placeClear").hidden = !has;
     $("placePin").textContent = has ? i18n.t("Move on map") : i18n.t("Pin on map");
   }
-  $("categorySelect").addEventListener("change", () => { categoryTouched = true; });
+  $("categorySelect").addEventListener("change", () => { categoryTouched = true; paintTimes(); });
+  // A stay's From and To are its check-in and check-out.
+  function paintTimes() {
+    const stay = $("categorySelect").value === "stay";
+    $("timeLabel").textContent = stay ? i18n.t("Check-in") : i18n.t("From");
+    $("endTimeLabel").textContent = stay ? i18n.t("Check-out") : i18n.t("To");
+  }
   $("placeClear").addEventListener("click", () => { loc = null; $("placeResults").replaceChildren(); $("placeFindNote").textContent = ""; paintWhere(); });
   let searching = 0;
   $("placeFind").addEventListener("click", async () => {
@@ -1575,6 +1594,7 @@
     paintUntil(days, p.endDay || "");
     f.time.value = p.time || "";
     f.endTime.value = p.endTime || "";
+    paintTimes();
     f.note.value = p.note || "";
     loc = undefined;
     categoryTouched = false;
@@ -2019,7 +2039,7 @@
     if (sel) {
       const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.catName(cats(), findTrip(view.trip), sel.category)];
       if (sel.day) meta.push(daysLabel(sel));
-      if (sel.time) meta.push(timeLabel(sel));
+      if (timeLabel(sel, view.mapDay)) meta.push(timeLabel(sel, view.mapDay));
       if (sel.rating) meta.push("★ " + sel.rating);
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
