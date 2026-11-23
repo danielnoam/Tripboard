@@ -1724,30 +1724,44 @@
     for (const p of placesOf(trip.id)) n.set(p.category, (n.get(p.category) || 0) + 1);
     return cats().filter(([id]) => n.has(id)).map(([id, name]) => ({ id, name, n: n.get(id) }));
   }
+  // The map's two filters, each a chip that opens the same sheet with its
+  // choices: categories (this trip's) and importance (the board's too).
+  function mapFacets(trip) {
+    const n = (key) => placesOf(trip.id).reduce((m, p) => m.set(p[key], (m.get(p[key]) || 0) + 1), new Map());
+    const imp = n("importance");
+    return {
+      cat: { title: i18n.t("Categories"), key: "mapCats", many: (k) => i18n.tn(k, "1 category", "{n} categories"),
+        items: tripCats(trip).map((c) => ({ ...c, mark: () => icon(catIcon(c.id)) })) },
+      imp: { title: i18n.t("Importance"), key: "only", many: (k) => i18n.tn(k, "1 level", "{n} levels"),
+        items: M.IMPORTANCE.map(([id, name]) => ({ id, name, n: imp.get(id) || 0, mark: () => el("span.dot.imp-" + id) })) },
+    };
+  }
   function paintFilters(trip) {
     const bar = $("mapFilters");
-    const here = tripCats(trip);
-    view.mapCats = view.mapCats.filter((id) => here.some((c) => c.id === id));
+    const facets = mapFacets(trip);
+    view.mapCats = view.mapCats.filter((id) => facets.cat.items.some((c) => c.id === id));
     bar.hidden = !placesOf(trip.id).length;
-    const picked = here.filter((c) => view.mapCats.includes(c.id));
-    const label = !picked.length ? i18n.t("Categories") : picked.length === 1 ? picked[0].name : i18n.tn(picked.length, "1 category", "{n} categories");
-    bar.replaceChildren(...[
-      here.length > 1 ? el("button.chip.cat-pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "dialog",
-        onclick: (e) => { paintMapCats(trip); openSheet($("mapCatSheet"), e.currentTarget); } },
-        picked.length === 1 ? icon(catIcon(picked[0].id)) : null, label, icon("chevron")) : null,
-      ...M.IMPORTANCE.map(([id, name]) => el("button.chip.imp-" + id, { type: "button", "aria-pressed": String(!view.only.length || view.only.includes(id)), text: name, onclick: () => toggleOnly(id) })),
-    ].filter(Boolean));
+    const chip = (which) => {
+      const f = facets[which];
+      const picked = f.items.filter((c) => view[f.key].includes(c.id));
+      return el("button.chip.pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "dialog",
+        onclick: (e) => { view.mapSheet = which; paintMapFilter(trip); openSheet($("mapFilterSheet"), e.currentTarget); } },
+        picked.length === 1 ? picked[0].mark() : null, !picked.length ? f.title : picked.length === 1 ? picked[0].name : f.many(picked.length), icon("chevron"));
+    };
+    bar.replaceChildren(...[facets.cat.items.length > 1 ? chip("cat") : null, chip("imp")].filter(Boolean));
   }
-  function paintMapCats(trip) {
-    const here = tripCats(trip);
-    const on = (id) => !view.mapCats.length || view.mapCats.includes(id);
-    $("mapCats").replaceChildren(...here.map((c) => el("button.chip", { type: "button", "aria-pressed": String(on(c.id)),
+  function paintMapFilter(trip) {
+    const f = mapFacets(trip)[view.mapSheet];
+    if (!f) return;
+    const on = (id) => !view[f.key].length || view[f.key].includes(id);
+    $("mapFilterTitle").textContent = f.title;
+    $("mapFilterChoices").replaceChildren(...f.items.map((c) => el("button.chip", { type: "button", "aria-pressed": String(on(c.id)),
       onclick: () => {
-        let next = here.map((x) => x.id).filter(on);
+        let next = f.items.map((x) => x.id).filter(on);
         next = next.includes(c.id) ? next.filter((x) => x !== c.id) : next.concat(c.id);
-        view.mapCats = !next.length || next.length === here.length ? [] : next;
-        remember(); paintMapCats(trip); render();
-      } }, icon(catIcon(c.id)), c.name + " · " + c.n)));
+        view[f.key] = !next.length || next.length === f.items.length ? [] : next;
+        remember(); paintMapFilter(trip); render();
+      } }, c.mark(), c.name + " · " + c.n)));
   }
   function paintDays(trip) {
     const days = M.tripDays(trip, placesOf(trip.id));
@@ -1900,7 +1914,11 @@
     $("mapCreditIc").append(icon("info"));
     $("mapZoomIn").addEventListener("click", () => TM.zoom(1));
     $("mapZoomOut").addEventListener("click", () => TM.zoom(-1));
-    $("mapCatsAll").addEventListener("click", () => { view.mapCats = []; remember(); const t = findTrip(view.trip); if (t) paintMapCats(t); render(); });
+    $("mapFilterAll").addEventListener("click", () => {
+      const t = findTrip(view.trip);
+      if (!t || !mapFacets(t)[view.mapSheet]) return;
+      view[mapFacets(t)[view.mapSheet].key] = []; remember(); paintMapFilter(t); render();
+    });
     $("mapStyleBtn").addEventListener("click", (e) => { paintMapStyles(); openSheet($("mapStyleSheet"), e.currentTarget); });
     $("mapFit").addEventListener("click", () => {
       const trip = findTrip(view.trip);

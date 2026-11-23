@@ -450,12 +450,14 @@ body.on-map .bar { width: 100%; max-width: none; }
 body.on-map .toast { bottom: auto; top: 108px; }
 .map-days .chip::before { display: none; }
 /* The map's filters: importance chips as on the board, then categories. */
-.map-filters .chip.imp-must::before, .map-filters .chip.imp-want::before, .map-filters .chip.imp-maybe::before { display: block; }
-.map-filters .chip[aria-pressed="false"] { color: var(--text-dim); }
-.map-filters .chip.imp-must[aria-pressed="true"], .map-filters .chip.imp-want[aria-pressed="true"], .map-filters .chip.imp-maybe[aria-pressed="true"] { background: var(--surface); border-color: var(--line); color: var(--text); }
-.map-filters .chip { min-height: 32px; padding: 0 12px; font-size: 13px; }
-.map-filters .cat-pick { gap: 4px; }
-.map-filters .cat-pick .icon { width: 16px; height: 16px; }
+/* The map's filters: a chip each, green while it hides something. */
+.map-filters .chip[aria-pressed="false"] { color: var(--text); }
+.map-filters .pick { gap: 4px; }
+.map-filters .pick .icon { width: 16px; height: 16px; }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--surface); }
+.dot.imp-must { background: var(--must); }
+.dot.imp-want { background: var(--want); }
+.dot.imp-maybe { background: var(--maybe); }
 .map-note {
   justify-self: stretch; margin: 0;
   padding: var(--space-2) 12px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); font-size: 14px;

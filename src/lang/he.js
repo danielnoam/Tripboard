@@ -363,6 +363,7 @@ Keel.i18n.strings("he", {
   "Added {n} files.": { one: "נוסף קובץ אחד.", two: "נוספו שני קבצים.", other: "נוספו {n} קבצים." },
   "{n} places have no location yet": { one: "למקום אחד עדיין אין מיקום", two: "לשני מקומות עדיין אין מיקום", other: "ל-{n} מקומות עדיין אין מיקום" },
   "Pick one, then tap the map.": "יש לבחור מקום ואז להקיש על המפה.",
+  "{n} levels": { one: "רמה אחת", two: "שתי רמות", other: "{n} רמות" },
   "{n} categories": { one: "קטגוריה אחת", two: "שתי קטגוריות", other: "{n} קטגוריות" },
   "Show all": "הצגת הכול",
   "Show on the map": "מה להציג במפה",
