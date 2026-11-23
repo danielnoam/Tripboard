@@ -1197,10 +1197,14 @@
       el("h2", { text: g.again ? i18n.t("{name}, again", { name: g.dest }) : g.dest }),
       el("span.dim", { text: destRange(g) + (nights ? " · " + i18n.tn(nights, "1 night", "{n} nights") : "") }));
   }
-  // Its places with no day yet, folded to a line until opened (kept on this device).
+  // Its places with no day yet, folded to a line until opened (kept on this
+  // device). A wide screen has room for them, so there they're always open.
   const destKey = (trip, name) => trip.id + "|" + name;
+  const WIDE = window.matchMedia ? matchMedia("(min-width: 960px)") : null;
+  const wide = () => !!(WIDE && WIDE.matches);
+  if (WIDE && WIDE.addEventListener) WIDE.addEventListener("change", () => { if (view.trip && view.mode === "board") render(); });
   function anyDay(trip, g) {
-    const open = view.destOpen.includes(destKey(trip, g.dest));
+    const open = wide() || view.destOpen.includes(destKey(trip, g.dest));
     const flip = () => {
       const k = destKey(trip, g.dest);
       view.destOpen = open ? view.destOpen.filter((x) => x !== k) : view.destOpen.concat(k).slice(-50);
@@ -1209,8 +1213,9 @@
     };
     const n = g.places.length;
     const head = el("div.group-head", {},
-      n ? el("h2", {}, el("button.fold", { type: "button", "aria-expanded": String(open), onclick: flip }, el("span.fold-title", { text: g.title }), el("span.count", { text: String(n) }), icon("chevron")))
+      n && !wide() ? el("h2", {}, el("button.fold", { type: "button", "aria-expanded": String(open), onclick: flip }, el("span.fold-title", { text: g.title }), el("span.count", { text: String(n) }), icon("chevron")))
         : el("h2", { text: g.title }),
+      n && wide() ? el("span.count", { text: String(n) }) : null,
       mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: g.title }),
         onclick: (e) => openPlace(null, trip, { dest: g.dest }, e.currentTarget) }, icon("plus")) : null);
     const box = el("section.group.dest-any" + (open ? ".open" : ""), { "data-drop": g.id }, head);
