@@ -4,6 +4,7 @@
 - On a computer, pointing at a place in the Plan highlights its pin on the map.
 
 ### Changed
-- On a computer with a mouse, the Plan's cards are compact, so about twice as much of the trip fits on screen. Phones and touch screens keep the larger cards.
+- On a computer with a mouse, the Plan's cards are compact, so about twice as much of the trip fits on screen.
+- On phones, the Plan's cards, days and destination headers are more compact, so a full day usually fits on one screen. Every card and tick is still at least 44 px tall to tap.
 - On a computer, a trip's tabs fade over in place instead of sliding across the whole window, and the top bar fades in at its new width instead of jumping when you move between Home and Settings.
 - The "want to" green and "maybe" orange are a shade darker, so names in those colours are easy to read.
