@@ -644,9 +644,13 @@ p[data-tone="warn"] { color: var(--danger); }
   .trips { grid-template-columns: repeat(2, 1fr); }
   .map-panel { right: auto; width: 380px; }
 }
-/* On a wide screen the board is a board: its groups side by side. */
+/* On a wide screen the board is a board: its groups side by side, in as
+   many rows as it takes, so the whole trip is there by scrolling down. One
+   long row that scrolled sideways hid all but its first days from a mouse
+   wheel. A destination's name starts a row of its own. */
 @media (min-width: 960px) {
-  .groups { grid-auto-flow: column; grid-auto-columns: minmax(280px, 320px); align-items: start; overflow-x: auto; padding-bottom: var(--space-2); }
+  .groups { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
+  .groups > .dest-band { grid-column: 1 / -1; }
   .controls { grid-template-columns: auto 1fr; align-items: center; }
   .sorts { justify-self: start; }
   .trips { grid-template-columns: repeat(3, 1fr); }
