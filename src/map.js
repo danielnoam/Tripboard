@@ -8,6 +8,7 @@
 //   TripMap.route(list)                a line through them in order (a day's plan)
 //   TripMap.journeys(list)             each journey as a line between its two ends (a flight as an arc)
 //   TripMap.zoom(±1), TripMap.locate()  the map's own buttons (views.js draws them)
+//   TripMap.hover(id, on)              a pin stands out while its card is pointed at
 //   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …, TripMap.onLocateFail = () => …
 (function () {
   // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
@@ -340,6 +341,8 @@
   };
   T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(still() ? { duration: 0 } : {}) });
   T.resize = () => map && map.resize();
+  // A place's pin stands out while its card is under the pointer.
+  T.hover = (id, on) => { const m = pins.get(id); if (m) m.getElement().classList.toggle("hot", !!on); };
   T.zoom = (d) => map && (d > 0 ? map.zoomIn(still() ? { duration: 0 } : {}) : map.zoomOut(still() ? { duration: 0 } : {}));
   T.locate = () => {
     if (!geo) return;

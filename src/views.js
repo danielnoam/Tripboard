@@ -102,9 +102,9 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], from: null, mode: "board", pick: null, sel: null };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], destShut: [], from: null, mode: "board", pick: null, sel: null, look: "cards", deskMap: true };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -376,9 +376,14 @@
       el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), SORTS.map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
           onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.sort = id; remember(); render(); } }))),
-      places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
+      places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null,
+      desk() && FINE.matches && places.length ? el("div.seg.looks", { role: "tablist", "aria-label": i18n.t("Look") }, segBubble(), [["cards", i18n.t("Cards")], ["list", i18n.t("List")]].map(([id, label]) =>
+        el("button", { type: "button", role: "tab", "aria-selected": String(view.look === id), text: label,
+          onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.look = id; remember(); render(); } }))) : null);
     main.append(controls);
     slideSeg(controls.firstChild);
+    const looks = controls.querySelector(".looks");
+    if (looks) slideSeg(looks);
     const ask = wxAsk(trip);
     if (ask) main.append(ask);
 
@@ -420,6 +425,55 @@
   // A trip's tabs, in the bar's order: Today sits in the middle while the trip is under way.
   const tripTabs = (trip) => [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"], ["today", "sun", i18n.t("Today"), "/today"],
     ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
+  // On a computer's wide screen a trip is laid out for it: its tabs in a
+  // side bar at the start instead of the pill at the bottom, and the map
+  // beside the Plan, Today, Expenses and Files (folded away with the handle
+  // on its edge, kept on this device), or the map alone from the side
+  // bar's Map. A phone, and a narrow window, keep the bottom bar.
+  const DESK = window.matchMedia("(min-width: 1100px)");
+  const desk = () => DESK.matches;
+  const deskTrip = () => desk() && !!view.trip && view.mode !== "share";
+  const sideMap = () => deskTrip() && view.deskMap && view.mode !== "map";
+  const mapOn = () => view.mode === "map" || sideMap();
+  // The Plan's Cards | List switch, on a wide screen with a mouse: List
+  // is a line a place, like a spreadsheet.
+  const FINE = window.matchMedia("(pointer: fine)");
+  const listLook = () => view.look === "list" && desk() && FINE.matches;
+  // On a computer a trip's page scrolls by itself, beside the side bar and the map.
+  const scrollTop = () => (document.body.classList.contains("desk") ? $("app").scrollTop : window.scrollY);
+  function paintSide(trip) {
+    const side = $("side"), fold = $("deskFold");
+    side.hidden = !trip;
+    fold.hidden = !trip || view.mode === "map";
+    if (!trip) { side.replaceChildren(); delete side.dataset.trip; return; }
+    const label = view.deskMap ? i18n.t("Hide the map") : i18n.t("Show the map");
+    fold.setAttribute("aria-label", label);
+    fold.title = label;
+    fold.setAttribute("aria-expanded", String(view.deskMap));
+    // Its cover and name stay as they are while moving between tabs.
+    if (side.dataset.trip !== trip.id + "|" + trip.name + "|" + (trip.coverAt || "") + (trip.art || "")) {
+      side.dataset.trip = trip.id + "|" + trip.name + "|" + (trip.coverAt || "") + (trip.art || "");
+      side.replaceChildren(
+        el("a.side-back", { href: "#/" }, icon("back", "icon-back"), el("span", { text: i18n.t("All trips") })),
+        coverBox(trip, "side-cover"),
+        el("h1.side-name", { text: trip.name }),
+        el("p.side-when"),
+        el("nav.side-nav", { "aria-label": i18n.t("Show") }),
+        el("button.btn.primary.side-add", { type: "button", onclick: (e) => addHere(e.currentTarget) }, icon("plus"), el("span")),
+        el("p.side-dests"));
+    }
+    side.querySelector(".side-when").textContent = rangeLabel(trip) + (whenLabel(trip) ? " · " + whenLabel(trip) : "");
+    const n = placesOf(trip.id).length;
+    side.querySelector(".side-nav").replaceChildren(...tripTabs(trip).map(([mode, ico, label, path]) =>
+      el("a.side-tab", { href: "#/trip/" + trip.id + path, "aria-current": view.mode === mode ? "page" : "false", onclick: () => { view.pick = null; } },
+        icon(ico), el("span", { text: label }), mode === "board" && n ? el("span.count", { text: String(n) }) : null)));
+    const add = side.querySelector(".side-add");
+    add.hidden = !mayEdit(trip) || !!view.pick;
+    add.lastChild.textContent = view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add to Files") : i18n.t("Add a place");
+    const dests = side.querySelector(".side-dests");
+    dests.hidden = !trip.destinations.length;
+    dests.textContent = trip.destinations.join(" · ");
+  }
   // A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as icons.
   function paintTripBar(trip) {
     const bar = $("tripBar");
@@ -495,11 +549,11 @@
     const b = seg && seg.querySelector(".seg-bubble");
     if (!b) return null;
     const r = b.getBoundingClientRect(), o = seg.getBoundingClientRect();
-    return { x: r.left - o.left + seg.scrollLeft, w: r.width };
+    return { x: r.left - o.left + seg.scrollLeft, w: r.width, of: seg.className };
   }
   function slideSeg(seg) {
-    const was = segWas;
-    segWas = null;
+    const was = segWas && segWas.of === seg.className ? segWas : null;
+    if (was) segWas = null;
     const b = seg.querySelector(".seg-bubble"), on = seg.querySelector("[aria-selected=true]");
     b.hidden = !on;
     if (!on) return;
@@ -534,7 +588,7 @@
   function tabBefore() {
     const main = $("app"), map = $("mapView");
     return { hash: shownHash, trip: view.trip, mode: view.mode, kids: [...main.childNodes], cls: main.className,
-      box: main.getBoundingClientRect(), map: map.hidden ? null : map.getBoundingClientRect() };
+      box: main.getBoundingClientRect(), map: map.hidden ? null : map.getBoundingClientRect(), bar: document.querySelector(".bar").getBoundingClientRect(), scroll: main.scrollTop, desk: document.body.classList.contains("desk") };
   }
   function tabAfter(b) {
     const hash = location.hash || "#/";
@@ -553,6 +607,12 @@
     const d0 = depthOf(b.hash), d1 = depthOf(hash);
     const kind = i >= 0 && j >= 0 ? "tab" : d1 > d0 ? "push" : d1 < d0 ? "pop" : null;
     if (!kind) return;
+    // The top bar is as wide as the screen under it (Home, a trip and
+    // Settings differ): rather than jump to its new width, it fades in there.
+    const bar = document.querySelector(".bar"), nb = bar.getBoundingClientRect();
+    if (kind !== "tab" && b.bar && (Math.abs(b.bar.left - nb.left) > 1 || Math.abs(b.bar.width - nb.width) > 1) && !lessMotion())
+      bar.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+    if (desk() && (kind === "tab" || b.trip || view.trip)) { deskFade(b, hash, kind !== "tab"); return; }
     const map = $("mapView"), main = $("app");
     let out;
     // A repaint while the map leaves hides it again (paint()); hold() shows it until the move ends.
@@ -606,13 +666,49 @@
       if (out === map) {
         map.classList.remove("tab-leaving", "tab-under");
         ["top", "left", "width", "height"].forEach((k) => map.style.removeProperty(k));
-        map.hidden = view.mode !== "map";
+        map.hidden = !mapOn();
       } else out.remove();
     };
     tabMove = { to: hash, end, hold, into };
     Promise.all(anims.map((a) => a.finished)).then(end, end);
   }
 
+
+  // A computer's trip tabs: the side bar and the map beside stay, and only
+  // the page changes, fading over in place; a slide across a wide window
+  // reads as the whole app moving. Into or out of a trip the side bar and
+  // the map come or go, so the new screen fades in whole.
+  function deskFade(b, hash, whole) {
+    const main = $("app");
+    if (lessMotion() || !main.animate) return;
+    let out = null;
+    const anims = [];
+    // The old page is drawn by the layout it had; into or out of a trip that's gone, so it isn't kept.
+    if (b.mode !== "map" && b.kids.length && view.mode !== "map" && b.desk === document.body.classList.contains("desk")) {
+      out = document.createElement("main");
+      out.className = b.cls;
+      out.classList.add("tab-leaving", "tab-under");
+      out.setAttribute("aria-hidden", "true");
+      out.inert = true;
+      Object.assign(out.style, { top: b.box.top + "px", left: b.box.left + "px", width: b.box.width + "px" });
+      out.append(...b.kids);
+      document.body.append(out);
+      out.scrollTop = b.scroll;
+      anims.push(out.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: "ease-in", fill: "forwards" }));
+    }
+    const rise = [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], at = { duration: 240, delay: out ? 60 : 0, easing: "cubic-bezier(0.2, 0.9, 0.3, 1)", fill: "backwards" };
+    if (!main.hidden) anims.push(main.animate(rise, at));
+    if (whole) for (const n of [$("side"), $("mapView"), $("deskFold")]) if (!n.hidden) anims.push(n.animate([{ opacity: 0 }, { opacity: 1 }], at));
+    if (!anims.length) return;
+    const end = () => {
+      if (!tabMove || tabMove.end !== end) return;
+      tabMove = null;
+      anims.forEach((a) => a.cancel());
+      if (out) out.remove();
+    };
+    tabMove = { to: hash, end, hold: () => {}, into: main };
+    Promise.all(anims.map((a) => a.finished)).then(end, end);
+  }
 
   // ---------- Weather ----------
   // Open-Meteo's forecast (src/weather.js) on Today and each day heading,
@@ -1203,10 +1299,12 @@
   // Its places with no day yet, folded to a line until opened (kept on this device).
   const destKey = (trip, name) => trip.id + "|" + name;
   function anyDay(trip, g) {
-    const open = view.destOpen.includes(destKey(trip, g.dest));
+    // In the List look they start open, as a spreadsheet's columns.
+    const k = destKey(trip, g.dest), list = listLook();
+    const open = list ? !view.destShut.includes(k) : view.destOpen.includes(k);
     const flip = () => {
-      const k = destKey(trip, g.dest);
-      view.destOpen = open ? view.destOpen.filter((x) => x !== k) : view.destOpen.concat(k).slice(-50);
+      const key = list ? "destShut" : "destOpen", has = view[key].includes(k);
+      view[key] = has ? view[key].filter((x) => x !== k) : view[key].concat(k).slice(-50);
       remember();
       render();
     };
@@ -1238,6 +1336,8 @@
       view.sort === "time" && mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
         onclick: (e) => openPlace(null, trip, { day: g.day || "" }, e.currentTarget) }, icon("plus")) : null);
     const box = el("section.group" + (g.dropOnly ? ".drop-only" : ""), {}, head);
+    // On a wide screen days run on without a band for each destination, so each day names its own.
+    if (isDay && g.dest && view.sort === "time") box.prepend(el("p.group-dest", { text: g.dest }));
     if (view.sort !== "distance") box.dataset.drop = g.id;
     if (isDay) {
       const lands = g.lands || [];
@@ -1369,7 +1469,7 @@
     const when = p.time || p.arriveTime ? el("span.jline", { "aria-label": i18n.t("Leaves {dep}, arrives {arr}", { dep: p.time ? hm(p.time) : "?", arr: p.arriveTime ? hm(p.arriveTime) : "?" }) },
       el("span", { text: p.time ? hm(p.time) : "" }), el("span.rail"),
       el("span", {}, p.arriveTime ? hm(p.arriveTime) : "", plus ? el("sup", { text: "+" + plus }) : null)) : null;
-    return [el("span.card-name", {}, icon(MODE_ICON[p.mode] || "route", "cat"), fromTo(p)), when,
+    return [el("span.card-name", {}, icon(MODE_ICON[p.mode] || "route", "cat"), el("span.card-title", { text: fromTo(p) })), when,
       el("span.card-meta", { text: [M.MODE.get(p.mode), p.number && iso(p.number)].filter(Boolean).join(" · ") })];
   }
   function landRow(j, trip) {
@@ -1402,16 +1502,18 @@
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
       const on = !!(picked && picked.has(p.id));
-      const card = el("li.card" + (journey ? ".journey" : ".imp-" + p.importance) + (p.visited ? ".visited" : "") + (on ? ".picked" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
+      const card = el("li.card" + (journey ? ".journey" : ".imp-" + p.importance) + (p.visited ? ".visited" : "") + (on ? ".picked" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null,
+        onmouseenter: () => { if (sideMap()) TM.hover(p.id, true); }, onmouseleave: () => TM.hover(p.id, false) },
         picked ? el("button.tick.pick", { type: "button", "aria-pressed": String(on), "aria-label": i18n.t("Select {name}", { name: p.name }), onclick: () => pick(p.id) }, icon("check"))
           : el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
           ...(journey ? journeyParts(p) : [
-            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name, view.sort === "rating" ? null : ratingBadge(p)),
+            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p)),
             el("span.card-meta", {}, ...metaParts(p, meta),
               nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null)]),
-          p.note ? el("span.card-note", { text: p.note }) : null));
+          p.note ? el("span.card-note", { text: p.note }) : null,
+          listLook() && (journey ? p.time : timeLabel(p, g.day)) ? el("span.card-time", { text: journey ? [p.time, p.arriveTime].filter(Boolean).map(hm).join("–") : timeLabel(p, g.day) }) : null));
       // A change to the next leg, when this one lands the same day.
       return journey && !p.arriveDay && view.sort === "time" ? [card, changeRow(p, trip)].filter(Boolean) : [card];
     }));
@@ -2344,7 +2446,7 @@
     const left = i18n.dir === "rtl" ? c.right - r.width : c.left;
     box.style.left = Math.max(M8, Math.min(innerWidth - r.width - M8, left)) + "px";
     box.style.top = Math.min(c.bottom + 4, innerHeight - r.height - M8) + "px";
-    box.dataset.y = String(window.scrollY);
+    box.dataset.y = String(scrollTop());
     if (!lessMotion() && box.animate) box.animate([{ opacity: 0, transform: "translateY(-4px)" }, { opacity: 1, transform: "none" }], { duration: 120, easing: "ease-out" });
     box.querySelector("button").focus({ preventScroll: true });
   }
@@ -2361,7 +2463,7 @@
   window.addEventListener("hashchange", () => closeFilterMenu());
   window.addEventListener("resize", () => closeFilterMenu());
   // A render can nudge the page a pixel or two; only a real scroll closes it.
-  document.addEventListener("scroll", () => { if (filterBox && Math.abs(window.scrollY - Number(filterBox.dataset.y)) > 24) closeFilterMenu(); }, true);
+  document.addEventListener("scroll", () => { if (filterBox && Math.abs(scrollTop() - Number(filterBox.dataset.y)) > 24) closeFilterMenu(); }, true);
   function paintDays(trip) {
     const days = M.tripDays(trip, placesOf(trip.id));
     if (view.mapDay && !days.includes(view.mapDay)) view.mapDay = null;
@@ -2392,7 +2494,7 @@
     const note = $("mapNote");
     note.hidden = !(got && got.skipped.length);
     if (got && got.skipped.length) note.textContent = i18n.t("Showing {name}: {join}", { name: SET.PROVIDERS[got.by].name, join: got.skipped.map((x) => x.reason).join(" ") });
-    if (view.mode !== "map" || view.trip !== trip.id) return;
+    if (!mapOn() || view.trip !== trip.id) return;
     paintDays(trip);
     paintFilters(trip);
     const list = shownPlaces(trip);
@@ -3370,7 +3472,11 @@
     if ((trip && trip.id) !== view.trip) { picked = null; view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
-    $("mapView").hidden = !onMap;
+    $("mapView").hidden = !mapOn();
+    document.body.classList.toggle("desk", deskTrip());
+    document.body.classList.toggle("side-map", sideMap());
+    document.documentElement.dataset.look = listLook() ? "list" : "cards";
+    paintSide(deskTrip() ? trip : null);
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
     $("shareTrip").hidden = !trip || view.mode === "share";
@@ -3389,7 +3495,7 @@
       return;
     }
     const main = $("app");
-    const y = main.dataset.trip === view.trip + view.mode ? window.scrollY : 0;
+    const y = main.dataset.trip === view.trip + view.mode ? scrollTop() : 0;
     main.dataset.trip = view.trip + view.mode;
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
@@ -3409,7 +3515,8 @@
     if (view.mode !== "share") main.classList.remove("share-page");
     main.classList.toggle("today-page", !!trip && view.mode === "today");
     if (view.mode !== "files") { main.ondragover = main.ondragleave = main.ondrop = null; main.classList.remove("file-over"); }
-    window.scrollTo(0, y);
+    if (deskTrip()) main.scrollTop = y; else window.scrollTo(0, y);
+    if (trip && sideMap()) showMap(trip);
   }
 
   // Swiping sideways moves between a trip's tabs: on the bottom bar always,
@@ -3650,6 +3757,13 @@
     openSheet($("moveSheet"), from);
   }
 
+  // What the + (or the side bar's Add) adds on the tab you're on.
+  function addHere(from) {
+    const trip = findTrip(view.trip), mode = view.mode;
+    if (mode === "files") openSheet($("addKindSheet"), from);
+    else if (mode === "expenses") openExpense(null, trip, from);
+    else openPlace(null, trip, mode === "today" ? { day: today() } : null, from);
+  }
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
     pressBounce();
@@ -3695,12 +3809,10 @@
         { duration: 600, easing: "ease-in" });
     });
     // What the + opens comes up at once, with the swell under it.
-    $("fab").addEventListener("click", (e) => {
-      const fab = e.currentTarget, trip = findTrip(view.trip), mode = view.mode;
-      if (mode === "files") openSheet($("addKindSheet"), e.currentTarget);
-      else if (mode === "expenses") openExpense(null, trip, fab);
-      else openPlace(null, trip, mode === "today" ? { day: today() } : null, fab);
-    });
+    $("fab").addEventListener("click", (e) => addHere(e.currentTarget));
+    $("deskFold").append(icon("chevron"));
+    $("deskFold").addEventListener("click", () => { view.deskMap = !view.deskMap; remember(); render(); });
+    DESK.addEventListener("change", () => render());
     window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
     wireSwipe();

@@ -23,6 +23,8 @@ const PAIRS = [
   ["on-photo", "tint-0"], ["on-photo", "tint-1"], ["on-photo", "tint-2"], ["on-photo", "tint-3"], ["on-photo", "tint-4"],
   ["on-tab", "tab-on", "ui"], ["text-dim", "surface", "ui"],
   ["star", "bg", "ui"], ["star", "surface", "ui"],
+  // The List look on a computer: place names in their importance colour, on a day (surface) and an "Any day in" list (accent-soft).
+  ["want", "surface"], ["maybe", "surface"], ["must", "accent-soft"], ["want", "accent-soft"], ["maybe", "accent-soft"], ["accent", "surface"],
 ];
 
 test("every theme's pairs pass WCAG AA", () => {
