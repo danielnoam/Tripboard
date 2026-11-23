@@ -145,6 +145,7 @@
     });
   }
 
+  const artUrl = (name) => (M.COVER_ART.includes(name) ? "assets/covers/" + name + ".svg" : null);
   async function coverUrl(trip) {
     if (!trip.cover) return null;
     if (covers.has(trip.id)) return covers.get(trip.id);
@@ -157,7 +158,7 @@
   const tint = (id) => "tint-" + ([...id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5);
   function coverBox(trip, cls) {
     const box = el("div." + cls + "." + tint(trip.id));
-    coverUrl(trip).then((url) => { if (url) box.append(el("img", { src: url, alt: "" })); });
+    coverUrl(trip).then((url) => { const src = url || artUrl(trip.art); if (src) box.append(el("img", { src, alt: "" })); });
     return box;
   }
 
@@ -230,7 +231,7 @@
     const located = list ? list.places.filter((p) => p.lat != null).length : 0;
     $("tripListCard").hidden = !list;
     $("tripImportPick").hidden = $("tripImportHint").hidden = !!list;
-    $("tripImportLinkRow").hidden = !!list || !SHARE.enabled();
+    if (list) showLinkRow(false);
     if (list) {
       $("tripListCount").textContent = list.title ? i18n.tn(n, "1 place from {name}", "{n} places from {name}", { name: list.title }) : i18n.tn(n, "1 place", "{n} places");
       $("tripListHow").textContent = located === n ? i18n.t("All of them have a location.")
@@ -240,6 +241,22 @@
     $("tripDestHint").textContent = list && located < n ? i18n.t("Separate them with commas. With a list, add the city too, so places are found in the right one.") : i18n.t("Separate them with commas.");
     $("tripSave").textContent = editingTrip ? i18n.t("Save") : list ? i18n.tn(n, "Create trip with 1 place", "Create trip with {n} places") : i18n.t("Create trip");
   }
+  // Add from link opens the link's box under the two buttons, and closes it.
+  function showLinkRow(on) {
+    $("tripImportLinkRow").hidden = !on;
+    $("tripFromLink").setAttribute("aria-expanded", String(on));
+    $("tripImportHint").textContent = on ? i18n.t("The link from Share on a Google Maps list.")
+      : editingTrip ? i18n.t("A list from Google Takeout (Saved, as CSV), a map from My Maps (Export to KML), or Saved Places.json.")
+      : i18n.t("A trip saved from Tripboard, or a Google Maps list: Takeout (CSV), My Maps (KML) or Saved Places.json.");
+  }
+  $("tripFromFile").prepend(icon("file"));
+  $("tripFromLink").prepend(icon("link"));
+  $("coverRemove").append(icon("x"));
+  $("tripFromLink").addEventListener("click", () => {
+    const on = $("tripImportLinkRow").hidden;
+    showLinkRow(on);
+    if (on) $("tripImportLink").focus();
+  });
   $("tripListRemove").addEventListener("click", () => {
     const f = $("tripForm");
     if (pendingList && pendingList.title && f.name.value === pendingList.title) f.name.value = "";
@@ -252,6 +269,14 @@
     if (!file) return;
     if (/\.kmz$/i.test(file.name)) { toast(i18n.t("That's a KMZ. In My Maps, tick Export to a .KML file and try again.")); return; }
     const text = await file.text();
+    // A trip saved from Tripboard (or a backup) comes in whole, as Restore does.
+    let data = null;
+    if (/\.json$/i.test(file.name)) { try { data = JSON.parse(text); } catch (err) { /* not JSON: a list's parser says so */ } }
+    if (data && data.app === "tripboard") {
+      if (editingTrip) { toast(i18n.t("That's a whole trip saved from Tripboard. Open it with Import from file in New trip.")); return; }
+      if (await restoreData(data)) await closeSheet($("tripSheet"));
+      return;
+    }
     const LI = window.Tripboard.listImport;
     await gotList({ title: LI.title(text, file.name), places: LI.parse(text, file.name) });
   });
@@ -1143,15 +1168,19 @@
   }
 
   // Trip sheet
-  let editingTrip = null, pendingCover;
-  function showCoverPreview(url) {
-    const box = $("coverPreview");
-    box.replaceChildren(url ? el("img", { src: url, alt: "" }) : el("span.dim", { text: i18n.t("No photo") }));
-    $("coverRemove").hidden = !url;
+  // pendingCover: a new photo (a blob), null to drop it, undefined to keep it;
+  // pendingArt the same for a drawing's name.
+  let editingTrip = null, pendingCover, pendingArt;
+  function showCoverPreview(url, art) {
+    const src = url || artUrl(art);
+    $("coverShow").replaceChildren(...(src ? [el("img", { src, alt: "" })] : [icon("image"), el("span", { text: i18n.t("Add a cover photo") })]));
+    $("coverPreview").classList.toggle("has-photo", !!src);
+    $("coverRemove").hidden = !src;
+    for (const b of $("coverArt").querySelectorAll("[data-art]")) b.setAttribute("aria-pressed", String(!url && b.dataset.art === art));
   }
   async function openTrip(trip, from) {
     editingTrip = trip;
-    pendingCover = undefined;
+    pendingCover = pendingArt = undefined;
     const f = $("tripForm");
     f.reset();
     $("tripSheetTitle").textContent = trip ? i18n.t("Edit trip") : i18n.t("New trip");
@@ -1161,17 +1190,15 @@
       f.end.value = trip.end || "";
       f.destinations.value = trip.destinations.join(", ");
     }
-    showCoverPreview(trip ? await coverUrl(trip) : null);
+    showCoverPreview(trip ? await coverUrl(trip) : null, trip && trip.art);
     $("tripDelete").hidden = !trip;
     $("tripFileRow").hidden = !trip;
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
     $("tripOfflineRow").hidden = !trip;
     $("tripImportLink").value = "";
-    // New trip starts from a list, at the top; Edit trip imports into it, lower down.
-    const listRow = $("tripImportRow");
-    listRow.hidden = false;
-    if (trip) $("tripOfflineRow").before(listRow); else f.querySelector(".page-bar").after(listRow);
-    $("tripImportLabel").textContent = trip ? i18n.t("Import places from Google Maps") : i18n.t("Start from a Google Maps list");
+    $("tripImportRow").hidden = false;
+    $("tripImportLabel").textContent = trip ? i18n.t("Import places") : i18n.t("Start with places");
+    showLinkRow(false);
     pendingList = null;
     paintList();
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
@@ -1248,14 +1275,22 @@
     if (!file) return;
     try {
       pendingCover = await shrink(file);
+      pendingArt = null;
       showCoverPreview(URL.createObjectURL(pendingCover));
     } catch (err) {
       window.Keel.errlog.note("cover", String(err));
       showCoverPreview(null);
-      $("coverPreview").replaceChildren(el("span.error", { text: i18n.t("That file couldn't be read as a photo.") }));
+      $("coverShow").replaceChildren(el("span.error", { text: i18n.t("That file couldn't be read as a photo.") }));
     }
   });
-  $("coverRemove").addEventListener("click", () => { pendingCover = null; showCoverPreview(null); $("coverFile").value = ""; });
+  $("coverRemove").addEventListener("click", () => { pendingCover = pendingArt = null; showCoverPreview(null); $("coverFile").value = ""; });
+  const ART_NAMES = { mountains: i18n.t("Mountains"), beach: i18n.t("Beach"), city: i18n.t("City"), desert: i18n.t("Desert"),
+    forest: i18n.t("Forest"), snow: i18n.t("Snow"), lake: i18n.t("Lake"), countryside: i18n.t("Countryside") };
+  $("coverPhotoTile").append(icon("camera"));
+  $("coverArt").append(...M.COVER_ART.map((name) => el("button", { type: "button", "data-art": name, "aria-pressed": "false",
+    "aria-label": ART_NAMES[name], title: ART_NAMES[name],
+    onclick: () => { pendingArt = name; pendingCover = null; $("coverFile").value = ""; showCoverPreview(null, name); } },
+  el("img", { src: artUrl(name), alt: "" }))));
   $("tripForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -1271,6 +1306,7 @@
       else { await store.dropCover(trip.id); trip.cover = false; }
       trip.coverAt = stamp;
     }
+    if (pendingArt !== undefined) { if (pendingArt) trip.art = pendingArt; else delete trip.art; }
     if (!editingTrip) doc.trips.push(trip);
     const closing = closeSheet($("tripSheet"));
     save();

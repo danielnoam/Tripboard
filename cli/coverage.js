@@ -24,7 +24,7 @@ const fields = {
   trip: {
     id: made, createdAt: made, updatedAt: made, by: made,
     name: ["create_trip", "update_trip"], start: ["create_trip", "update_trip"], end: ["create_trip", "update_trip"], destinations: ["create_trip", "update_trip"],
-    cover: ["set_trip_cover"],
+    cover: ["set_trip_cover"], art: ["set_trip_cover"],
     owner: "auto: you (me.json) on create_trip, as in the app; changing owners isn't something the app does",
     members: ["remove_person", "get_trip"],
     share: ["update_sharing"],
@@ -119,7 +119,7 @@ const model = {
   sanitizeExpense: "cli", expenseTotals: "cli", expensesByCategory: "cli", onDay: "cli", catList: "cli", catName: "cli", carryCats: "cli", isCatId: "cli",
   CATEGORIES: "cli", IMPORTANCE: "cli", newId: "cli", isDay: "cli", sanitizeTrip: "cli", sanitizePlace: "cli", sanitizeDoc: "cli", stamp: "cli",
   tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", distanceKm: "cli", board: "cli", backupOf: "cli",
-  mergeBackup: "cli", dayPlan: "cli", leg: "cli", nextOf: "cli", KNOWN: "auto: test/coverage.test.js checks fields against it",
+  mergeBackup: "cli", COVER_ART: "cli", dayPlan: "cli", leg: "cli", nextOf: "cli", KNOWN: "auto: test/coverage.test.js checks fields against it",
   ROLES: "auto: sanitizeTrip checks roles", join: "device: a device joining a shared trip adds itself", renamePerson: "auto: the app's sync moves ids to me.json's",
   EXPENSE_CATEGORY: "auto: sanitizeExpense checks it", CURRENCIES: "device: the currency picker's first choices; any ISO code is taken",
   expenseDays: ui, placeDays: "auto: onDay and tripDays cover it", addDays: ui, daySpan: ui, IMPORTANCE_LABEL: ui, SLOTS: "auto: slotOf and board use it",

@@ -10,6 +10,7 @@
 const CACHE = "tripboard-v8";
 const ASSETS = [
   "./", "./index.html", "./manifest.json", "./icon.svg",
+  "./assets/covers/mountains.svg", "./assets/covers/beach.svg", "./assets/covers/city.svg", "./assets/covers/desert.svg", "./assets/covers/forest.svg", "./assets/covers/snow.svg", "./assets/covers/lake.svg", "./assets/covers/countryside.svg",
   "./src/styles.css", "./src/model.js", "./src/store.js", "./src/settings.js", "./src/merge.js", "./src/sync.js", "./src/share.js", "./src/drive.js", "./src/places.js", "./src/weather.js", "./src/listimport.js", "./src/offline.js", "./src/map.js", "./src/icons.js", "./src/views.js", "./src/app.js",
   "./src/keel/errlog.js", "./src/keel/i18n.js", "./src/language.js", "./src/theme.js", "./src/lang/he.js", "./src/keel/github.js", "./src/keel/qr.js", "./src/keel/drive.js", "./src/keel/platform.js", "./src/keel/releases.js", "./src/keel/update.js", "./src/keel/motion.js", "./src/keel/sw-preview.js",
   "./src/vendor/maplibre-gl.mjs", "./src/vendor/maplibre-gl-worker.mjs", "./src/vendor/maplibre-gl.css", "./src/vendor/rtl-text/plugin.mjs", "./src/vendor/rtl-text/rtl.js", "./src/vendor/rtl-text/mapbox-gl-rtl-text.wasm",

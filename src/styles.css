@@ -359,11 +359,32 @@ body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 
 .hint { font-weight: 400; font-size: var(--fs-small); }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
 .sheet .seg button.imp-must[aria-checked="true"] { color: var(--must); }
-.cover-pick { display: flex; align-items: center; gap: var(--space-3); }
-.cover-preview { display: grid; place-items: center; width: 112px; height: 72px; flex: none; border-radius: 10px; color: var(--on-photo); }
-.cover-preview .dim { color: var(--on-photo); font-weight: 400; font-size: var(--fs-small); }
-.cover-preview .error { padding: var(--space-1); font-size: 12px; font-weight: 400; text-align: center; }
-.cover-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* The trip's cover: the box itself picks the photo; x takes it off. */
+.cover-pick { position: relative; }
+.cover-preview {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 7; max-height: 200px; border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--line); background: var(--surface); color: var(--text-dim); cursor: pointer;
+}
+.cover-preview.has-photo { border: 0; background: var(--tint-0); }
+.cover-preview:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cover-show { display: grid; justify-items: center; gap: var(--space-1); font-weight: 600; }
+.cover-show svg { width: 28px; height: 28px; }
+.cover-preview .error { padding: var(--space-2); color: var(--danger); font-size: var(--fs-small); text-align: center; }
+/* Ready-made covers under the box, the camera first: a row that scrolls sideways. */
+.art-row { display: flex; gap: var(--space-2); margin-top: var(--space-2); padding-block-end: 2px; overflow-x: auto; scrollbar-width: none; }
+.art-row > * {
+  flex: none; display: grid; place-items: center; width: 72px; height: 46px; padding: 0; overflow: hidden;
+  border: 2px solid transparent; border-radius: 10px; background: var(--surface); color: var(--text-dim); cursor: pointer;
+}
+.art-row img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.art-row [aria-pressed="true"] { border-color: var(--accent); }
+.art-row .art-photo { border: 1.5px dashed var(--line); }
+.art-row .art-photo svg { width: 22px; height: 22px; }
+.art-row > :focus-visible, .art-row .art-photo:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cover-remove {
+  position: absolute; inset-block-start: var(--space-2); inset-inline-end: var(--space-2);
+  background: var(--scrim); color: var(--on-photo); border-radius: 999px;
+}
 .sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .grow { flex: 1; }
 
@@ -676,6 +697,16 @@ dialog[tabindex="-1"]:focus { outline: none; }
 .cat-keep { display: inline-block; min-width: 72px; }
 
 /* The trip sheet: importing a Google Maps list by its link */
+/* The trip sheet: Import from file and Add from link, side by side */
+.import-pick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.import-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1);
+  min-height: 84px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--surface); color: var(--text); font: inherit; font-weight: 600; text-align: center; cursor: pointer;
+}
+.import-btn svg { width: 24px; height: 24px; color: var(--accent); }
+.import-btn[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.import-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .link-row { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 .link-row input { flex: 1; min-width: 0; }
 

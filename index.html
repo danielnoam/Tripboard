@@ -77,26 +77,29 @@
       <div class="field">
         <span data-t>Cover</span>
         <div class="cover-pick">
-          <div class="cover-preview" id="coverPreview"></div>
-          <div class="cover-actions">
-            <label class="btn"><span data-t>Choose a photo</span><input id="coverFile" type="file" accept="image/*" class="visually-hidden"></label>
-            <button class="btn quiet" id="coverRemove" type="button" hidden data-t>Remove</button>
-          </div>
+          <label class="cover-preview" id="coverPreview"><input id="coverFile" type="file" accept="image/*" class="visually-hidden" aria-label="Choose a photo" data-t-attr="aria-label"><span class="cover-show" id="coverShow"></span></label>
+          <button class="icon-btn cover-remove" id="coverRemove" type="button" hidden aria-label="Remove the cover" title="Remove the cover" data-t-attr="aria-label,title"></button>
+        </div>
+        <div class="art-row" id="coverArt" role="group" aria-label="Ready-made covers" data-t-attr="aria-label">
+          <label class="art-photo" for="coverFile" id="coverPhotoTile" title="Choose a photo" data-t-attr="title"></label>
         </div>
       </div>
       <div class="field" id="tripImportRow">
-        <span id="tripImportLabel" data-t>Import places from Google Maps</span>
+        <span id="tripImportLabel" data-t>Start with places</span>
         <div class="offline-card" id="tripListCard" hidden>
           <p class="offline-title" id="tripListCount"></p>
           <p class="dim" id="tripListHow"></p>
           <div class="offline-actions"><button class="btn quiet" id="tripListRemove" type="button" data-t>Remove</button></div>
         </div>
-        <div id="tripImportPick"><label class="btn"><span data-t>Choose a file</span><input id="tripImportFile" type="file" accept=".csv,.kml,.json,.geojson,text/csv,application/json,application/vnd.google-earth.kml+xml" class="visually-hidden"></label></div>
-        <p class="hint dim" id="tripImportHint" data-t>A list from Google Takeout (Saved, as CSV), a map from My Maps (Export to KML), or Saved Places.json.</p>
+        <div class="import-pick" id="tripImportPick">
+          <label class="import-btn" id="tripFromFile"><input id="tripImportFile" type="file" accept=".csv,.kml,.json,.geojson,text/csv,application/json,application/vnd.google-earth.kml+xml" class="visually-hidden"><span data-t>Import from file</span></label>
+          <button class="import-btn" id="tripFromLink" type="button" aria-expanded="false" aria-controls="tripImportLinkRow"><span data-t>Add from link</span></button>
+        </div>
         <div class="link-row" id="tripImportLinkRow" hidden>
           <input id="tripImportLink" type="url" inputmode="url" autocomplete="off" placeholder="https://maps.app.goo.gl/…" aria-label="A shared Google Maps list's link" data-t-attr="aria-label">
           <button class="btn" id="tripImportGo" type="button" data-t>Import</button>
         </div>
+        <p class="hint dim" id="tripImportHint"></p>
       </div>
       <div class="field" id="tripOfflineRow" hidden>
         <span data-t>Offline</span>
