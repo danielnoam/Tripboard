@@ -226,24 +226,25 @@ body.on-map .update { bottom: auto; top: 108px; }
 
 .groups { display: grid; gap: 10px; }
 /* Expenses */
-.spend-total { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.spend-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.spend-total { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.spend-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 15px; }
 .spend-cats li, .xrow { display: flex; align-items: baseline; gap: var(--space-2); }
 .spend-cats li span:first-child { flex: 1; color: var(--text-dim); }
 .amount { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-.xrows { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
-.xrow { width: 100%; min-height: 48px; padding: 8px 12px; border: 0; border-radius: 10px; background: var(--bg); text-align: start; cursor: pointer; }
+.xrows { display: grid; gap: 4px; margin-top: 4px; }
+.xrow { width: 100%; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 8px; line-height: 1.35; background: var(--bg); text-align: start; cursor: pointer; }
 .xrow { align-items: center; }
-.xrow-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); flex: none; }
+.xrow-ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); flex: none; }
+.xrow-ic .icon { width: 18px; height: 18px; }
 #app.file-over { outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: var(--radius-lg); }
-.xrow-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.xrow-title { font-weight: 600; }
+.xrow-text { flex: 1; min-width: 0; display: grid; gap: 0; }
+.xrow-title { font-weight: 600; font-size: 15px; }
 .xrow > .attached-local { flex: none; display: grid; place-items: center; color: var(--text-dim); }
 .xrow > .attached-local .icon { width: 18px; height: 18px; }
 #linkOpen { display: inline-flex; align-items: center; gap: var(--space-1); text-decoration: none; }
 #noteText { min-height: 40vh; }
 a.attached-file { text-decoration: none; }
-.xrow-meta { color: var(--text-dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xrow-meta { color: var(--text-dim); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group { padding: 10px 12px 12px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
 .group-head { display: flex; align-items: center; gap: var(--space-2); }
 .group-head h2 { flex: 1; margin: 0; font-size: 16px; }
@@ -1036,6 +1037,17 @@ body.desk.side-map .map-view:not([hidden]) { inset-inline-start: calc(var(--side
 body.desk.with-tabbar .map-panel { bottom: var(--space-3); }
 body.desk.with-tabbar .map-tools { bottom: var(--space-3); }
 .pin.hot { scale: 1.3; z-index: 3; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
+/* The line between the page and the map: drag it (or arrow keys on it) to share the width. */
+.desk-split { display: none; }
+body.desk.side-map .desk-split:not([hidden]) {
+  display: block; position: fixed; z-index: 7; inset-block: 0; inset-inline-start: calc(var(--side) + var(--panel) - 5px); width: 10px;
+  cursor: col-resize; touch-action: none;
+}
+body.desk .desk-split::after { content: ""; position: absolute; inset-block: 0; inset-inline-start: 4px; width: 2px; background: transparent; transition: background-color 120ms; }
+body.desk .desk-split:hover::after, body.desk .desk-split:focus-visible::after, body.splitting .desk-split::after { background: var(--accent); }
+body.desk .desk-split:focus-visible { outline: none; }
+body.splitting, body.splitting * { cursor: col-resize !important; user-select: none; }
+body.splitting .map-view { pointer-events: none; }
 /* The handle that folds the map away, on its edge, and brings it back from the window's. */
 body.desk .desk-fold:not([hidden]) {
   position: fixed; z-index: 8; top: 50%; translate: 0 -50%; inset-inline-start: calc(var(--side) + var(--panel) - 14px);
@@ -1068,7 +1080,17 @@ body.desk:not(.side-map) .desk-fold .icon { rotate: 90deg; }
   body.desk .dest-any .fold { min-height: 30px; margin: 0; }
   body.desk .dest-any .group-head h2 { font-size: 15px; }
   body.desk .dest-any .peek { font-size: 12.5px; margin-top: 2px; }
+  body.desk .xrow { min-height: 0; padding: 5px 8px; gap: 8px; }
+  body.desk .xrow-ic { width: 26px; height: 26px; border-radius: 7px; }
+  body.desk .xrow-ic .icon { width: 15px; height: 15px; }
+  body.desk .xrow-title, body.desk .xrow .amount { font-size: 14px; }
+  body.desk .xrow-meta { font-size: 12.5px; }
+  body.desk .spend-total { font-size: 22px; }
+  body.desk .spend-cats { font-size: 14px; }
 }
+/* Files has few, long groups: each takes the page's width, its rows in columns. */
+body.desk .files-groups { grid-template-columns: 1fr; }
+body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 /* The List look: a line a place: done, rating, category, name (coloured by importance) and time. */
 :root[data-look="list"] body.desk .card { background: none; border: 0; border-radius: 6px; align-items: center; gap: 0; min-width: 0; }
 :root[data-look="list"] body.desk .card:hover { background: var(--bg); }

@@ -102,9 +102,9 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], destShut: [], from: null, mode: "board", pick: null, sel: null, look: "cards", deskMap: true };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], destShut: [], from: null, mode: "board", pick: null, sel: null, look: "cards", deskMap: true, split: 0 };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -441,10 +441,67 @@
   const listLook = () => view.look === "list" && desk() && FINE.matches;
   // On a computer a trip's page scrolls by itself, beside the side bar and the map.
   const scrollTop = () => (document.body.classList.contains("desk") ? $("app").scrollTop : window.scrollY);
+  // The line between the page and the map drags to share the width between
+  // them. view.split is the page's share of what the side bar leaves (0: the
+  // CSS default), kept to at least 380 px for the page and 320 for the map.
+  const SPLIT_MIN = 380, MAP_MIN = 320;
+  const splitRoom = () => window.innerWidth - $("side").offsetWidth;
+  function applySplit() {
+    const room = splitRoom(), split = $("deskSplit");
+    if (!view.split || room <= SPLIT_MIN + MAP_MIN) document.body.style.removeProperty("--panel");
+    else document.body.style.setProperty("--panel", Math.round(Math.min(Math.max(view.split * room, SPLIT_MIN), room - MAP_MIN)) + "px");
+    const w = $("app").offsetWidth;
+    split.setAttribute("aria-valuemin", String(Math.round(SPLIT_MIN / room * 100)));
+    split.setAttribute("aria-valuemax", String(Math.round((room - MAP_MIN) / room * 100)));
+    split.setAttribute("aria-valuenow", String(Math.round(w / room * 100)));
+  }
+  function setSplit(px) {
+    const room = splitRoom();
+    view.split = Math.min(Math.max(px, SPLIT_MIN), room - MAP_MIN) / room;
+    applySplit();
+    TM.resize();
+  }
+  function wireSplit() {
+    const split = $("deskSplit");
+    const rtl = () => document.documentElement.dir === "rtl";
+    const at = (e) => (rtl() ? window.innerWidth - e.clientX : e.clientX) - $("side").offsetWidth;
+    let frame = 0;
+    split.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest("#deskFold")) return;
+      e.preventDefault();
+      split.setPointerCapture(e.pointerId);
+      document.body.classList.add("splitting");
+    });
+    split.addEventListener("pointermove", (e) => {
+      if (!split.hasPointerCapture(e.pointerId)) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setSplit(at(e)));
+    });
+    const done = (e) => {
+      if (!split.hasPointerCapture(e.pointerId)) return;
+      split.releasePointerCapture(e.pointerId);
+      document.body.classList.remove("splitting");
+      remember();
+    };
+    split.addEventListener("pointerup", done);
+    split.addEventListener("pointercancel", done);
+    // A double click goes back to the usual width.
+    split.addEventListener("dblclick", (e) => { if (e.target.closest("#deskFold")) return; view.split = 0; applySplit(); TM.resize(); remember(); });
+    split.addEventListener("keydown", (e) => {
+      const step = { ArrowLeft: -40, ArrowRight: 40 }[e.key];
+      if (!step || e.target !== split) return;
+      e.preventDefault();
+      setSplit($("app").offsetWidth + (rtl() ? -step : step));
+      remember();
+    });
+    window.addEventListener("resize", () => { if (!split.hidden) applySplit(); });
+  }
   function paintSide(trip) {
-    const side = $("side"), fold = $("deskFold");
+    const side = $("side"), fold = $("deskFold"), split = $("deskSplit");
     side.hidden = !trip;
     fold.hidden = !trip || view.mode === "map";
+    split.hidden = !trip || !sideMap();
+    if (!split.hidden) applySplit();
     if (!trip) { side.replaceChildren(); delete side.dataset.trip; return; }
     const label = view.deskMap ? i18n.t("Hide the map") : i18n.t("Show the map");
     fold.setAttribute("aria-label", label);
@@ -1019,7 +1076,7 @@
         el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }), el("span.xrow-meta", { text: meta.filter(Boolean).join(" · ") })), local(f));
     };
     const byAdded = (a, b) => String(a.createdAt).localeCompare(String(b.createdAt));
-    const wrap = el("div.groups");
+    const wrap = el("div.groups.files-groups");
     for (const [kind, title, items] of [["note", i18n.t("Notes"), list.filter((f) => f.kind === "note").sort(byAdded)],
       ["link", i18n.t("Links"), list.filter((f) => f.kind === "link").sort(byAdded)], ["file", i18n.t("Files"), list.filter(M.hasBytes)]]) {
       if (items.length) wrap.append(el("section.group.files-" + kind, {}, el("div.group-head", {}, el("h2", { text: title }), el("span.count", { text: String(items.length) })),
@@ -3812,6 +3869,8 @@
     $("fab").addEventListener("click", (e) => addHere(e.currentTarget));
     $("deskFold").append(icon("chevron"));
     $("deskFold").addEventListener("click", () => { view.deskMap = !view.deskMap; remember(); render(); });
+    $("deskSplit").setAttribute("aria-label", i18n.t("Drag to share the width between the plan and the map"));
+    wireSplit();
     DESK.addEventListener("change", () => render());
     window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
