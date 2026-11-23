@@ -2993,20 +2993,38 @@
     server: "sharing", drive: "data" };
   const settingsParent = (page) => SETTINGS_PARENT[String(page).split("/")[0]] || "";
 
+  // On a computer Settings has two panes: its list (and search) on one side,
+  // the page open on the other, Display when none is.
+  const SETTINGS_SECTION = { display: "appearance", you: "sharing", sync: "data", storage: "data" };
   function renderSettings(main, page) {
-    if (page === "map" || page === "search") return renderService(main, page);
-    if (page === "services") return renderServices(main);
-    if (page === "drive") return renderDrive(main);
-    if (page === "you" || page === "sharing") return renderSharing(main);
-    if (page === "data" || page === "sync" || page === "storage") return renderData(main);
-    if (page === "categories") return renderCategories(main);
-    if (page === "appearance" || page === "display") return renderAppearance(main);
-    if (page === "about") return renderAbout(main);
-    if (page === "weather") return renderWeather(main);
-    if (page === "server") return renderServer(main);
-    if (page === "ai") return renderAi(main);
+    if (!DESK.matches) return settingsPage(main, page) || settingsHome(main);
+    const open = page || "appearance";
+    const top = settingsParent(open) || SETTINGS_SECTION[open] || open.split("/")[0];
+    const nav = el("nav.settings-nav", { "aria-label": i18n.t("Settings") }), pane = el("div.settings-pane");
+    main.append(nav, pane);
+    settingsHome(nav);
+    for (const a of nav.querySelectorAll(".sgroup > .sgroup-card > .srow")) {
+      if (a.getAttribute("href") === "#/settings/" + top) a.setAttribute("aria-current", "page");
+    }
+    if (!settingsPage(pane, open)) settingsPage(pane, "appearance");
+  }
+  function settingsPage(main, page) {
+    if (page === "map" || page === "search") return (renderService(main, page), true);
+    if (page === "services") return (renderServices(main), true);
+    if (page === "drive") return (renderDrive(main), true);
+    if (page === "you" || page === "sharing") return (renderSharing(main), true);
+    if (page === "data" || page === "sync" || page === "storage") return (renderData(main), true);
+    if (page === "categories") return (renderCategories(main), true);
+    if (page === "appearance" || page === "display") return (renderAppearance(main), true);
+    if (page === "about") return (renderAbout(main), true);
+    if (page === "weather") return (renderWeather(main), true);
+    if (page === "server") return (renderServer(main), true);
+    if (page === "ai") return (renderAi(main), true);
     const pm = /^p\/(\w+)$/.exec(page || "");
-    if (pm && SET.PROVIDERS[pm[1]]) return renderProvider(main, pm[1]);
+    if (pm && SET.PROVIDERS[pm[1]]) return (renderProvider(main, pm[1]), true);
+    return false;
+  }
+  function settingsHome(main) {
     $("title").textContent = i18n.t("Settings");
     const cfg = SET.get();
     const input = el("input", { type: "search", placeholder: i18n.t("Search settings"), "aria-label": i18n.t("Search settings"), autocomplete: "off", spellcheck: false, value: view.settingsQ || "" });
@@ -3691,6 +3709,7 @@
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
     document.body.classList.toggle("on-home", !trip && !settings && !jm);
+    document.body.classList.toggle("on-settings", settings);
     $("newTrip").hidden = !!(trip || settings || jm);
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip || !mayEdit(trip) || view.mode === "share";
@@ -4018,7 +4037,8 @@
     $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; go("#/settings"); });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
       if (view.mode === "share" && view.trip) { goUp("#/trip/" + view.trip); return; }
-      goUp(sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"); });
+      // Settings' list is beside its pages on a computer, so a top page steps back to Home.
+      goUp(sp && (settingsParent(sp[1]) || !DESK.matches) ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"); });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     // The + itself stays put; its icon swells and flashes green, like a tab's.
     $("fab").addEventListener("click", (e) => {

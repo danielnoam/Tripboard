@@ -667,6 +667,16 @@ body.with-tabbar .map-tools { bottom: calc(env(safe-area-inset-bottom) + 58px + 
 .srow-text { display: grid; gap: 1px; min-width: 0; }
 .srow-title { font-weight: 600; }
 .srow-status { font-size: var(--fs-small); color: var(--text-dim); }
+/* Settings on a computer: its list beside the open page (views.js, renderSettings). */
+@media (min-width: 1100px) {
+  body.on-settings .bar, body.on-settings main { max-width: 1100px; padding-inline: 32px; }
+  body.on-settings main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .settings-nav { position: sticky; top: var(--space-3); }
+  .settings-pane { min-width: 0; }
+  .settings-pane > :first-child { margin-top: var(--space-2); }
+  .srow[aria-current="page"] { background: var(--accent-soft); }
+  .srow[aria-current="page"] .srow-ic { background: var(--accent); color: var(--on-accent); }
+}
 .srow-status[data-tone="warn"] { color: var(--danger); }
 p[data-tone="warn"] { color: var(--danger); }
 .srow-chev { color: var(--text-dim); font-size: 22px; line-height: 1; }
