@@ -199,6 +199,11 @@ body.on-map .update { bottom: auto; top: 108px; }
 }
 .seg button[aria-selected="true"], .seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.filters .pick { gap: 4px; }
+.filters .pick::before { content: none; }
+.filters .pick[aria-pressed="false"] { color: var(--text); }
+.filters .pick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.filters .pick .icon { width: 16px; height: 16px; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px;
@@ -863,6 +868,19 @@ body.on-board main.today-page { max-width: 640px; }
 .sync-qr[hidden] { display: none; }
 .sync-steps summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .sync-steps .steps { margin-top: var(--space-2); }
+
+/* A filter's drop-down: All, then a box for each choice. */
+.filter-menu { min-width: 240px; max-height: min(70vh, 480px); overflow-y: auto; }
+.filter-menu hr { margin: 2px var(--space-2); border: 0; border-top: 1px solid var(--surface-2); }
+.filter-menu .box {
+  flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px;
+  border: 2px solid var(--text-dim); border-radius: 5px; color: var(--on-accent);
+}
+.filter-menu [aria-checked="true"] .box, .filter-menu [aria-checked="mixed"] .box { background: var(--accent); border-color: var(--accent); }
+.filter-menu .box .icon { width: 14px; height: 14px; stroke-width: 3; }
+.filter-menu button > .icon { width: 18px; height: 18px; }
+.filter-menu .dot { width: 12px; height: 12px; margin-inline: 3px; }
+.filter-menu .grow { flex: 1; }
 
 /* The View sheet: category icons off, or the importance colour off. */
 [data-cat="label"] .card-name .icon.cat, [data-cat="label"] .group-head h2 .icon.cat { display: none; }

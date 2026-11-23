@@ -71,7 +71,6 @@ const sheets = {
   linkSheet: ["add_link", "update_file", "delete_file", "get_file"],
   noteSheet: ["add_note", "update_file", "delete_file", "get_file"],
   viewSheet: "device: how this device's place cards show category and importance (icons, names or both), never in the sync repo",
-  mapFilterSheet: ["find_places"],
   mapStyleSheet: "device: the map's look is this device's map provider and style (Settings › Services › Map), never in the sync repo",
   confirmSheet: ["delete_trip", "delete_place"],
   moveSheet: ["batch_update", "update_place"],

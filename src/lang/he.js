@@ -360,7 +360,6 @@ Keel.i18n.strings("he", {
   "Pick one, then tap the map.": "יש לבחור מקום ואז להקיש על המפה.",
   "{n} levels": { one: "רמה אחת", two: "שתי רמות", other: "{n} רמות" },
   "{n} categories": { one: "קטגוריה אחת", two: "שתי קטגוריות", other: "{n} קטגוריות" },
-  "Show all": "הצגת הכול",
   "Show on the map": "מה להציג במפה",
   "Restored {n} trips ({replaced} replaced).": { one: "שוחזר טיול אחד ({replaced} הוחלפו).", other: "שוחזרו {n} טיולים ({replaced} הוחלפו)." },
   "Restored {n} trips.": { one: "שוחזר טיול אחד.", two: "שוחזרו שני טיולים.", other: "שוחזרו {n} טיולים." },
