@@ -29,8 +29,8 @@ they always match.
 |---|---|---|
 | Every trip, in Home's order (under way, upcoming, undated, past) | `trips` | `list_trips` |
 | One trip in full: places, days, expenses with totals, people, files | `show` | `get_trip` |
-| A trip's places by day, category, importance, visited, text, or nearest to a point | `places` | `find_places` |
-| The trip's board as the app groups it (time, category, importance, distance) | `board` | `get_board` |
+| A trip's places by day, category, importance, visited, rating, text, or nearest to a point | `places` | `find_places` |
+| The trip's board as the app groups it (time, category, importance, rating, distance) | `board` | `get_board` |
 | One day as the Today view shows it: the plan, times between places, what's next | `day` | `get_day` |
 | Your place categories, in order | `categories` | `list_categories` |
 | A file kept with a trip (MCP: only with `TRIPBOARD_MCP_FILES=1`) | `file` | `get_file` |

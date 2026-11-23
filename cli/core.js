@@ -222,7 +222,7 @@ async function sharesServers(reading) {
 // The edits both front ends offer, on a doc. Each gives the record it made
 // or changed. Fields are the app's own (see src/model.js); unknown ones
 // are kept, as the app keeps them.
-const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "order"];
+const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "rating", "order"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
 const FILE_FIELDS = ["name", "place", "note"];
@@ -574,6 +574,7 @@ const queries = {
     if (a.category) { const [id] = findCat(cats.concat(Object.entries(t.cats || {})), a.category); list = list.filter((p) => p.category === id); }
     if (a.importance && a.importance.length) list = list.filter((p) => a.importance.includes(p.importance));
     if (a.visited !== undefined) list = list.filter((p) => !!p.visited === !!a.visited);
+    if (a.rating && a.rating.length) list = list.filter((p) => a.rating.map(Number).includes(p.rating || 0));
     if (a.located !== undefined) list = list.filter((p) => (p.lat != null) === !!a.located);
     if (a.text) { const q = String(a.text).toLowerCase(); list = list.filter((p) => [p.name, p.note, p.address].some((v) => v && v.toLowerCase().includes(q))); }
     const from = nearOf(st.doc, t, a.near);
@@ -582,11 +583,11 @@ const queries = {
     return a.limit ? out.slice(0, +a.limit) : out;
   },
   // The board as the app groups it: by day and time slot, category,
-  // importance, or distance from a point.
+  // importance, rating, or distance from a point.
   getBoard(st, a) {
     const t = findTrip(st.doc, a.trip);
     const cats = catsOf(st.cats);
-    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, importance: p.importance, category: p.category, visited: !!p.visited });
+    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}) });
     const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, from: nearOf(st.doc, t, a.near), cats });
     return groups.map((g) => ({ id: g.id, title: g.title, ...(g.day ? { dayNumber: M.dayIndex(t, g.day) } : {}),
       ...(g.slots ? { slots: g.slots.map((s) => ({ id: s.id, title: s.title, places: s.places.map(brief) })) } : { places: g.places.map((p) => ({ ...brief(p), ...(g.km ? { km: Math.round(g.km.get(p.id) * 100) / 100 } : {}) })) }) }));

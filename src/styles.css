@@ -15,6 +15,7 @@
   --must: #1D5FB0;
   --want: #2E7D32;
   --maybe: #B45309;
+  --star: #A16207;
   --danger: #A3302B;
   --scrim: rgba(0, 0, 0, 0.45);
   --on-photo: #FFFFFF;
@@ -52,6 +53,7 @@
   --must: #8AB8F5;
   --want: #8FD19E;
   --maybe: #F5B068;
+  --star: #F2C14E;
   --danger: #F0958C;
   --shadow: none;
   color-scheme: dark;
@@ -369,6 +371,16 @@ body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 
 .hint { font-weight: 400; font-size: var(--fs-small); }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
 .sheet .seg button.imp-must[aria-checked="true"] { color: var(--must); }
+/* Your rating: five stars to tap in the place sheet, a star and number on a card. */
+.rating-row { display: flex; align-items: center; gap: var(--space-2); }
+.stars-pick { display: flex; gap: 2px; }
+.stars-pick .star { min-width: 44px; min-height: 44px; padding: 0; border: 0; background: none; font-size: 30px; line-height: 1; color: var(--line); cursor: pointer; }
+.stars-pick .star.on { color: var(--star); }
+.stars-pick .star:disabled { cursor: default; }
+.card-name .rating { display: inline-block; margin-inline-start: 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+.card-name .rating .star { color: var(--star); margin-inline-end: 2px; }
+.stars-head .stars span { color: var(--line); }
+.stars-head .stars span.on { color: var(--star); }
 /* The trip's cover: the box itself picks the photo; x takes it off. */
 .cover-pick { position: relative; }
 .cover-preview {

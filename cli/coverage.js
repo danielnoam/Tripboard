@@ -36,6 +36,7 @@ const fields = {
     day: ["add_place", "update_place"], endDay: ["add_place", "update_place"], time: ["add_place", "update_place"], endTime: ["add_place", "update_place"],
     note: ["add_place", "update_place"], lat: ["add_place", "update_place", "find_location"], lng: ["add_place", "update_place", "find_location"],
     address: ["add_place", "update_place"], placeId: ["add_place", "update_place"], visited: ["add_place", "update_place"],
+    rating: ["add_place", "update_place", "find_places", "get_board"],
     order: ["add_place", "update_place", "order_day"],
     geoAt: "auto: the day a Google location was fetched (Google's 30-day rule); only the app fetches from Google, and update_place drops it with a new location",
   },
@@ -127,7 +128,7 @@ const model = {
   mergeBackup: "cli", COVER_ART: "cli", dayPlan: "cli", leg: "cli", nextOf: "cli", KNOWN: "auto: test/coverage.test.js checks fields against it",
   ROLES: "auto: sanitizeTrip checks roles", join: "device: a device joining a shared trip adds itself", renamePerson: "auto: the app's sync moves ids to me.json's",
   EXPENSE_CATEGORY: "auto: sanitizeExpense checks it", CURRENCIES: "device: the currency picker's first choices; any ISO code is taken",
-  expenseDays: ui, placeDays: "auto: onDay and tripDays cover it", addDays: ui, daySpan: ui, IMPORTANCE_LABEL: ui, SLOTS: "auto: slotOf and board use it",
+  expenseDays: ui, placeDays: "auto: onDay and tripDays cover it", addDays: ui, daySpan: ui, IMPORTANCE_LABEL: ui, RATINGS: "auto: board's rating sort uses it", SLOTS: "auto: slotOf and board use it",
   isTime: "auto: sanitizePlace checks it", daysUntil: ui, staleGoogle: "device: refreshing Google locations needs the person's Google key",
   dayRoute: "auto: get_day gives the same places in order", GOOGLE_DAYS: "device: as staleGoogle", swipeStep: ui,
 };

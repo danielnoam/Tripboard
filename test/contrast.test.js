@@ -22,6 +22,7 @@ const PAIRS = [
   ["must", "bg"], ["must", "surface"], ["danger", "surface"], ["want", "bg", "ui"], ["maybe", "bg", "ui"],
   ["on-photo", "tint-0"], ["on-photo", "tint-1"], ["on-photo", "tint-2"], ["on-photo", "tint-3"], ["on-photo", "tint-4"],
   ["on-tab", "tab-on", "ui"], ["text-dim", "surface", "ui"],
+  ["star", "bg", "ui"], ["star", "surface", "ui"],
 ];
 
 test("every theme's pairs pass WCAG AA", () => {
