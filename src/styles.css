@@ -748,6 +748,23 @@ dialog[tabindex="-1"]:focus { outline: none; }
   background: var(--surface);
 }
 
+/* Sync in the bar: turning arrows while trips sync, a crossed cloud when
+   the last sync didn't finish (tapped, Settings › Data says why). Hidden
+   the rest of the time. */
+.sync-badge {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px var(--space-2); border-radius: 999px;
+  color: var(--text-dim); font-size: var(--fs-small); font-weight: 600; white-space: nowrap; text-decoration: none;
+}
+.sync-badge[hidden] { display: none; }
+.sync-badge svg { width: 16px; height: 16px; }
+.sync-badge[data-state="syncing"] svg { animation: sync-turn 1s linear infinite; }
+.sync-badge[data-state="error"] { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+@keyframes sync-turn { to { rotate: 360deg; } }
+@media (max-width: 420px) {
+  .sync-badge { padding: 4px; }
+  .sync-badge-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
 /* Offline: the trip's badge in the bar, and its card in Edit trip */
 .offline-badge {
   flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px var(--space-2); border-radius: 999px;

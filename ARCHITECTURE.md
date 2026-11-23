@@ -45,12 +45,14 @@ src/lang/he.js       the Hebrew words, keyed by the English
 test/run-all.js      runs every test/*.test.js
 test/app.test.js     index.html, sw.js's ASSETS and the version agree
 test/model.test.js   src/model.js
-test/merge.test.js   src/merge.js and the model's stamp()
+test/merge.test.js   src/merge.js (and arrivals(), what a sync brought) and the model's stamp()
 test/places.test.js  src/places.js
 test/weather.test.js src/weather.js
 test/offline.test.js src/offline.js's tile plan, keys and style rewrite
 test/listimport.test.js  src/listimport.js
 test/settings.test.js  src/settings.js
+test/sync.test.js    src/sync.js end to end: two devices in vms syncing through the fake GitHub (merges, deletions, covers and files, a repo that moves mid-sync, errors)
+test/fakegithub.js   an in-memory GitHub for cli.test.js and sync.test.js
 test/share.test.js   src/share.js's sharing servers and invite links, and sw.js adding them to the CSP
 test/i18n.test.js    every language table has every word the code uses, nothing stale or broken (keel's check)
 test/csp.test.js     the policy and the code under it (keel's check)

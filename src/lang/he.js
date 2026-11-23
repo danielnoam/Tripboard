@@ -612,4 +612,13 @@ Keel.i18n.strings("he", {
   "Show all places": "הצגת כל המקומות",
   "Where am I": "איפה אני",
   "Map credits": "קרדיטים של המפה",
+  "New trip: {name}.": "טיול חדש: {name}.",
+  "New trips: {join}.": "טיולים חדשים: {join}.",
+  "{n} new trips.": { one: "טיול חדש אחד.", two: "שני טיולים חדשים.", other: "{n} טיולים חדשים." },
+  "{name} was updated.": "הטיול {name} עודכן.",
+  "Updated: {join}.": "עודכנו: {join}.",
+  "{n} trips were updated.": { one: "טיול אחד עודכן.", two: "שני טיולים עודכנו.", other: "{n} טיולים עודכנו." },
+  "{name} was deleted on another device.": "הטיול {name} נמחק במכשיר אחר.",
+  "{n} trips were deleted on another device.": { one: "טיול אחד נמחק במכשיר אחר.", two: "שני טיולים נמחקו במכשיר אחר.", other: "{n} טיולים נמחקו במכשיר אחר." },
+  "Not synced": "לא מסונכרן",
 });

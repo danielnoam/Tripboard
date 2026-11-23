@@ -124,7 +124,28 @@
   const tripIds = (doc) => [...new Set(doc.trips.map((t) => t.id).concat(
     Object.entries(doc.deleted || {}).filter(([id, t]) => t.trip === id).map(([id]) => id)))];
 
-  const api = { FORMAT, bundleOf, applyBundle, mergeRecord, mergeBundles, tripIds };
+  // What a sync brought to this device: the trips that came, changed or
+  // went between two docs. Order, key order and a trip's coverAt (stamped
+  // on a first sync) don't count as a change; tombstones show in what they removed.
+  const canon = (v) => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
+    : v && typeof v === "object" ? "{" + Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}"
+    : JSON.stringify(v);
+  const byId = (list) => (list || []).slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const sameTrip = (a, b) => canon([{ ...a.trip, coverAt: undefined }, byId(a.places), byId(a.expenses), byId(a.files)])
+    === canon([{ ...b.trip, coverAt: undefined }, byId(b.places), byId(b.expenses), byId(b.files)]);
+  function arrivals(before, after) {
+    const was = new Map(before.trips.map((t) => [t.id, t]));
+    const is = new Set(after.trips.map((t) => t.id));
+    const out = { added: [], updated: [], removed: [] };
+    for (const t of after.trips) {
+      if (!was.has(t.id)) out.added.push(t);
+      else if (!sameTrip(bundleOf(before, t.id), bundleOf(after, t.id))) out.updated.push(t);
+    }
+    for (const t of before.trips) if (!is.has(t.id)) out.removed.push(t);
+    return out;
+  }
+
+  const api = { FORMAT, bundleOf, applyBundle, mergeRecord, mergeBundles, tripIds, arrivals };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.merge = api; }
 })();
