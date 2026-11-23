@@ -171,6 +171,25 @@ body.on-map .update { bottom: auto; top: 108px; }
   padding: 2px 10px; border-radius: 999px; font-size: var(--fs-small); font-weight: 600;
   background: var(--surface); color: var(--text);
 }
+.new-card-item, #newTrip .btn-label { display: none; }
+/* Home on a computer: wider, trips in as many columns as fit, a labelled New trip button and a last card that starts one. */
+@media (min-width: 1100px) {
+  body.on-home .bar, body.on-home main { max-width: 1240px; padding-inline: 40px; }
+  body.on-home .bar { padding-block-start: 20px; }
+  body.on-home .bar-title { font-size: 30px; }
+  body.on-home .trips { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+  body.on-home .trip-cover { height: 150px; }
+  body.on-home .trips .trip-card { height: 100%; }
+  body.on-home #newTrip { gap: 6px; min-height: 40px; padding: 0 16px 0 12px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600; }
+  body.on-home #newTrip:not([hidden]) { display: inline-flex; align-items: center; }
+  body.on-home #newTrip .btn-label { display: inline; }
+}
+@media (min-width: 1100px) and (pointer: fine) {
+  body.on-home .new-card-item { display: block; }
+  .new-card { display: grid; place-items: center; align-content: center; gap: 8px; width: 100%; height: 100%; min-height: 230px; border: 2px dashed var(--line); border-radius: var(--radius-lg); background: none; color: var(--text-dim); font: inherit; font-weight: 600; cursor: pointer; }
+  .new-card:hover { border-color: var(--accent); color: var(--accent); }
+  .new-card .icon { width: 30px; height: 30px; }
+}
 .empty { padding: var(--space-5) 0; text-align: center; }
 .empty p { margin: 0 0 var(--space-1); }
 .note { margin-top: var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius); background: var(--surface-2); }
