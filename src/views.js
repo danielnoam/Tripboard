@@ -81,7 +81,18 @@
   }
   const daysLabel = (p) => (p.endDay ? dayLabel(p.day) + " – " + dayLabel(p.endDay) : dayLabel(p.day));
   const hm = (t) => (SET.get().display.clock === "12" ? fmt({ hour: "numeric", minute: "2-digit" }).format(new Date("2000-01-01T" + t + ":00")) : t);
-  const timeLabel = (p) => (p.time ? hm(p.time) + (p.endTime ? "–" + hm(p.endTime) : "") : "");
+  // On a day: a stay's check-in or check-out, when it's that day. Without
+  // one (sorts other than time, the map): both.
+  function timeLabel(p, day) {
+    if (M.isStay(p)) {
+      const part = day ? M.stayPart(p, day) : null;
+      const cin = p.time && part !== "out" && part !== "night" ? i18n.t("Check-in {time}", { time: hm(p.time) }) : "";
+      const cout = p.endTime && part !== "in" && part !== "night" ? i18n.t("Check-out {time}", { time: hm(p.endTime) }) : "";
+      // A non-breaking hyphen, so "Check-in" doesn't break over two lines.
+      return [cin, cout].filter(Boolean).join(" · ").replace(/-/g, "\u2011");
+    }
+    return p.time ? hm(p.time) + (p.endTime ? "–" + hm(p.endTime) : "") : "";
+  }
   // A destination's dates, "Feb 6 – 13", or "No dates".
   function destRange(d) {
     if (!d.start) return i18n.t("No dates");
@@ -392,7 +403,10 @@
     const wrap = el("div.groups");
     if (canDrag()) wireDrag(wrap);
     const wx = view.sort === "time" ? wxDays(trip) : null;
-    for (const g of groups) wrap.append(group(trip, g, wx));
+    for (const g of groups) {
+      if (g.day) g.lands = M.arrivals(kept, g.day);
+      wrap.append(group(trip, g, wx));
+    }
     main.append(wrap);
     // Today's "Show all" opens the Plan at that destination's list.
     if (view.focus) {
@@ -688,31 +702,51 @@
       if (ask) main.append(ask);
     }
 
-    if (!plan.length) {
+    // An overnight journey landing today goes in among the places by time.
+    const lands = M.arrivals(all, day);
+    const items = [];
+    const left = lands.slice();
+    for (const p of plan) {
+      while (left.length && (left[0].arriveTime || "99") <= (M.timeOn(p, day) || "99")) items.push({ land: left.shift() });
+      items.push(p);
+    }
+    items.push(...left.map((j) => ({ land: j })));
+    if (!items.length) {
       main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned for today.") }),
         el("p.dim", { text: mayEdit(trip) ? i18n.t("Add a place for today with +, or give one today's date on the Plan.") : i18n.t("The whole trip is on the Plan.") })));
     } else {
       const list = el("ol.today");
-      plan.forEach((p, i) => {
-        if (i) {
-          const l = M.leg(plan[i - 1], p);
-          list.append(el("li.leg", { "aria-hidden": l ? null : "true" }, l ? legLabel(l) : ""));
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      items.forEach((p, i) => {
+        // Between two legs, the change; after a journey, from where it lands.
+        const prev = i ? items[i - 1].land || items[i - 1] : null;
+        if (i && !p.land) {
+          const c = M.connection(prev, p);
+          const l = c ? null : M.leg(prev, p);
+          list.append(el("li.leg", { "aria-hidden": l || c ? null : "true" },
+            c ? i18n.t("Change at {place} · {time}", { place: iso(c.at), time: durLabel(c.min) }) : l ? legLabel(l) : ""));
         }
+        if (p.land) { list.append(landRow(p.land, trip)); return; }
         const isNext = p === next;
+        const journey = M.isJourney(p);
         const meta = catWords() ? [M.catName(cats(), trip, p.category)] : [];
-        if (p.endDay) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) + 1 }));
-        if (p.time) meta.push(timeLabel(p));
-        const toHere = isNext && i ? M.leg(plan[i - 1], p) : null;
-        list.append(el("li.card.imp-" + p.importance + (p.visited ? ".visited" : "") + (isNext ? ".next" : ""), { "data-id": p.id },
+        if (p.endDay && !["in", "out"].includes(M.stayPart(p, day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) + 1 }));
+        if (timeLabel(p, day)) meta.push(timeLabel(p, day));
+        const toHere = isNext && prev && !journey ? M.leg(prev, p) : null;
+        const until = journey && isNext && p.day === day && p.time ? +p.time.slice(0, 2) * 60 + +p.time.slice(3) - nowMin : null;
+        list.append(el("li.card" + (journey ? ".journey" : ".imp-" + p.importance) + (p.visited ? ".visited" : "") + (isNext ? ".next" : ""), { "data-id": p.id },
           el("div.card-row", {},
             el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
               onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
             el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
-              el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name, ratingBadge(p)),
-              el("span.card-meta", {}, ...metaParts(p, meta)),
+              ...(journey ? journeyParts(p) : [
+                el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name, ratingBadge(p)),
+                el("span.card-meta", {}, ...metaParts(p, meta))]),
               p.note ? el("span.card-note", { text: p.note }) : null)),
           isNext ? el("div.next-row", {},
             el("span.next-label", { text: i18n.t("Next") }),
+            until != null && until > 0 && until < 24 * 60 ? el("span.jsoon", { text: i18n.t("Leaves in {time}", { time: durLabel(until) }) }) : null,
             el("a.btn.primary", { href: directions(p, toHere && toHere.mode), target: "_blank", rel: "noopener noreferrer", text: i18n.t("Navigate"),
               "aria-label": i18n.t("Navigate to {name}", { name: p.name }) })) : null));
       });
@@ -1173,13 +1207,15 @@
     const box = el("section.group" + (g.dropOnly ? ".drop-only" : ""), {}, head);
     if (view.sort !== "distance") box.dataset.drop = g.id;
     if (isDay) {
-      if (!g.slots.length) box.append(el("p.dim.slot-empty", { text: i18n.t("Free day") }));
+      const lands = g.lands || [];
+      if (!g.slots.length && !lands.length) box.append(el("p.dim.slot-empty", { text: i18n.t("Free day") }));
       // Every slot is drawn, so a place can be dropped into an empty one;
       // the empty ones show only while dragging.
       const have = new Map(g.slots.map((s) => [s.id, s]));
       for (const [id, t] of M.SLOTS.concat([["any", i18n.t("Any time")]])) {
         const s = have.get(id);
-        box.append(el("div.slot-box" + (s ? "" : ".drop-only"), { "data-slot": id }, el("h3.slot", { text: t }), cards(trip, s ? s.places : [], g)));
+        const here = lands.filter((j) => (j.arriveTime ? M.slotOf({ time: j.arriveTime }) : "any") === id);
+        box.append(el("div.slot-box" + (s || here.length ? "" : ".drop-only"), { "data-slot": id }, el("h3.slot", { text: t }), cards(trip, s ? s.places : [], g, here)));
       }
     } else if (g.parts) {
       for (const part of g.parts) box.append(el("h3.slot", { text: part.dest || i18n.t("No destination") }), cards(trip, part.places, g));
@@ -1217,7 +1253,9 @@
         // A place over several days moves as a whole: it starts on the day it's dropped on.
         if (p.endDay) p.endDay = M.addDays(groupId, M.daySpan(p));
         p.day = groupId;
-        if (slot === "any") { delete p.time; delete p.endTime; }
+        // A stay keeps its check-out; the slot sets its check-in.
+        if (M.isStay(p)) { if (slot === "any") delete p.time; else if (slot && (!p.time || M.slotOf(p) !== slot)) p.time = SLOT_TIME[slot]; }
+        else if (slot === "any") { delete p.time; delete p.endTime; }
         else if (slot && (!p.time || M.slotOf(p) !== slot)) {
           const len = p.time && p.endTime ? mins(p.endTime) - mins(p.time) : 0;
           p.time = SLOT_TIME[slot];
@@ -1284,24 +1322,65 @@
   const stars = (n) => el("span.stars", { "aria-hidden": "true" }, [1, 2, 3, 4, 5].map((i) => el("span" + (i <= n ? ".on" : ""), { text: "★" })));
   // A card's rating: a star and the number, at the end of its name.
   const ratingBadge = (p) => (p.rating ? el("span.rating", { title: starsLabel(p.rating), "aria-label": starsLabel(p.rating) }, el("span.star", { text: "★", "aria-hidden": "true" }), String(p.rating)) : null);
-  function cards(trip, list, g) {
-    return el("ul.cards", {}, list.map((p) => {
+  // A journey: its mode's icon, from → to, when it leaves and arrives, its
+  // number. An overnight one lands on its arrival day as a row of its own,
+  // and a change to the next leg shows how long it is.
+  const MODE_ICON = { flight: "plane", train: "train", bus: "bus", ferry: "ship", other: "route" };
+  // Names kept apart from the words around them (Unicode isolates), so in
+  // Hebrew an English name doesn't take the arrow or a number into its run.
+  const iso = (s) => "\u2068" + s + "\u2069";
+  const fromTo = (p) => i18n.t("{from} → {to}", { from: iso(p.name), to: iso(p.toName || "?") });
+  const durLabel = (min) => (min < 60 ? i18n.t("{n} min", { n: min }) : i18n.t("{h} h {m} min", { h: Math.floor(min / 60), m: min % 60 }));
+  function journeyParts(p) {
+    const plus = p.arriveDay ? M.daySpan({ day: p.day, endDay: p.arriveDay }) : 0;
+    const when = p.time || p.arriveTime ? el("span.jline", { "aria-label": i18n.t("Leaves {dep}, arrives {arr}", { dep: p.time ? hm(p.time) : "?", arr: p.arriveTime ? hm(p.arriveTime) : "?" }) },
+      el("span", { text: p.time ? hm(p.time) : "" }), el("span.rail"),
+      el("span", {}, p.arriveTime ? hm(p.arriveTime) : "", plus ? el("sup", { text: "+" + plus }) : null)) : null;
+    return [el("span.card-name", {}, icon(MODE_ICON[p.mode] || "route", "cat"), fromTo(p)), when,
+      el("span.card-meta", { text: [M.MODE.get(p.mode), p.number && iso(p.number)].filter(Boolean).join(" · ") })];
+  }
+  function landRow(j, trip) {
+    return el("li.jland", {}, el("button", { type: "button", onclick: (e) => openPlace(j, trip, null, e.currentTarget) },
+      icon(j.mode === "flight" ? "planeLand" : MODE_ICON[j.mode] || "route"),
+      el("span", {}, j.arriveTime ? el("b", { text: hm(j.arriveTime) }) : null, j.arriveTime ? " " : "",
+        i18n.t("Arrive at {place}", { place: iso(j.toName || "?") }) + (j.number ? " · " + iso(j.number) : ""))));
+  }
+  function changeRow(j, trip) {
+    const n = M.nextLeg(placesOf(trip.id), j);
+    const c = n && M.connection(j, n);
+    return c ? el("li.jchange", {}, icon("clock"), i18n.t("Change at {place} · {time}", { place: iso(c.at), time: durLabel(c.min) })) : null;
+  }
+  function cards(trip, list, g, lands) {
+    // Arrivals go in among the places by time.
+    const items = [];
+    const left = (lands || []).slice();
+    for (const p of list) {
+      while (left.length && (left[0].arriveTime || "99") <= (M.timeOn(p, g.day) || "99")) items.push({ land: left.shift() });
+      items.push(p);
+    }
+    items.push(...left.map((j) => ({ land: j })));
+    return el("ul.cards", {}, items.flatMap((p) => {
+      if (p.land) return [landRow(p.land, trip), changeRow(p.land, trip)].filter(Boolean);
+      const journey = M.isJourney(p);
       const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
       if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
-      else if (p.endDay && g.day) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
-      if (p.time) meta.push(timeLabel(p));
+      else if (p.endDay && g.day && !["in", "out"].includes(M.stayPart(p, g.day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
+      if (timeLabel(p, g.day)) meta.push(timeLabel(p, g.day));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
       const on = !!(picked && picked.has(p.id));
-      return el("li.card.imp-" + p.importance + (p.visited ? ".visited" : "") + (on ? ".picked" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
+      const card = el("li.card" + (journey ? ".journey" : ".imp-" + p.importance) + (p.visited ? ".visited" : "") + (on ? ".picked" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null },
         picked ? el("button.tick.pick", { type: "button", "aria-pressed": String(on), "aria-label": i18n.t("Select {name}", { name: p.name }), onclick: () => pick(p.id) }, icon("check"))
           : el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
-          el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name, view.sort === "rating" ? null : ratingBadge(p)),
-          el("span.card-meta", {}, ...metaParts(p, meta),
-            nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
+          ...(journey ? journeyParts(p) : [
+            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name, view.sort === "rating" ? null : ratingBadge(p)),
+            el("span.card-meta", {}, ...metaParts(p, meta),
+              nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null));
+      // A change to the next leg, when this one lands the same day.
+      return journey && !p.arriveDay && view.sort === "time" ? [card, changeRow(p, trip)].filter(Boolean) : [card];
     }));
   }
 
@@ -1660,6 +1739,8 @@
 
   // Place sheet
   let editingPlace = null, placeTrip = null, importance = "want", rating = 0, loc, categoryTouched = false;
+  // A journey in the sheet: its kind, mode and where it goes (toLoc as loc).
+  let journey = false, mode = "flight", toLoc;
   // The place's location in the sheet: undefined unchanged, null cleared,
   // or { lat, lng, address } found by name.
   function paintWhere() {
@@ -1672,14 +1753,38 @@
     $("placeClear").hidden = !has;
     $("placePin").textContent = has ? i18n.t("Move on map") : i18n.t("Pin on map");
   }
-  $("categorySelect").addEventListener("change", () => { categoryTouched = true; });
+  $("categorySelect").addEventListener("change", () => { categoryTouched = true; paintTimes(); });
+  // A stay's From and To are its check-in and check-out.
+  function paintTimes() {
+    const stay = $("categorySelect").value === "stay";
+    $("timeLabel").textContent = stay ? i18n.t("Check-in") : i18n.t("From");
+    $("endTimeLabel").textContent = stay ? i18n.t("Check-out") : i18n.t("To");
+  }
   $("placeClear").addEventListener("click", () => { loc = null; $("placeResults").replaceChildren(); $("placeFindNote").textContent = ""; paintWhere(); });
   let searching = 0;
-  $("placeFind").addEventListener("click", async () => {
+  $("placeFind").addEventListener("click", () => findPlace($("placeForm").name, $("placeFindNote"), $("placeResults"), (r, via) => {
+    loc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
     const f = $("placeForm");
-    const q = f.name.value.trim();
-    const note = $("placeFindNote"), out = $("placeResults");
-    if (!q) { note.textContent = i18n.t("Type the place's name first."); f.name.focus(); return; }
+    if (r.category && !journey && !categoryTouched && !editingPlace && cats().some(([id]) => id === r.category)) f.category.value = r.category;
+    paintWhere();
+  }));
+  // Where a journey goes: found by name like the place, under the same
+  // Google rule (its id kept, its location 30 days, its address never).
+  $("toFind").addEventListener("click", () => findPlace($("placeForm").toName, $("toFindNote"), $("toResults"), (r) => {
+    toLoc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
+    paintTo();
+  }));
+  $("toClear").addEventListener("click", () => { toLoc = null; $("toResults").replaceChildren(); $("toFindNote").textContent = ""; paintTo(); });
+  function paintTo() {
+    const p = toLoc === undefined ? (editingPlace && editingPlace.toLat != null ? { lat: editingPlace.toLat, lng: editingPlace.toLng, address: editingPlace.toAddress, placeId: editingPlace.toPlaceId } : null) : toLoc;
+    const has = !!(p && p.lat != null);
+    $("toWhere").textContent = has ? p.address || (p.placeId || p.source === "google" ? i18n.t("On Google Maps") + " · " : "") + p.lat.toFixed(5) + ", " + p.lng.toFixed(5) : i18n.t("Not set");
+    $("toWhere").classList.toggle("dim", !has);
+    $("toClear").hidden = !has;
+  }
+  async function findPlace(input, note, out, onpick) {
+    const q = input.value.trim();
+    if (!q) { note.textContent = i18n.t("Type the place's name first."); input.focus(); return; }
     const me = ++searching;
     note.textContent = i18n.t("Searching…");
     out.replaceChildren();
@@ -1697,18 +1802,16 @@
       const fell = got.skipped.length ? " " + i18n.t("({why} Used {via}.)", { why: got.skipped.map((x) => x.reason).join(" "), via }) : "";
       note.textContent = (list.length ? i18n.t("Pick the right one, from {via}:", { via }) : i18n.t("Nothing found on {via}. Try another spelling, or pin it on the map.", { via })) + fell;
       out.replaceChildren(...list.map((r) => el("li", {}, el("button", { type: "button", onclick: () => {
-        loc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
-        if (r.category && !categoryTouched && !editingPlace && cats().some(([id]) => id === r.category)) f.category.value = r.category;
         out.replaceChildren();
         note.textContent = i18n.t("From {via}.", { via: via });
-        paintWhere();
+        onpick(r, via);
       } }, el("strong", { text: r.name }), el("span.dim", { text: r.address })))));
     } catch (e) {
       if (me !== searching) return;
       window.Keel.errlog.note("search", String(e));
       note.textContent = navigator.onLine === false ? i18n.t("Searching needs a connection.") : e.message || i18n.t("The search didn't work. Try again in a moment.");
     }
-  });
+  }
   $("placePin").addEventListener("click", async () => {
     const f = $("placeForm");
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
@@ -1730,12 +1833,40 @@
         onclick: () => { rating = rating === n ? 0 : n; paintRating(); } })));
     $("ratingClear").hidden = !rating;
   }
+  // Place or journey: one sheet, the fields of the other hidden (styles.css).
+  function paintKind() {
+    const f = $("placeForm");
+    f.classList.toggle("is-journey", journey);
+    $("kindSeg").replaceChildren(...[[false, i18n.t("Place")], [true, i18n.t("Journey")]].map(([j, label]) =>
+      el("button", { type: "button", role: "radio", "aria-checked": String(journey === j), text: label,
+        onclick: () => { journey = j; paintKind(); } })));
+    $("modeSeg").replaceChildren(...M.MODES.map(([id, label]) =>
+      el("button", { type: "button", role: "radio", "aria-checked": String(mode === id), onclick: () => { mode = id; paintKind(); } },
+        icon(MODE_ICON[id], ""), label)));
+    if (mayEdit(placeTrip)) $("placeSheetTitle").textContent = editingPlace ? (journey ? i18n.t("Edit journey") : i18n.t("Edit place")) : journey ? i18n.t("Add a journey") : i18n.t("Add a place");
+    f.name.placeholder = journey ? "Zurich (ZRH)" : "Fushimi Inari";
+  }
+  // When a journey arrives: the day it leaves, or one of the next three.
+  function paintArrive(keep) {
+    const dated = !!placeTrip.start;
+    const day = dated ? $("daySelect").value : $("dayInput").value;
+    $("arriveSelect").hidden = !dated;
+    $("arriveInput").hidden = dated;
+    const later = day ? [1, 2, 3].map((n) => M.addDays(day, n)) : [];
+    $("arriveSelect").replaceChildren(el("option", { value: "", text: i18n.t("Same day") }),
+      ...later.map((d) => el("option", { value: d, text: i18n.t("Day {n} · {date}", { n: M.dayIndex(placeTrip, d), date: dayLabel(d) }) })));
+    $("arriveSelect").value = later.includes(keep) ? keep : "";
+    $("arriveInput").min = day || "";
+    $("arriveInput").value = keep > day ? keep : "";
+  }
   function openPlace(place, trip, preset, from) {
     editingPlace = place;
     placeTrip = trip;
     const f = $("placeForm");
     f.reset();
     const p = place || { category: cats()[0][0], importance: "want", ...(preset || {}) };
+    journey = M.isJourney(p);
+    mode = p.mode || "flight";
     $("placeSheetTitle").textContent = place ? i18n.t("Edit place") : i18n.t("Add a place");
     f.name.value = p.name || "";
     // Your categories, and the place's own if it isn't one of them (a shared trip's).
@@ -1766,13 +1897,24 @@
     paintUntil(days, p.endDay || "");
     f.time.value = p.time || "";
     f.endTime.value = p.endTime || "";
+    paintTimes();
     f.note.value = p.note || "";
-    loc = undefined;
+    // The next leg starts where the last one arrived, location and all.
+    loc = !place && p.lat != null ? { lat: p.lat, lng: p.lng, address: p.address, placeId: p.placeId, geoAt: p.geoAt } : undefined;
     categoryTouched = false;
     searching++;
     $("placeResults").replaceChildren();
     $("placeFindNote").textContent = "";
     paintWhere();
+    f.toName.value = p.toName || "";
+    toLoc = undefined;
+    $("toResults").replaceChildren();
+    $("toFindNote").textContent = "";
+    paintTo();
+    paintArrive(p.arriveDay || "");
+    f.arriveTime.value = p.arriveTime || "";
+    f.number.value = p.number || "";
+    paintKind();
     $("placeDelete").hidden = !place;
     // Adding is a sheet from below over the trip; editing a place is a page.
     $("placeSheet").classList.toggle("page", !!place);
@@ -1814,6 +1956,24 @@
     if (day !== p.day) delete p.order;
     if (rating) p.rating = rating; else delete p.rating;
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
+    if (journey) {
+      const arrive = placeTrip.start ? $("arriveSelect").value : $("arriveInput").value;
+      // A new journey goes under Getting around, unless a category was picked.
+      if (!editingPlace && !categoryTouched) p.category = "transport";
+      delete p.endDay; delete p.endTime;
+      Object.assign(p, { kind: "journey", mode, toName: f.toName.value.trim(), arriveTime: f.arriveTime.value, number: f.number.value.trim() });
+      if (day && arrive > day) p.arriveDay = arrive; else delete p.arriveDay;
+      for (const k of ["toName", "arriveTime", "number"]) if (!p[k]) delete p[k];
+      if (toLoc === null) { for (const k of ["toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt"]) delete p[k]; }
+      else if (toLoc) {
+        for (const k of ["toAddress", "toPlaceId", "toGeoAt"]) delete p[k];
+        Object.assign(p, { toLat: toLoc.lat, toLng: toLoc.lng });
+        if (toLoc.source === "google") Object.assign(p, { toPlaceId: toLoc.placeId, toGeoAt: new Date().toISOString().slice(0, 10) });
+        else if (toLoc.address) p.toAddress = toLoc.address;
+      }
+    } else {
+      for (const k of ["kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]) delete p[k];
+    }
     if (loc === null) { for (const k of ["lat", "lng", "address", "placeId", "geoAt"]) delete p[k]; }
     else if (loc) {
       for (const k of ["address", "placeId", "geoAt"]) delete p[k];
@@ -1821,6 +1981,8 @@
       // Google's terms: its place id kept for good, its location for 30 days
       // (geoAt says when), its address not at all.
       if (loc.source === "google") Object.assign(p, { placeId: loc.placeId, geoAt: new Date().toISOString().slice(0, 10) });
+      // Carried from the leg before: Google's id with the day it was fetched.
+      else if (loc.placeId && loc.geoAt) Object.assign(p, { placeId: loc.placeId, geoAt: loc.geoAt });
       else if (loc.address) p.address = loc.address;
     }
     if (!$("destField").hidden) M.setDest(placeTrip, p, $("destSelect").value || null);
@@ -1840,7 +2002,19 @@
     if (!f.name.value.trim()) f.name.value = editingPlace.name;
     return commitPlace();
   };
-  for (const id of ["daySelect", "dayInput"]) $(id).addEventListener("change", () => paintUntil(null, placeTrip.start ? $("untilSelect").value : $("untilInput").value));
+  for (const id of ["daySelect", "dayInput"]) $(id).addEventListener("change", () => {
+    paintUntil(null, placeTrip.start ? $("untilSelect").value : $("untilInput").value);
+    paintArrive(placeTrip.start ? $("arriveSelect").value : $("arriveInput").value);
+  });
+  // Add the next leg: this one is kept, and a new one starts where it arrives.
+  $("nextLeg").addEventListener("click", async () => {
+    const f = $("placeForm");
+    if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
+    const p = await commitPlace();
+    const trip = placeTrip;
+    openPlace(null, trip, { kind: "journey", mode: p.mode, category: p.category, name: p.toName || "", day: p.arriveDay || p.day || "",
+      ...(p.toLat != null ? { lat: p.toLat, lng: p.toLng, address: p.toAddress, placeId: p.toPlaceId, geoAt: p.toGeoAt } : {}) });
+  });
   $("placeForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -2039,7 +2213,7 @@
   // category filters (the Plan's too; all when none picked).
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
-    if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay));
+    if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay) || (M.isJourney(p) && M.landsOn(p) === view.mapDay));
     if (view.mapCats.length) all = all.filter((p) => view.mapCats.includes(p.category));
     return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
   }
@@ -2172,9 +2346,12 @@
     paintFilters(trip);
     const list = shownPlaces(trip);
     const route = view.mapDay ? M.dayRoute(list, view.mapDay) : [];
-    TM.places(list, view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
+    // A journey is a line on the map, not a pin.
+    TM.places(list.filter((p) => !M.isJourney(p)), view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
     TM.route(route);
-    if (first || view.fitDay || $("map").dataset.trip !== trip.id) { TM.fit(list.length ? list : placesOf(trip.id)); $("map").dataset.trip = trip.id; view.fitDay = false; }
+    TM.journeys(list.filter(M.isJourney));
+    const ends = (l) => l.flatMap((p) => (M.isJourney(p) ? [p, M.endOf(p)].filter(Boolean) : [p]));
+    if (first || view.fitDay || $("map").dataset.trip !== trip.id) { TM.fit(ends(list.length ? list : placesOf(trip.id))); $("map").dataset.trip = trip.id; view.fitDay = false; }
     paintPanel(trip);
     panel.hidden = !panel.childNodes.length;
   }
@@ -2211,7 +2388,7 @@
     if (sel) {
       const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.catName(cats(), findTrip(view.trip), sel.category)];
       if (sel.day) meta.push(daysLabel(sel));
-      if (sel.time) meta.push(timeLabel(sel));
+      if (timeLabel(sel, view.mapDay)) meta.push(timeLabel(sel, view.mapDay));
       if (sel.rating) meta.push("★ " + sel.rating);
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
@@ -2327,19 +2504,21 @@
   let refreshing = false;
   async function refreshGoogle() {
     if (refreshing || navigator.onLine === false) return;
-    const due = M.staleGoogle(doc.places, today()).slice(0, 50);
+    // A journey's arrival from Google is kept the same way, by its to* fields.
+    const due = M.staleGoogle(doc.places, today()).map((p) => [p, ""]).concat(M.staleGoogleTo(doc.places, today()).map((p) => [p, "to"])).slice(0, 50);
     if (!due.length) return;
     refreshing = true;
     const key = SET.ready("google") ? SET.get().providers.google.key : "";
     let changed = 0;
-    for (const p of due) {
+    const k = (pre, name) => (pre ? pre + name[0].toUpperCase() + name.slice(1) : name);
+    for (const [p, pre] of due) {
       try {
         if (!key) throw new Error("no key");
-        const at = await PL.googleLocation(p.placeId, { key });
-        Object.assign(p, { lat: at.lat, lng: at.lng, geoAt: today() });
+        const at = await PL.googleLocation(p[k(pre, "placeId")], { key });
+        Object.assign(p, { [k(pre, "lat")]: at.lat, [k(pre, "lng")]: at.lng, [k(pre, "geoAt")]: today() });
         changed++;
       } catch (e) {
-        if (p.lat != null) { delete p.lat; delete p.lng; delete p.geoAt; changed++; }
+        if (p[k(pre, "lat")] != null) { for (const n of ["lat", "lng", "geoAt"]) delete p[k(pre, n)]; changed++; }
       }
     }
     refreshing = false;

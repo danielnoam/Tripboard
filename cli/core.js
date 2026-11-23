@@ -223,7 +223,8 @@ async function sharesServers(reading) {
 // The edits both front ends offer, on a doc. Each gives the record it made
 // or changed. Fields are the app's own (see src/model.js); unknown ones
 // are kept, as the app keeps them.
-const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "rating", "order"];
+const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "rating", "order",
+  "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "arriveDay", "arriveTime", "number"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
 // destInfo: [{ name, start, end, lat, lng }], each merged into the
@@ -338,7 +339,8 @@ const ops = {
   addPlace(doc, a) {
     const t = findTrip(doc, a.trip);
     if (!a.name) throw new Error("A place needs a name.");
-    const p = M.sanitizePlace({ id: M.newId(), trip: t.id, createdAt: now(), category: "sight", ...pick(a, PLACE_FIELDS) });
+    // A journey goes under Getting around, as in the app.
+    const p = M.sanitizePlace({ id: M.newId(), trip: t.id, createdAt: now(), category: a.kind === "journey" ? "transport" : "sight", ...pick(a, PLACE_FIELDS) });
     placeDest(t, p, a);
     doc.places.push(p);
     return p;
@@ -352,6 +354,15 @@ const ops = {
     clear(p, a, PLACE_FIELDS);
     // A new location from anywhere but Google's id isn't Google's.
     if ((a.lat !== undefined || a.lng !== undefined) && a.placeId === undefined) delete p.geoAt;
+    if ((a.toLat !== undefined || a.toLng !== undefined) && a.toPlaceId === undefined) delete p.toGeoAt;
+    // No longer a journey: its journey fields go, as in the app.
+    if (p.kind !== "journey") for (const k of ["kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]) delete p[k];
+    else {
+      // A journey's fields checked as the app does (an arrival before it leaves goes).
+      const clean = M.sanitizePlace(p);
+      for (const k of Object.keys(p)) if (!(k in clean)) delete p[k];
+      Object.assign(p, clean);
+    }
     placeDest(t, p, a);
     return p;
   },
@@ -373,7 +384,7 @@ const ops = {
     // order is its place in the day.
     const plan = M.dayPlan(placesOf(doc, t), a.day);
     plan.forEach((p, i) => { p.order = i + 1; });
-    const out = { trip: t.name, day: a.day, plan: plan.map((p) => ({ id: p.id, name: p.name, ...(p.time ? { time: p.time } : {}), order: p.order })) };
+    const out = { trip: t.name, day: a.day, plan: plan.map((p) => ({ id: p.id, name: p.name, ...(M.timeOn(p, a.day) ? { time: M.timeOn(p, a.day) } : {}), order: p.order })) };
     const got = plan.filter((p) => listed.includes(p));
     if (got.some((p, i) => p !== listed[i])) out.note = "Places with a time go by their time first, so the plan isn't exactly the order given. Change or clear their times to move them.";
     return out;
@@ -618,7 +629,8 @@ const queries = {
     if (a.visited !== undefined) list = list.filter((p) => !!p.visited === !!a.visited);
     if (a.rating && a.rating.length) list = list.filter((p) => a.rating.map(Number).includes(p.rating || 0));
     if (a.located !== undefined) list = list.filter((p) => (p.lat != null) === !!a.located);
-    if (a.text) { const q = String(a.text).toLowerCase(); list = list.filter((p) => [p.name, p.note, p.address].some((v) => v && v.toLowerCase().includes(q))); }
+    if (a.kind) list = list.filter((p) => (a.kind === "journey") === M.isJourney(p));
+    if (a.text) { const q = String(a.text).toLowerCase(); list = list.filter((p) => [p.name, p.note, p.address, p.toName, p.number].some((v) => v && v.toLowerCase().includes(q))); }
     const from = nearOf(st.doc, t, a.near);
     const out = list.map((p) => ({ ...p, categoryName: M.catName(cats, t, p.category), ...(from && p.lat != null ? { km: Math.round(M.distanceKm(from, p) * 100) / 100 } : {}) }));
     if (from) out.sort((x, y) => (x.km ?? Infinity) - (y.km ?? Infinity));
@@ -629,7 +641,8 @@ const queries = {
   getBoard(st, a) {
     const t = findTrip(st.doc, a.trip);
     const cats = catsOf(st.cats);
-    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}) });
+    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, endTime: p.endTime, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}),
+      ...(M.isJourney(p) ? { kind: "journey", mode: p.mode, toName: p.toName, arriveDay: p.arriveDay, arriveTime: p.arriveTime, number: p.number } : {}) });
     const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, from: nearOf(st.doc, t, a.near), cats });
     return groups.map((g) => g.kind === "dest" ? { id: g.id, kind: "destination", title: g.title, start: g.start, end: g.end, ...(g.again ? { again: true } : {}) } : ({ id: g.id, title: g.title,
       ...(g.kind === "any" ? { kind: "anyDay", destination: g.dest } : {}), ...(g.day ? { dayNumber: M.dayIndex(t, g.day), ...(g.dest ? { destination: g.dest } : {}) } : {}),
@@ -649,7 +662,10 @@ const queries = {
     return {
       trip: t.name, day, dayNumber: M.dayIndex(t, day), destination: M.dayDest(t, day), status: M.tripStatus(t, today()),
       when: day < today() ? "past" : day > today() ? "upcoming" : "today",
-      plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p), fromPrevious: i ? M.leg(plan[i - 1], p) : null })),
+      plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p, day), ...(M.stayPart(p, day) ? { stay: M.stayPart(p, day) } : {}),
+        ...(i && M.connection(plan[i - 1], p) ? { change: M.connection(plan[i - 1], p), fromPrevious: null } : { fromPrevious: i ? M.leg(plan[i - 1], p) : null }) })),
+      // Overnight journeys that land this day (they left on an earlier one).
+      arrivals: M.arrivals(placesOf(st.doc, t), day).map((j) => ({ id: j.id, name: j.name, toName: j.toName, mode: j.mode, number: j.number, arriveTime: j.arriveTime, leftOn: j.day })),
       next: next ? { id: next.id, name: next.name } : null,
       expenses, totals: M.expenseTotals(expenses),
     };

@@ -143,6 +143,23 @@ test("today's plan: timed places by time, then the rest by importance, stays inc
   assert.strictEqual(M.nextOf([]), null);
 });
 
+test("a stay's times are check-in on its first day and check-out on its last, nothing between", () => {
+  const hotel = P({ id: "hotel", category: "stay", day: "2026-11-17", endDay: "2026-11-19", time: "15:00", endTime: "11:00" });
+  assert.strictEqual(hotel.endTime, "11:00");
+  assert.strictEqual(P({ category: "stay", day: "2026-11-17", endDay: "2026-11-19", endTime: "11:00" }).endTime, "11:00");
+  assert.strictEqual(P({ category: "stay", day: "2026-11-17", time: "15:00", endTime: "11:00" }).endTime, undefined);
+  assert.strictEqual(P({ category: "sight", day: "2026-11-17", endDay: "2026-11-19", time: "15:00", endTime: "11:00" }).endTime, undefined);
+  assert.deepStrictEqual(["2026-11-17", "2026-11-18", "2026-11-19"].map((d) => [M.timeOn(hotel, d), M.slotOf(hotel, d), M.stayPart(hotel, d)]),
+    [["15:00", "afternoon", "in"], [null, "any", "night"], ["11:00", "morning", "out"]]);
+  assert.strictEqual(M.stayPart(P({ day: "2026-11-17", endDay: "2026-11-19" }), "2026-11-17"), null);
+  const festival = P({ category: "other", day: "2026-11-17", endDay: "2026-11-19", time: "10:00" });
+  assert.strictEqual(M.timeOn(festival, "2026-11-18"), "10:00");
+  const sight = P({ id: "sight", day: "2026-11-19", time: "12:00" });
+  assert.deepStrictEqual(M.dayPlan([sight, hotel], "2026-11-19").map((p) => p.id), ["hotel", "sight"]);
+  const g = M.board(trip, [hotel], "time");
+  assert.deepStrictEqual(g.slice(0, 3).map((d) => d.slots.map((s) => s.id)), [["afternoon"], ["any"], ["morning"]]);
+});
+
 test("a day's order: sorts places without a time and ties at a time; times still come first; kept only with a day", () => {
   const list = [
     P({ id: "lunch", day: "2026-11-18", importance: "maybe", order: 2 }),
@@ -398,6 +415,30 @@ test("dates from stays: each destination from its first stay's day to the last o
     JP({ name: "Gion", day: "2026-02-05", lat: 35.003, lng: 135.775 }), JP({ name: "Undated stay", category: "stay", lat: 35.0, lng: 135.76 }),
   ]);
   assert.deepStrictEqual(got, { Osaka: { start: "2026-02-01", end: "2026-02-04" }, Kyoto: { start: "2026-02-04", end: "2026-02-08" } });
+});
+
+test("a journey: its fields cleaned, its arrival, a change between legs, left out of importance", () => {
+  const j1 = M.sanitizePlace({ id: "j1", trip: "t", kind: "journey", mode: "rocket", name: "Tel Aviv (TLV)", day: "2023-02-05", time: "06:10",
+    endDay: "2023-02-06", toName: " Zurich (ZRH) ", toLat: 47.4582, toLng: 8.5555, arriveTime: "09:40", number: "LX 253" });
+  assert.deepStrictEqual([j1.kind, j1.mode, j1.toName, j1.arriveTime, j1.endDay, j1.arriveDay, j1.number], ["journey", "other", "Zurich (ZRH)", "09:40", undefined, undefined, "LX 253"]);
+  const j2 = M.sanitizePlace({ id: "j2", trip: "t", kind: "journey", mode: "flight", name: "zurich (zrh)", day: "2023-02-05", time: "13:00",
+    toName: "Tokyo Narita (NRT)", toLat: 35.772, toLng: 140.3929, arriveDay: "2023-02-06", arriveTime: "08:55" });
+  assert.strictEqual(j2.arriveDay, "2023-02-06");
+  assert.strictEqual(M.sanitizePlace({ ...j2, arriveDay: "2023-02-04" }).arriveDay, undefined, "lands before it leaves");
+  assert.strictEqual(M.sanitizePlace({ name: "x", toName: "y", number: "1" }).toName, undefined, "only a journey keeps them");
+  assert.deepStrictEqual(M.connection(j1, j2), { at: "Zurich (ZRH)", min: 200 });
+  const j3 = M.sanitizePlace({ id: "j3", trip: "t", kind: "journey", mode: "train", name: "Narita Airport station", lat: 35.764, lng: 140.386, day: "2023-02-06", time: "09:45", toName: "Tokyo", arriveTime: "10:48" });
+  assert.deepStrictEqual(M.connection(j2, j3), { at: "Tokyo Narita (NRT)", min: 50 }, "close enough by location, the next day");
+  assert.strictEqual(M.connection(j3, j1), null);
+  assert.strictEqual(M.nextLeg([j1, j2, j3], j1), j2);
+  assert.deepStrictEqual(M.arrivals([j1, j2, j3], "2023-02-06").map((p) => p.id), ["j2"]);
+  const hotel = M.sanitizePlace({ id: "h", trip: "t", name: "IAM HOTEL", importance: "must", lat: 35.68, lng: 139.77, day: "2023-02-06" });
+  assert.ok(M.leg(j3, hotel) === null, "j3 has no arrival location");
+  assert.ok(M.leg(j2, hotel).km > 50, "measured from where j2 lands");
+  const trip = { id: "t", start: "2023-02-05", end: "2023-02-06" };
+  assert.deepStrictEqual(M.board(trip, [j1, hotel], "importance").map((g) => g.places.map((p) => p.id)), [["h"]]);
+  assert.deepStrictEqual(M.board(trip, [j1, hotel], "time", { only: ["must"] })[0].places.map((p) => p.id), ["j1"], "the importance filter keeps journeys");
+  assert.deepStrictEqual(M.dayRoute([j3, hotel], "2023-02-06").map((p) => p.id), ["h"]);
 });
 
 console.log(passed + " passed");

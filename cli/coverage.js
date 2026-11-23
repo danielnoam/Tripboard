@@ -41,6 +41,11 @@ const fields = {
     dest: ["add_place", "update_place", "get_trip", "get_board"],
     order: ["add_place", "update_place", "order_day"],
     geoAt: "auto: the day a Google location was fetched (Google's 30-day rule); only the app fetches from Google, and update_place drops it with a new location",
+    kind: ["add_place", "update_place", "find_places"], mode: ["add_place", "update_place"],
+    toName: ["add_place", "update_place"], toLat: ["add_place", "update_place", "find_location"], toLng: ["add_place", "update_place", "find_location"],
+    toAddress: ["add_place", "update_place"], toPlaceId: ["add_place", "update_place"],
+    arriveDay: ["add_place", "update_place", "get_day"], arriveTime: ["add_place", "update_place", "get_day"], number: ["add_place", "update_place"],
+    toGeoAt: "auto: as geoAt, for where a journey arrives",
   },
   expense: {
     id: made, trip: made, createdAt: made, updatedAt: made, by: made,
@@ -126,7 +131,7 @@ const model = {
   sanitizeFile: "cli", MAX_FILE_MB: "cli", MAX_NOTE: "cli", hasBytes: "cli", linkUrl: "cli", linkHost: "auto: sanitizeFile names a link after its site with it", SECTIONS: "cli", access: "cli", can: "cli", ownTrip: "cli", EXPENSE_CATEGORIES: "cli", CATEGORY: "cli",
   sanitizeExpense: "cli", expenseTotals: "cli", expensesByCategory: "cli", onDay: "cli", catList: "cli", catName: "cli", carryCats: "cli", isCatId: "cli",
   CATEGORIES: "cli", IMPORTANCE: "cli", newId: "cli", isDay: "cli", sanitizeTrip: "cli", sanitizePlace: "cli", sanitizeDoc: "cli", stamp: "cli",
-  tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", distanceKm: "cli", board: "cli", backupOf: "cli",
+  tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", timeOn: "cli", stayPart: "cli", isStay: "auto: sanitizePlace, timeOn and stayPart use it", distanceKm: "cli", board: "cli", backupOf: "cli",
   mergeBackup: "cli", COVER_ART: "cli", dayPlan: "cli", leg: "cli", nextOf: "cli", KNOWN: "auto: test/coverage.test.js checks fields against it",
   ROLES: "auto: sanitizeTrip checks roles", join: "device: a device joining a shared trip adds itself", renamePerson: "auto: the app's sync moves ids to me.json's",
   EXPENSE_CATEGORY: "auto: sanitizeExpense checks it", CURRENCIES: "device: the currency picker's first choices; any ISO code is taken",
@@ -134,7 +139,9 @@ const model = {
   isTime: "auto: sanitizePlace checks it", daysUntil: ui, staleGoogle: "device: refreshing Google locations needs the person's Google key",
   REACH_KM: "cli", destOf: "cli", dayDest: "cli", setDest: "cli", datesFromStays: "cli",
   destsOf: "auto: destOf and board use it", hasDestDates: "auto: board uses it",
-  dayRoute: "auto: get_day gives the same places in order", GOOGLE_DAYS: "device: as staleGoogle", swipeStep: ui,
+  dayRoute: "auto: get_day gives the same places in order",
+  MODES: "auto: add_place's mode enum", MODE: ui, isJourney: "cli", landsOn: "auto: arrivals uses it", endOf: "auto: leg uses it",
+  arrivals: "cli", connection: "cli", nextLeg: ui, staleGoogleTo: "device: as staleGoogle", GOOGLE_DAYS: "device: as staleGoogle", swipeStep: ui,
 };
 
 module.exports = { PUBLISHED, fields, collections, sheets, settings, actions, repo, model };

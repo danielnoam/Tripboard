@@ -337,7 +337,12 @@
         <button class="icon-btn page-back" type="button" data-close aria-label="Back" data-t-attr="aria-label"></button>
         <h2 id="placeSheetTitle" data-t>Add a place</h2>
       </div>
-      <label class="field"><span data-t>Name</span>
+      <div class="seg kind-seg" id="kindSeg" role="radiogroup" aria-label="Kind" data-t-attr="aria-label"></div>
+      <fieldset class="field j-only">
+        <legend data-t>Type</legend>
+        <div class="seg" id="modeSeg" role="radiogroup"></div>
+      </fieldset>
+      <label class="field"><span class="p-only" data-t>Name</span><span class="j-only" data-t>Leaving from</span>
         <input name="name" type="text" autocomplete="off" maxlength="160" placeholder="Fushimi Inari" required>
       </label>
       <div class="field">
@@ -352,15 +357,28 @@
         <ul class="results" id="placeResults"></ul>
         <div id="placeOpenIn"></div>
       </div>
-      <fieldset class="field">
+      <label class="field j-only"><span data-t>Going to</span>
+        <input name="toName" type="text" autocomplete="off" maxlength="160" placeholder="Tokyo Narita (NRT)">
+      </label>
+      <div class="field j-only">
+        <span data-t>Location</span>
+        <p class="where" id="toWhere"></p>
+        <div class="loc-actions">
+          <button class="btn" id="toFind" type="button" data-t>Find by name</button>
+          <button class="btn quiet" id="toClear" type="button" hidden data-t>Clear</button>
+        </div>
+        <p class="hint" id="toFindNote" role="status"></p>
+        <ul class="results" id="toResults"></ul>
+      </div>
+      <fieldset class="field p-only">
         <legend data-t>Importance</legend>
         <div class="seg" id="importanceSeg" role="radiogroup"></div>
       </fieldset>
-      <fieldset class="field">
+      <fieldset class="field p-only">
         <legend data-t>Your rating</legend>
         <div class="rating-row"><div class="stars-pick" id="ratingSeg" role="radiogroup"></div><button class="btn quiet" id="ratingClear" type="button" hidden data-t>Clear</button></div>
       </fieldset>
-      <label class="field"><span data-t>Category</span>
+      <label class="field p-only"><span data-t>Category</span>
         <select name="category" id="categorySelect"></select>
       </label>
       <label class="field" id="destField" hidden><span data-t>Destination</span>
@@ -368,13 +386,21 @@
         <span class="hint" data-t>Without one picked, it goes with the nearest.</span>
       </label>
       <div class="row">
-        <label class="field"><span data-t>Day</span>  <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
-        <label class="field" id="untilField"><span data-t>Until</span>  <select name="untilSelect" id="untilSelect"></select><input name="untilInput" id="untilInput" type="date" hidden></label>
+        <label class="field"><span class="p-only" data-t>Day</span><span class="j-only" data-t>Leaves</span>  <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
+        <label class="field p-only" id="untilField"><span data-t>Until</span>  <select name="untilSelect" id="untilSelect"></select><input name="untilInput" id="untilInput" type="date" hidden></label>
       </div>
       <div class="row">
-        <label class="field"><span data-t>From</span>  <input name="time" type="time"></label>
-        <label class="field"><span data-t>To</span>  <input name="endTime" type="time"></label>
+        <label class="field"><span class="p-only" id="timeLabel">From</span><span class="j-only" data-t>Time</span>  <input name="time" type="time"></label>
+        <label class="field p-only"><span id="endTimeLabel">To</span>  <input name="endTime" type="time"></label>
       </div>
+      <div class="row j-only">
+        <label class="field"><span data-t>Arrives</span>  <select name="arriveSelect" id="arriveSelect"></select><input name="arriveInput" id="arriveInput" type="date" hidden></label>
+        <label class="field"><span data-t>Time</span>  <input name="arriveTime" type="time"></label>
+      </div>
+      <p class="hint dim j-only" data-t>Times are local: the clock where it leaves, and the clock where it arrives.</p>
+      <label class="field j-only"><span data-t>Flight or train number</span>
+        <input name="number" type="text" autocomplete="off" maxlength="40" placeholder="LX 160">
+      </label>
       <div class="field" id="placeFilesRow" hidden>
         <span data-t>Files</span>
         <ul class="attached" id="placeFiles"></ul>
@@ -384,6 +410,7 @@
         <textarea name="note" rows="3" maxlength="2000" placeholder="Go early, before the crowds." data-t-attr="placeholder"></textarea>
       </label>
       <div class="sheet-actions">
+        <button class="btn quiet j-only" id="nextLeg" type="button" data-t>Add the next leg</button>
         <button class="btn danger" id="placeDelete" type="button" hidden data-t>Delete</button>
       </div>
     </form>

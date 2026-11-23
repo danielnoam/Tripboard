@@ -29,9 +29,9 @@ they always match.
 |---|---|---|
 | Every trip, in Home's order (under way, upcoming, undated, past) | `trips` | `list_trips` |
 | One trip in full: places, days, expenses with totals, people, files | `show` | `get_trip` |
-| A trip's places by day, category, importance, visited, rating, text, or nearest to a point | `places` | `find_places` |
+| A trip's places by day, category, importance, visited, rating, kind (journeys), text, or nearest to a point | `places` | `find_places` |
 | The trip's board as the app groups it (time, category, importance, rating, distance) | `board` | `get_board` |
-| One day as the Today view shows it: the plan, times between places, what's next | `day` | `get_day` |
+| One day as the Today view shows it: the plan, times between places, changes between journeys, overnight arrivals, what's next | `day` | `get_day` |
 | Your place categories, in order | `categories` | `list_categories` |
 | A file kept with a trip (MCP: only with `TRIPBOARD_MCP_FILES=1`) | `file` | `get_file` |
 | A backup file, like the app's Save a backup | `export` | `export_backup` |
@@ -44,8 +44,8 @@ they always match.
 | Change a trip's name, dates or destinations (and each destination's dates and location, or dates from its stays) | `edit-trip` | `update_trip` |
 | Delete a trip with its places, expenses, files and cover | `delete-trip` | `delete_trip` |
 | Set or remove a trip's cover photo | `cover` | `set_trip_cover` |
-| Add a place | `add-place` | `add_place` |
-| Change a place (day, time, location, destination, visited…) | `edit-place` | `update_place` |
+| Add a place, or a journey (a flight or train leg: `kind` journey, `mode`, `toName`, `arriveDay`, `arriveTime`, `number`) | `add-place` | `add_place` |
+| Change a place or journey (day, time, location, destination, visited…) | `edit-place` | `update_place` |
 | Put a day's places in order (the Today plan and the map's route follow it) | `order-day` | `order_day` |
 | Delete a place | `delete-place` | `delete_place` |
 | Import a Google Maps list (its shared link or a file) into a trip, or into a new one | `import` (`--link` or `--path`) | `import_places` |

@@ -10,11 +10,16 @@
 // list of names, so builds from before it read the trip as they always did.
 // A place: id, trip, name, category, importance, and optionally day (and
 // endDay, when it lasts several days: a stay, a festival), time and endTime
-// (HH:MM, the same on each of its days), note, lat and lng, address, placeId (Google's id,
-// the only thing kept from Google), visited, and dest: the trip destination
-// it was put in by hand (without one it goes with the nearest; destOf()).
-// 
-// the only thing kept from Google), visited, rating (your own, 1 to 5 stars).
+// (HH:MM, the same on each of its days; a stay's are check-in and check-out), note, lat and lng, address, placeId (Google's id,
+// the only thing kept from Google), visited, rating (your own, 1 to 5 stars),
+// and dest: the trip destination it was put in by hand (without one it goes
+// with the nearest; destOf()).
+// A journey (a flight, a train) is a place with kind "journey": its name,
+// lat, lng and address are where it leaves from, day and time when; mode
+// (flight, train, bus, ferry, other), toName, toLat, toLng and toAddress
+// where it goes, arriveDay (when it lands on a later day) and arriveTime
+// when, and number (LX 160). Times are each end's own local clock. An
+// older build shows a journey as a plain place named after where it leaves.
 // An expense: id, trip, title, amount (a number, in `currency`, an ISO
 // 4217 code), category, and optionally day, place (a place's id), note and
 // paidBy (who paid, for when a trip is shared).
@@ -106,7 +111,11 @@
   const MAX_ORDER = 999;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "destInfo", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "geoAt", "visited", "dest", "rating", "order", "by", "createdAt", "updatedAt"]);
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "dest", "rating", "order", "by", "createdAt", "updatedAt",
+    "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]);
+  // A journey's kinds of transport, as [id, name].
+  const MODES = [["flight", i18n.t("Flight")], ["train", i18n.t("Train")], ["bus", i18n.t("Bus")], ["ferry", i18n.t("Ferry")], ["other", i18n.t("Other")]];
+  const MODE = new Map(MODES);
   // Fields this build doesn't know are carried through, so a newer build's
   // additions survive an older one saving.
   function keepUnknown(src, out, known) {
@@ -246,10 +255,10 @@
     if (isDay(p.day)) out.day = p.day;
     if (out.day && isDay(p.endDay) && p.endDay > out.day && dayNum(p.endDay) - dayNum(out.day) < MAX_TRIP_DAYS) out.endDay = p.endDay;
     // A time only means something on a day; an end time only after a start.
-    if (out.day && isTime(p.time)) {
-      out.time = p.time;
-      if (isTime(p.endTime) && p.endTime > p.time) out.endTime = p.endTime;
-    }
+    // A stay's are check-in, on its first day, and check-out, on its last,
+    // so check-out can be earlier than check-in, or the only one known.
+    if (out.day && isTime(p.time)) out.time = p.time;
+    if (out.day && isTime(p.endTime) && (isStay(out) || (out.time && p.endTime > out.time))) out.endTime = p.endTime;
     // Its place in the day's plan, from 1, among places at the same time
     // (or with none); set by an AI tool, and dropped when it moves day.
     const order = num(p.order);
@@ -264,6 +273,7 @@
     if (dest) out.dest = dest;
     const rating = num(p.rating);
     if (rating != null && rating >= 1 && rating <= 5) out.rating = Math.round(rating);
+    if (p.kind === "journey") journeyFields(p, out);
     if (isPersonId(p.by)) out.by = p.by;
     return keepUnknown(p, out, KNOWN_PLACE);
   }
@@ -414,17 +424,31 @@
   }
   const daysUntil = (day, today) => dayNum(day) - dayNum(today);
 
-  function slotOf(p) {
-    if (!p.time) return "any";
+  // A stay (a place in Stays over several nights) has its check-in time
+  // (time) on its first day, its check-out time (endTime) on its last, and
+  // no time on the nights between. Anything else has its time on each day.
+  const isStay = (p) => p.category === "stay" && !!p.endDay;
+  function timeOn(p, day) {
+    if (!day || !isStay(p)) return p.time || null;
+    return (day === p.day ? p.time : day === p.endDay ? p.endTime : null) || null;
+  }
+  // "in", "night" or "out" on one of a stay's days; null for anything else.
+  function stayPart(p, day) {
+    if (!isStay(p) || !onDay(p, day)) return null;
+    return day === p.day ? "in" : day === p.endDay ? "out" : "night";
+  }
+  function slotOf(p, day) {
+    const time = timeOn(p, day);
+    if (!time) return "any";
     let slot = SLOTS[0][0];
-    for (const [id, , from] of SLOTS) if (p.time >= from) slot = id;
+    for (const [id, , from] of SLOTS) if (time >= from) slot = id;
     return slot;
   }
   const byName = (a, b) => a.name.localeCompare(b.name);
   const byTime = (a, b) => (a.time || "99").localeCompare(b.time || "99") || RANK[a.importance] - RANK[b.importance] || byName(a, b);
   const byImportance = (a, b) => RANK[a.importance] - RANK[b.importance] || byName(a, b);
   // A day's order: by time (untimed last), then the order given, then importance.
-  const inDay = (a, b) => (a.time || "99").localeCompare(b.time || "99") || (a.order || Infinity) - (b.order || Infinity) || byImportance(a, b);
+  const inDay = (day) => (a, b) => (timeOn(a, day) || "99").localeCompare(timeOn(b, day) || "99") || (a.order || Infinity) - (b.order || Infinity) || byImportance(a, b);
 
   function distanceKm(a, b) {
     const r = Math.PI / 180;
@@ -489,8 +513,56 @@
   //   importance  Must see, Want to, Maybe
   //   rating      five stars down to one, then "Not rated"
   //   distance    one list, nearest to `from` first, then "No location"
+  function journeyFields(p, out) {
+    out.kind = "journey";
+    out.mode = MODE.has(p.mode) ? p.mode : "other";
+    // A journey is one leg: it has no end day of its own, only an arrival.
+    delete out.endDay; delete out.endTime;
+    const toName = text(p.toName);
+    if (toName) out.toName = toName.slice(0, 160);
+    const lat = num(p.toLat), lng = num(p.toLng);
+    if (lat != null && lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { out.toLat = lat; out.toLng = lng; }
+    for (const [k, v] of [["toAddress", p.toAddress], ["toPlaceId", p.toPlaceId]]) { const t = text(v); if (t) out[k] = t; }
+    // Where it goes, from Google: kept 30 days like a place's own location.
+    if (out.toLat != null && isDay(p.toGeoAt)) out.toGeoAt = p.toGeoAt;
+    if (out.day && isDay(p.arriveDay) && p.arriveDay > out.day && dayNum(p.arriveDay) - dayNum(out.day) <= 3) out.arriveDay = p.arriveDay;
+    if (out.day && isTime(p.arriveTime)) out.arriveTime = p.arriveTime;
+    const n = text(p.number);
+    if (n) out.number = n.slice(0, 40);
+  }
+  const isJourney = (p) => !!p && p.kind === "journey";
+  // The day a journey lands: its arriveDay, or the day it leaves.
+  const landsOn = (j) => j.arriveDay || j.day;
+  // Where a place or journey ends up: a journey's arrival, when it has one.
+  const endOf = (p) => (isJourney(p) ? (p.toLat != null ? { lat: p.toLat, lng: p.toLng } : null) : p);
+  // Journeys that land on `day` after leaving on an earlier one (an
+  // overnight flight), by arrival time.
+  function arrivals(places, day) {
+    return places.filter((p) => isJourney(p) && p.arriveDay === day)
+      .sort((a, b) => (a.arriveTime || "99").localeCompare(b.arriveTime || "99"));
+  }
+  const sameSpot = (a, b) => {
+    const n = (s) => String(s || "").trim().toLowerCase();
+    if (n(a.toName) && n(a.toName) === n(b.name)) return true;
+    return a.toLat != null && b.lat != null && distanceKm({ lat: a.toLat, lng: a.toLng }, b) <= 3;
+  };
+  const minuteOf = (day, time) => dayNum(day) * 1440 + +time.slice(0, 2) * 60 + +time.slice(3);
+  // A change between two journeys: b leaves from where a lands, within a
+  // day. Both times are that place's clock, so the wait is right across
+  // time zones. → { at, min } or null.
+  function connection(a, b) {
+    if (!isJourney(a) || !isJourney(b) || !a.day || !b.day || !a.arriveTime || !b.time || !sameSpot(a, b)) return null;
+    const min = minuteOf(b.day, b.time) - minuteOf(landsOn(a), a.arriveTime);
+    return min > 0 && min <= 1440 ? { at: a.toName || b.name, min } : null;
+  }
+  // The journey that carries on from `a`, if any.
+  function nextLeg(places, a) {
+    return places.filter((b) => b !== a && b.trip === a.trip && connection(a, b))
+      .sort((x, y) => (x.day + x.time).localeCompare(y.day + y.time))[0] || null;
+  }
+
   function board(trip, places, sort, { only, from, cats } = {}) {
-    const shown = only && only.length ? places.filter((p) => only.includes(p.importance)) : places.slice();
+    let shown = only && only.length ? places.filter((p) => only.includes(p.importance) || isJourney(p)) : places.slice();
     if (sort === "category") {
       const list = cats || CATEGORIES;
       // A category that isn't in your list (someone else's, on a shared
@@ -499,6 +571,10 @@
         .map((id) => [id, catName(list, trip, id)]);
       return list.concat(extra).map(([id, title]) => ({ id, title, places: shown.filter((p) => p.category === id).sort(byImportance) }))
         .filter((g) => g.places.length);
+    }
+    if (sort === "importance" || sort === "rating" || sort === "distance") {
+      // A journey has no importance, rating or one spot to measure from.
+      shown = shown.filter((p) => !isJourney(p));
     }
     if (sort === "importance") {
       return IMPORTANCE.map(([id, title]) => ({ id, title, places: shown.filter((p) => p.importance === id).sort(byTime) }))
@@ -521,8 +597,8 @@
     }
     const groups = tripDays(trip, places).map((day) => {
       const list = shown.filter((p) => onDay(p, day));
-      const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p) === id).sort(inDay) }))
-        .concat([{ id: "any", title: i18n.t("Any time"), places: list.filter((p) => !p.time).sort(inDay) }])
+      const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p, day) === id).sort(inDay(day)) }))
+        .concat([{ id: "any", title: i18n.t("Any time"), places: list.filter((p) => !timeOn(p, day)).sort(inDay(day)) }])
         .filter((s) => s.places.length);
       return { id: day, day, title: day, places: list, slots };
     });
@@ -586,17 +662,21 @@
   function staleGoogle(places, today) {
     return places.filter((p) => p.placeId && (p.lat == null ? !p.address : !p.geoAt || daysUntil(p.geoAt, today) <= -GOOGLE_DAYS));
   }
+  // The same for where journeys go.
+  function staleGoogleTo(places, today) {
+    return places.filter((p) => isJourney(p) && p.toPlaceId && (p.toLat == null ? !p.toAddress : !p.toGeoAt || daysUntil(p.toGeoAt, today) <= -GOOGLE_DAYS));
+  }
 
   // One day's located places in the order they're planned, for the map's route.
   function dayRoute(places, day) {
-    return places.filter((p) => onDay(p, day) && p.lat != null).sort(inDay);
+    return places.filter((p) => onDay(p, day) && p.lat != null && !isJourney(p)).sort(inDay(day));
   }
 
   // Today's places in the order they're planned: timed ones by time, then
   // the rest; each by their order, then importance. Multi-day places (a stay)
   // are on each of their days.
   function dayPlan(places, day) {
-    return places.filter((p) => onDay(p, day)).sort(inDay);
+    return places.filter((p) => onDay(p, day)).sort(inDay(day));
   }
   // A guess at getting from a to b, from the straight line between them (no
   // routing service): streets add about a third, walking is 5 km/h, and past
@@ -604,6 +684,7 @@
   // or null when either has no location.
   const WALK_KM = 2;
   function leg(a, b) {
+    a = a && endOf(a);
     if (!a || !b || a.lat == null || b.lat == null) return null;
     const km = distanceKm(a, b);
     const mode = km <= WALK_KM ? "walk" : "drive";
@@ -645,9 +726,9 @@
 
   const api = {
     sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
-    placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, COVER_ART, SLOTS, newId, isDay, isTime,
+    placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, distanceKm, board, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
+    slotOf, isStay, timeOn, stayPart, distanceKm, board, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.
     KNOWN: { trip: KNOWN_TRIP, place: KNOWN_PLACE, expense: KNOWN_EXPENSE, file: KNOWN_FILE },
   };

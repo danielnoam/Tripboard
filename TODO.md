@@ -34,11 +34,6 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
 Gaps found importing Daniel's Japan 2023 sheet (2026-11-23; to look at
 later, not decided):
 
-- **Flights and transport legs.** A journey item with from, to, depart
-  and arrive (flights, layovers, a train with its times). Today they can
-  only be a place with a note.
-- **Booking details on stays.** Check-in and check-out times, meals
-  included, a booking reference, as fields instead of note text.
 
 ## With other people
 

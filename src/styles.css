@@ -934,3 +934,29 @@ body.on-board main.today-page { max-width: 640px; }
 .dest-dates .field { flex: 1 1 130px; }
 .dest-acts { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 2px; }
 .dest-acts .btn[hidden] { display: none; }
+
+/* Journeys: a flight or a train between two places. The card's edge is the
+   accent instead of an importance; the times sit on a dotted line. */
+.card.journey { border-inline-start-color: var(--accent); }
+[data-imp="label"] .card.journey { border-inline-start-color: var(--accent); }
+.jline { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.jline .rail { flex: 1; max-width: 96px; height: 0; border-top: 2px dotted var(--line); position: relative; }
+.jline .rail::before, .jline .rail::after { content: ""; position: absolute; top: -4px; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.jline .rail::before { inset-inline-start: -3px; }
+.jline .rail::after { inset-inline-end: -3px; }
+.jline sup { margin-inline-start: 1px; font-size: 11px; font-weight: 700; color: var(--accent); }
+[dir="rtl"] .card.journey .card-name .icon.cat, [dir="rtl"] .jland .icon { transform: scaleX(-1); }
+.jchange { display: flex; align-items: center; gap: 6px; margin: 2px 0 6px; padding-inline-start: 52px; color: var(--text-dim); font-size: var(--fs-small); }
+.jchange .icon { width: 14px; height: 14px; flex: none; }
+.jland button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding-inline: 14px 12px;
+  border: 1px dashed var(--line); border-radius: 10px; background: transparent; color: var(--text-dim); font-size: 14px; text-align: start;
+}
+.jland .icon { width: 18px; height: 18px; flex: none; color: var(--accent); }
+.jland b { color: var(--text); font-variant-numeric: tabular-nums; }
+.jsoon { color: var(--accent); font-weight: 600; font-size: 14px; }
+/* The place sheet as a journey: the fields only one of them has. */
+#placeForm:not(.is-journey) .j-only, #placeForm.is-journey .p-only { display: none; }
+#modeSeg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+#modeSeg .icon { width: 16px; height: 16px; flex: none; }
+.cards .jchange { margin: -2px 0 2px; }
