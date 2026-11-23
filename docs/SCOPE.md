@@ -60,8 +60,8 @@ External ratings come later.
   - by bundle id for iOS,
   - Places API only.
   The per-install cap only slows down someone who copies the key. A Google
-  Cloud budget alert and a quota cap on the project are what actually stop
-  the spending.
+  Cloud budget with a spend cap on the project is what actually stops the
+  spending.
 - **Web and desktop need a different key setup.** Android and iOS keys are
   locked to the app, but a key used from the browser and the desktop app
   has to be referrer-restricted. That likely means two keys, or a small
