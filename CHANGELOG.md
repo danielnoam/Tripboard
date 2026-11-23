@@ -4,6 +4,35 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.4.0] - 2026-11-23
+
+### Added
+- Destinations can have their own dates ("Osaka, Feb 6 – 13"). Edit trip lists them as rows; tap a row's dates to set them, or Dates from your stays to fill them from your hotels.
+- With dates, the Plan goes by destination: each one's days under its name, with an "Any day in Osaka" list of its places that have no day yet. Places go with the nearest destination by themselves; Edit place can pick another.
+- Today says where you are and lists the places there you haven't given a day yet.
+- No date is split by destination (day trips like Nara), then places with none.
+- AI tools: update_trip takes destInfo (dates and a location per destination) and datesFromStays; add_place and update_place take dest; get_board and get_day show the destinations.
+- Files holds links and notes too. The + on Files asks File, Link or Note. A link opens its site; a note (a phrasebook, directions) opens full screen to read or edit. Both can belong to a place, sync and share like files, or stay on this device only. Files is grouped into Notes, Links and Files.
+- CLI and AI tools: add_link and add_note; update_file, delete_file, get_file and get_trip work on links and notes too.
+- Flights, trains, buses and ferries as journeys: + offers Place or Journey, with where it leaves from and goes to, when it leaves and arrives (each in its own local time), and the flight or train number. The Plan shows them with their times, an overnight flight lands the next morning, and the wait for a connection shows ("Change at Zurich · 3 h 20 min"). On Today the next leg says when it leaves, and the distance to the next place counts from where you arrive. On the map a journey is a line between its two ends (a flight is a dotted arc). Add the next leg starts a new one from where the last arrives. AI tools can add, change and find journeys too.
+- The map has a Categories and an Importance filter under the days. Each opens a sheet of chips with counts. Importance is the same filter as the board's, which the map was already using without showing it.
+- Eight ready-made covers (mountains, beach, city, desert, forest, snow, lake, countryside) to pick in one tap under the cover, instead of a photo. They're tiny and work offline, and a chat can set them too (`set_trip_cover` with `art`).
+- Rate places you've been to: 1 to 5 stars in Edit place, shown on the card, and a Rating sort on the Plan (drag or move places between ratings). AI tools can set, filter and sort by rating too.
+- You can see when trips sync: turning arrows in the top bar while they do, and a crossed cloud when the last sync didn't finish (tap it to see why in Settings › Data).
+- A note when a sync brings something in, from your other devices, an AI tool or a shared trip: "New trip: Japan 2023." with Open, "Updated: Kyoto." or "Rome was deleted on another device."
+- A View button (sliders) in a trip's top bar. It sets how place cards show their category (icon only, icon and name, or name only) and their importance (colour only, colour and name, or name only). It's kept on this device.
+
+### Changed
+- Files kept on this device only show a phone icon in the list, instead of their own group.
+- The map's "places have no location yet" list folds to one line, and opens and closes with a tap. The app remembers which way you left it.
+- New trip has two clear buttons at the bottom: Import from file and Add from link. Import from file also takes a trip saved from Tripboard, which comes in whole.
+- The cover is one box: tap it to pick or change the photo, and × takes it off. On a big screen it's at most 200 px tall, so Create trip stays in view.
+- The Plan's filters are now two drop-downs, Categories ▾ and Importance ▾, the same ones as on the Map, in place of the three Must see / Want to / Maybe chips. Each opens a list under it with All and a box for each choice. A filter picked on the Plan shows on the Map too.
+- Settings is a gear now, not sliders, and it's only on Home: inside a trip the top bar has just Sharing and Edit trip. Go back to Home for Settings.
+
+### Fixed
+- A stay (a place in Stays over several days) no longer shows its check-in time on every day. For Stays, From and To are now Check-in and Check-out: check-in shows on the first day, check-out on the last, and the nights between have no time. Check-out can be earlier than check-in.
+
 ## [0.3.5] - 2026-11-21
 
 ### Added
