@@ -464,7 +464,7 @@ const ops = {
     ctx.put("files/" + t.id + "/" + f.id, b);
     return f;
   },
-  // A link kept in the trip's Files (http or https only).
+  // A link kept in the trip's Attachments (http or https only).
   addLink(doc, a) {
     const t = findTrip(doc, a.trip);
     const url = M.linkUrl(a.url);
@@ -474,7 +474,7 @@ const ops = {
     doc.files = (doc.files || []).concat(f);
     return f;
   },
-  // A note kept in the trip's Files: a title and its text.
+  // A note kept in the trip's Attachments: a title and its text.
   addNote(doc, a) {
     const t = findTrip(doc, a.trip);
     if (!String(a.text || "").trim()) throw new Error("A note needs its text.");
