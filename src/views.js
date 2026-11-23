@@ -534,7 +534,7 @@
   function tabBefore() {
     const main = $("app"), map = $("mapView");
     return { hash: shownHash, trip: view.trip, mode: view.mode, kids: [...main.childNodes], cls: main.className,
-      top: main.getBoundingClientRect().top, map: map.hidden ? null : map.getBoundingClientRect() };
+      box: main.getBoundingClientRect(), map: map.hidden ? null : map.getBoundingClientRect() };
   }
   function tabAfter(b) {
     const hash = location.hash || "#/";
@@ -569,7 +569,10 @@
       out.classList.add("tab-leaving");
       out.setAttribute("aria-hidden", "true");
       out.inert = true;
-      out.style.top = b.top + "px";
+      // Pinned where it was: its width comes from the body's class, which
+      // is already the next screen's (Home 960, a trip 1200, Settings 640),
+      // and a scrollbar that comes or goes would move it off centre.
+      Object.assign(out.style, { top: b.box.top + "px", left: b.box.left + "px", width: b.box.width + "px" });
       out.append(...b.kids);
       document.body.append(out);
     }
@@ -1424,11 +1427,9 @@
 
   // ---------- Sheets ----------
   const narrow = () => !window.matchMedia("(min-width: 720px)").matches;
-  let opener = null;
   // A sheet opens with the sheet itself in focus, never a field, so a
   // phone doesn't throw up its keyboard before you tap where to type.
   function openSheet(d, from) {
-    opener = from || null;
     d.classList.remove("leaving");
     d.showModal();
     d.tabIndex = -1;
@@ -1442,7 +1443,7 @@
     if (!d.open || d.classList.contains("leaving")) return;
     d.classList.add("leaving");
     await (narrow() && d.classList.contains("page") ? slideSheet(d, false)
-      : narrow() ? sinkSheet(d) : motion.dialogOut(d, opener && opener.getBoundingClientRect()));
+      : narrow() ? sinkSheet(d) : fadeSheet(d));
     d.close();
     d.classList.remove("leaving");
   }
@@ -1451,6 +1452,14 @@
   function sinkSheet(d) {
     if (!d.animate || lessMotion()) return motion.sink(d);
     const a = d.animate([{ transform: "none" }, { transform: "translateY(100%)" }], { duration: 220, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+    return a.finished.then(() => a.cancel(), () => {});
+  }
+  // On a wide screen a sheet fades out as its dimming does and closes then:
+  // keel's dialogOut is see-through by 70% of its spring and then held the
+  // page, invisible, for its settling tail.
+  function fadeSheet(d) {
+    if (!d.animate || lessMotion()) return motion.dialogOut(d);
+    const a = d.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.98)" }], { duration: 200, easing: "ease-out", fill: "forwards" });
     return a.finished.then(() => a.cancel(), () => {});
   }
   // A full-screen editor on a phone is a screen like the others: in from
