@@ -3654,7 +3654,7 @@
   }
 
   // A long press (touch) or a right-click (mouse, or the keyboard's menu
-  // key) on what matches sel calls hold(node, x, y, keyboard); it answers
+  // key) on what matches sel calls hold(node, x, y, keyboard, touch); it answers
   // true when it did something. A tap still goes through at once; only a
   // press held LONG_PRESS ms without moving counts, and the click that may
   // follow it is swallowed.
@@ -3670,7 +3670,7 @@
       const x0 = e.clientX, y0 = e.clientY;
       timer = setTimeout(() => {
         timer = 0;
-        if (hold(node, x0, y0)) { swallow = true; if (navigator.vibrate) navigator.vibrate(10); }
+        if (hold(node, x0, y0, false, true)) { swallow = true; if (navigator.vibrate) navigator.vibrate(10); }
       }, LONG_PRESS);
       const move = (m) => { if (Math.hypot(m.clientX - x0, m.clientY - y0) > 10) cancel(); };
       node.addEventListener("pointermove", move);
@@ -3692,49 +3692,56 @@
     return { swallow: () => { swallow = true; } };
   }
 
-  // Home's quick menu: Edit and Delete for a trip. Delete asks first in a
-  // small sheet (confirmDelete), then the toast offers Undo.
-  function tripMenu() {
-    let box = null, from = null;
-    const close = (refocus) => {
-      if (!box) return;
-      box.remove();
-      box = null;
-      if (refocus && from) from.focus();
-    };
-    const held = onHold(".trip-card[data-trip]", (card, x, y, keyboard) => {
-      const trip = findTrip(card.dataset.trip);
-      if (!trip || !mayEdit(trip)) return false;
-      close();
-      from = card;
-      const del = el("button.danger", { type: "button", role: "menuitem", onclick: async () => { close(); if (await confirmDelete(i18n.t("Delete {name}?", { name: trip.name }), card)) deleteTrip(trip); } }, icon("trash"), el("span", { text: i18n.t("Delete") }));
-      box = el("div.quick-menu", { role: "menu", "aria-label": trip.name },
-        el("button", { type: "button", role: "menuitem", onclick: () => { close(); openTrip(trip, card); } }, icon("pencil"), el("span", { text: i18n.t("Edit") })),
-        del);
-      document.body.append(box);
-      const r = box.getBoundingClientRect(), M8 = 8, vw = innerWidth, vh = innerHeight;
-      if (keyboard) { const c = card.getBoundingClientRect(); x = i18n.dir === "rtl" ? c.right : c.left; y = c.bottom; }
-      const left = i18n.dir === "rtl" ? x - r.width : x;
-      const top = y + r.height + M8 > vh ? y - r.height : y;
-      box.style.left = Math.max(M8, Math.min(vw - r.width - M8, left)) + "px";
-      box.style.top = Math.max(M8, Math.min(vh - r.height - M8, top)) + "px";
-      if (!lessMotion() && box.animate) box.animate([{ opacity: 0, transform: "scale(0.92)" }, { opacity: 1, transform: "none" }], { duration: 120, easing: "ease-out" });
-      if (keyboard) box.querySelector("button").focus();
-      return true;
-    });
+  // A small menu at the pointer (or under the item, from the keyboard):
+  // Home's trips get Edit and Delete; the Plan's places Select, Edit and
+  // Delete. Delete asks first (confirmDelete), then the toast offers Undo.
+  let qBox = null, qFrom = null;
+  const qHeld = [];
+  function closeQuick(refocus) {
+    if (!qBox) return;
+    qBox.remove();
+    qBox = null;
+    if (refocus && qFrom) qFrom.focus();
+  }
+  // items: [icon, label, go, danger]
+  function openQuick(from, label, items, x, y, keyboard) {
+    closeQuick();
+    qFrom = from;
+    qBox = el("div.quick-menu", { role: "menu", "aria-label": label }, items.map(([ico, text, go, danger]) =>
+      el("button" + (danger ? ".danger" : ""), { type: "button", role: "menuitem", onclick: () => { closeQuick(); go(); } }, icon(ico), el("span", { text }))));
+    document.body.append(qBox);
+    const r = qBox.getBoundingClientRect(), M8 = 8, vw = innerWidth, vh = innerHeight;
+    if (keyboard) { const c = from.getBoundingClientRect(); x = i18n.dir === "rtl" ? c.right : c.left; y = c.bottom; }
+    const left = i18n.dir === "rtl" ? x - r.width : x;
+    const top = y + r.height + M8 > vh ? y - r.height : y;
+    qBox.style.left = Math.max(M8, Math.min(vw - r.width - M8, left)) + "px";
+    qBox.style.top = Math.max(M8, Math.min(vh - r.height - M8, top)) + "px";
+    if (!lessMotion() && qBox.animate) qBox.animate([{ opacity: 0, transform: "scale(0.92)" }, { opacity: 1, transform: "none" }], { duration: 120, easing: "ease-out" });
+    if (keyboard) qBox.querySelector("button").focus();
+    return true;
+  }
+  function quickMenus() {
     // A tap beside the open menu only closes it.
-    document.addEventListener("pointerdown", (e) => { if (box && !box.contains(e.target)) { close(); held.swallow(); } }, true);
+    document.addEventListener("pointerdown", (e) => { if (qBox && !qBox.contains(e.target)) { closeQuick(); qHeld.forEach((h) => h.swallow()); } }, true);
     document.addEventListener("keydown", (e) => {
-      if (!box) return;
-      if (e.key === "Escape") { e.preventDefault(); close(true); return; }
+      if (!qBox) return;
+      if (e.key === "Escape") { e.preventDefault(); closeQuick(true); return; }
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
       e.preventDefault();
-      const items = [...box.querySelectorAll("button")];
+      const items = [...qBox.querySelectorAll("button")];
       const i = items.indexOf(document.activeElement);
       items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
     });
-    for (const t of ["hashchange", "resize", "blur"]) window.addEventListener(t, () => close());
-    document.addEventListener("scroll", () => close(), true);
+    for (const t of ["hashchange", "resize", "blur"]) window.addEventListener(t, () => closeQuick());
+    document.addEventListener("scroll", () => closeQuick(), true);
+    qHeld.push(onHold(".trip-card[data-trip]", (card, x, y, keyboard) => {
+      const trip = findTrip(card.dataset.trip);
+      if (!trip || !mayEdit(trip)) return false;
+      return openQuick(card, trip.name, [
+        ["pencil", i18n.t("Edit"), () => openTrip(trip, card)],
+        ["trash", i18n.t("Delete"), async () => { if (await confirmDelete(i18n.t("Delete {name}?", { name: trip.name }), card)) deleteTrip(trip); }, true],
+      ], x, y, keyboard);
+    }));
   }
 
   // Picking places on the Plan: a long press or right-click on a place
@@ -3753,17 +3760,29 @@
   function pick(id) {
     if (!picked) picked = new Set();
     if (picked.has(id)) picked.delete(id); else picked.add(id);
+    // Dropping the last one ends picking before the cards are drawn, so their ticks are for "been" again.
+    if (!picked.size) picked = null;
     render();
   }
   const stopPicking = () => { picked = null; render(); };
   const pickedPlaces = () => doc.places.filter((p) => picked && picked.has(p.id));
   function placePicking() {
-    onHold(".groups .card[data-id]", (card) => {
-      const trip = findTrip(view.trip);
-      if (!trip || !mayEdit(trip)) return false;
-      pick(card.dataset.id);
-      return true;
-    });
+    // A long press (touch) picks the place at once; a right-click or the
+    // menu key opens Select, Edit and Delete. While picking, either adds or
+    // drops it.
+    qHeld.push(onHold(".groups .card[data-id]", (card, x, y, keyboard, touch) => {
+      const trip = findTrip(view.trip), p = doc.places.find((q) => q.id === card.dataset.id);
+      if (!trip || !p || !mayEdit(trip)) return false;
+      if (touch || picked) { pick(p.id); return true; }
+      return openQuick(card, p.name, [
+        ["check", i18n.t("Select"), () => pick(p.id)],
+        ["pencil", i18n.t("Edit"), () => openPlace(p, trip, null, card.querySelector(".card-body"))],
+        ["trash", i18n.t("Delete"), async () => {
+          if (await confirmDelete(i18n.t("Delete {name}?", { name: p.name }), card))
+            undoable(i18n.t("Deleted {name}.", { name: p.name }), () => { doc.places = doc.places.filter((x) => x !== p); });
+        }, true],
+      ], x, y, keyboard);
+    }));
     $("selectDone").addEventListener("click", stopPicking);
     $("selectMove").addEventListener("click", (e) => openMove(e.currentTarget));
     $("selectDelete").addEventListener("click", async (e) => {
@@ -3825,7 +3844,7 @@
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);
     pressBounce();
-    tripMenu();
+    quickMenus();
     placePicking();
     $("selectDone").append(icon("x"));
     $("selectDelete").prepend(icon("trash"));

@@ -700,6 +700,7 @@ Keel.i18n.strings("he", {
   "Place names": "שמות מקומות",
   "When pointed at or selected": "כשמצביעים או בוחרים",
   "Always": "תמיד",
+  "Select": "בחירה",
   "Drag to share the width between the plan and the map": "גרירה לחלוקת הרוחב בין התוכנית למפה",
   "Show the map": "הצגת המפה",
   "Look": "מראה",
