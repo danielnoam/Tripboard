@@ -34,6 +34,7 @@
     <button class="btn primary update-btn" id="updateBtn" type="button"></button>
     <button class="icon-btn update-close" id="updateClose" type="button" aria-label="Not now" title="Not now" data-t-attr="aria-label,title"></button>
   </div>
+  <aside class="side" id="side" hidden></aside>
   <main id="app" tabindex="-1"></main>
   <section class="map-view" id="mapView" aria-label="Map" hidden data-t-attr="aria-label">
     <div class="map" id="map"></div>
@@ -55,6 +56,7 @@
       <button class="map-tool" id="mapLocate" type="button" aria-label="Where am I" title="Where am I" data-t-attr="aria-label,title"></button>
     </div>
   </section>
+  <button class="desk-fold" id="deskFold" type="button" aria-controls="mapView" hidden></button>
   <div class="bottombar" id="bottomBar" hidden>
     <nav class="tabbar" id="tripBar" aria-label="Show" data-t-attr="aria-label"></nav>
     <button class="fab" id="fab" type="button" aria-label="Add a place" hidden data-t-attr="aria-label"></button>

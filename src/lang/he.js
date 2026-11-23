@@ -696,4 +696,9 @@ Keel.i18n.strings("he", {
   "Arrive at {place}": "הגעה: {place}",
   "Change at {place} · {time}": "החלפה: {place} · {time}",
   "Leaves in {time}": "יציאה בעוד {time}",
+  "Hide the map": "הסתרת המפה",
+  "Show the map": "הצגת המפה",
+  "Look": "מראה",
+  "Cards": "כרטיסים",
+  "List": "רשימה",
 });

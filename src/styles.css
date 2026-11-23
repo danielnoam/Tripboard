@@ -13,8 +13,8 @@
   --on-tab: #FFFFFF;
   --line: #8A8D85;
   --must: #1D5FB0;
-  --want: #2E7D32;
-  --maybe: #B45309;
+  --want: #2A732E;
+  --maybe: #A84D08;
   --star: #A16207;
   --danger: #A3302B;
   --scrim: rgba(0, 0, 0, 0.45);
@@ -201,9 +201,9 @@ body.on-map .update { bottom: auto; top: 108px; }
 }
 .seg button[aria-selected="true"], .seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 /* The sort switch's pill is one element that slides (slideSeg). */
-.seg.sorts { position: relative; }
-.seg.sorts button { position: relative; z-index: 1; transition: color 0.2s; }
-.seg.sorts button[aria-selected="true"] { background: transparent; box-shadow: none; }
+.seg.sorts, .seg.looks { position: relative; }
+.seg.sorts button, .seg.looks button { position: relative; z-index: 1; transition: color 0.2s; }
+.seg.sorts button[aria-selected="true"], .seg.looks button[aria-selected="true"] { background: transparent; box-shadow: none; }
 .seg-bubble { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); }
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .filters .pick { gap: 4px; }
@@ -224,7 +224,7 @@ body.on-map .update { bottom: auto; top: 108px; }
 .locate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
 .locate p { margin: 0; flex: 1 1 240px; }
 
-.groups { display: grid; gap: var(--space-3); }
+.groups { display: grid; gap: 10px; }
 /* Expenses */
 .spend-total { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .spend-cats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
@@ -244,13 +244,13 @@ body.on-map .update { bottom: auto; top: 108px; }
 #noteText { min-height: 40vh; }
 a.attached-file { text-decoration: none; }
 .xrow-meta { color: var(--text-dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.group { padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
+.group { padding: 10px 12px 12px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
 .group-head { display: flex; align-items: center; gap: var(--space-2); }
-.group-head h2 { flex: 1; margin: 0; font-size: 17px; }
+.group-head h2 { flex: 1; margin: 0; font-size: 16px; }
 .count { color: var(--text-dim); font-size: 14px; }
-.slot { margin: var(--space-3) 0 var(--space-1); font-size: var(--fs-small); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.slot { margin: 8px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
 .slot-empty { margin: var(--space-2) 0 0; font-size: 14px; }
-.cards { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.cards { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
 .slot + .cards { margin-top: 0; }
 .slot-box { border-radius: var(--radius); }
 /* Dragging a card (mouse only): empty groups and slots open up as places to drop it. */
@@ -263,25 +263,25 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
 .drop-over { outline: 2px dashed var(--accent); outline-offset: 4px; }
 .group.drop-over { outline-offset: -2px; }
 .card {
-  display: flex; align-items: flex-start; gap: var(--space-1);
-  border-inline-start: 4px solid var(--want); border-radius: 10px; background: var(--bg);
+  display: flex; align-items: flex-start; gap: 0;
+  border-inline-start: 3px solid var(--want); border-radius: 8px; background: var(--bg);
 }
 .card.imp-must { border-inline-start-color: var(--must); }
 .card.imp-maybe { border-inline-start-color: var(--maybe); }
 .card-body {
-  flex: 1; min-width: 0; display: grid; gap: 2px; text-align: start;
-  min-height: 44px; padding-block: 10px; padding-inline: 0 var(--space-3); border: 0; background: transparent;
+  flex: 1; min-width: 0; display: grid; gap: 0; text-align: start; line-height: 1.35;
+  min-height: 44px; padding-block: 6px; padding-inline: 0 10px; border: 0; background: transparent;
 }
-.card-name { font-weight: 600; }
-.card-meta { color: var(--text-dim); font-size: 14px; }
+.card-name { font-weight: 600; font-size: 15px; }
+.card-meta { color: var(--text-dim); font-size: 13px; }
 .card-meta .imp { font-weight: 600; }
 .card.imp-must .imp { color: var(--must); }
-.card-note { color: var(--text-dim); font-size: 14px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card-note { color: var(--text-dim); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
 .tick {
   display: grid; place-items: center; flex: none;
-  width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: transparent;
+  width: 40px; height: 44px; margin-block-end: -6px; padding: 0; border: 0; background: transparent; color: transparent;
 }
-.tick .icon { width: 16px; height: 16px; box-sizing: content-box; padding: 3px; border: 2px solid var(--line); border-radius: 50%; }
+.tick .icon { width: 12px; height: 12px; box-sizing: content-box; padding: 2px; border: 1.5px solid var(--line); border-radius: 50%; }
 .tick[aria-pressed="true"] { color: var(--on-accent); }
 .tick[aria-pressed="true"] .icon { background: var(--accent); border-color: var(--accent); }
 .tick.pick .icon { border-radius: 6px; }
@@ -889,7 +889,7 @@ body.on-board main.today-page { max-width: 640px; }
 .wx-today-src { font-size: var(--fs-small); }
 .group-head .wx { margin-inline-end: var(--space-1); }
 /* A place category's icon: before a place's name, and before a group's title by category. */
-.card-name .icon.cat { width: 18px; height: 18px; vertical-align: -3px; margin-inline-end: 6px; color: var(--text-dim); }
+.card-name .icon.cat { width: 16px; height: 16px; vertical-align: -3px; margin-inline-end: 5px; color: var(--text-dim); }
 .group-head h2 .icon.cat { width: 20px; height: 20px; vertical-align: -3px; margin-inline-end: 8px; color: var(--accent); }
 .data-label { margin: var(--space-3) 0 var(--space-2); }
 .data-label:first-child { margin-top: var(--space-1); }
@@ -916,10 +916,10 @@ body.on-board main.today-page { max-width: 640px; }
 
 /* Destinations with dates. On the Plan, each run of a destination's days
    starts with its name, then its places that have no day yet, folded. */
-.dest-band { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--space-2); margin-top: var(--space-3); padding: var(--space-2) var(--space-1) 0; border-top: 2px solid var(--accent); }
+.dest-band { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--space-2); margin-top: 4px; padding: 6px var(--space-1) 0; border-top: 2px solid var(--accent); }
 .groups > .dest-band:first-child { margin-top: 0; }
-.dest-band .icon { width: 20px; height: 20px; color: var(--accent); align-self: center; flex: none; }
-.dest-band h2 { margin: 0; font-size: 22px; }
+.dest-band .icon { width: 17px; height: 17px; color: var(--accent); align-self: center; flex: none; }
+.dest-band h2 { margin: 0; font-size: 18px; }
 .dest-band .dim { font-size: 14px; }
 .group.dest-any { background: var(--accent-soft); box-shadow: none; }
 .dest-any .group-head h2 { font-size: 16px; }
@@ -955,14 +955,14 @@ body.on-board main.today-page { max-width: 640px; }
    accent instead of an importance; the times sit on a dotted line. */
 .card.journey { border-inline-start-color: var(--accent); }
 [data-imp="label"] .card.journey { border-inline-start-color: var(--accent); }
-.jline { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.jline { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .jline .rail { flex: 1; max-width: 96px; height: 0; border-top: 2px dotted var(--line); position: relative; }
 .jline .rail::before, .jline .rail::after { content: ""; position: absolute; top: -4px; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
 .jline .rail::before { inset-inline-start: -3px; }
 .jline .rail::after { inset-inline-end: -3px; }
 .jline sup { margin-inline-start: 1px; font-size: 11px; font-weight: 700; color: var(--accent); }
 [dir="rtl"] .card.journey .card-name .icon.cat, [dir="rtl"] .jland .icon { transform: scaleX(-1); }
-.jchange { display: flex; align-items: center; gap: 6px; margin: 2px 0 6px; padding-inline-start: 52px; color: var(--text-dim); font-size: var(--fs-small); }
+.jchange { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; padding-inline-start: 40px; color: var(--text-dim); font-size: 12px; }
 .jchange .icon { width: 14px; height: 14px; flex: none; }
 .jland button {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding-inline: 14px 12px;
@@ -976,3 +976,119 @@ body.on-board main.today-page { max-width: 640px; }
 #modeSeg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
 #modeSeg .icon { width: 16px; height: 16px; flex: none; }
 .cards .jchange { margin: -2px 0 2px; }
+
+/* A computer's wide screen (views.js, desk): a trip's tabs in a side bar
+   at the start, the page beside it, and the map beside the page (folded
+   away with the handle on its edge) or alone from the side bar's Map. */
+.side, .desk-fold, .group-dest, .card-time { display: none; }
+body.desk {
+  --side: 248px; --panel: clamp(560px, 42vw, 820px);
+  --edge: color-mix(in srgb, var(--line) 35%, transparent);
+}
+body.desk .bottombar { display: none; }
+body.desk .side:not([hidden]) {
+  position: fixed; z-index: 6; inset-block: 0; inset-inline-start: 0; width: var(--side); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) 14px 68px; overflow-y: auto;
+  background: var(--surface); border-inline-end: 1px solid var(--edge);
+}
+.side-back { display: flex; align-items: center; gap: var(--space-2); align-self: start; padding: 6px 8px; margin-bottom: var(--space-2); border-radius: 8px; color: var(--text-dim); font-size: 14px; text-decoration: none; }
+.side-back:hover { background: var(--surface-2); color: var(--text); }
+.side-back .icon { width: 18px; height: 18px; }
+.side-cover { position: relative; flex: none; height: 96px; border-radius: var(--radius); overflow: hidden; background: var(--tint-0); }
+.side-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.side-name { margin: 12px 8px 2px; font-size: var(--fs-title); line-height: 1.25; overflow-wrap: anywhere; }
+.side-when { margin: 0 8px 14px; color: var(--text-dim); font-size: var(--fs-small); }
+.side-nav { display: grid; gap: 2px; }
+.side-tab { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px; border-radius: 10px; color: var(--text); font-weight: 600; text-decoration: none; }
+.side-tab:hover { background: var(--surface-2); }
+.side-tab[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.side-tab .count { margin-inline-start: auto; font-weight: 400; }
+.side-add { margin: 14px 4px 4px; border-radius: 999px; }
+.side-add[hidden] { display: none; }
+.side-dests { margin: 14px 8px 0; padding-top: 14px; border-top: 1px solid var(--edge); color: var(--text-dim); font-size: var(--fs-small); line-height: 1.8; }
+.side-dests[hidden] { display: none; }
+/* The top bar's buttons sit at the foot of the side bar; the side bar has the back and the name. */
+body.desk .bar, body.desk.on-map .bar {
+  position: fixed; z-index: 7; top: auto; bottom: 0; inset-inline-start: 0; width: var(--side); max-width: none; margin: 0;
+  box-sizing: border-box; padding: var(--space-2) 10px; background: var(--surface); border-inline-end: 1px solid var(--edge);
+}
+body.desk #back, body.desk .bar-title, body.desk #settingsBtn { display: none; }
+body.desk .sync-badge, body.desk .offline-badge { padding: 4px; }
+body.desk .sync-badge-text, body.desk .offline-badge-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body.desk main, body.desk.on-board main {
+  max-width: none; margin-inline: var(--side) 0; padding: var(--space-3) var(--space-4) 48px;
+}
+body.desk.side-map main { width: var(--panel); box-sizing: border-box; }
+body.desk main.tab-leaving { margin: 0; }
+/* The page scrolls by itself, so its scroll bar sits by it, not at the window's edge past the map. */
+:root:has(> body.desk) { scrollbar-gutter: auto; overflow: hidden; }
+body.desk main { height: 100dvh; box-sizing: border-box; overflow-y: auto; }
+body.desk:not(.side-map) main { padding-inline-end: 56px; }
+body.desk main.today-page { max-width: none; }
+body.desk .hero { display: none; }
+body.desk .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+body.desk .groups { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; align-items: start; }
+body.desk .groups > .dest-band { display: none; }
+body.desk .group-dest { display: block; margin: 0 0 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+/* The map: beside the page, or alone. */
+body.desk .map-view:not([hidden]) { position: fixed; z-index: 3; inset-block: 0; inset-inline-end: 0; inset-inline-start: var(--side); }
+body.desk.side-map .map-view:not([hidden]) { inset-inline-start: calc(var(--side) + var(--panel)); border-inline-start: 1px solid var(--edge); }
+body.desk.with-tabbar .map-panel { bottom: var(--space-3); }
+body.desk.with-tabbar .map-tools { bottom: var(--space-3); }
+.pin.hot { scale: 1.3; z-index: 3; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
+/* The handle that folds the map away, on its edge, and brings it back from the window's. */
+body.desk .desk-fold:not([hidden]) {
+  position: fixed; z-index: 8; top: 50%; translate: 0 -50%; inset-inline-start: calc(var(--side) + var(--panel) - 14px);
+  display: grid; place-items: center; width: 28px; height: 56px; padding: 0;
+  border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); color: var(--text-dim); box-shadow: var(--shadow); cursor: pointer;
+}
+body.desk .desk-fold:hover { color: var(--text); }
+body.desk:not(.side-map) .desk-fold:not([hidden]) { inset-inline-start: auto; inset-inline-end: 0; width: 32px; height: 64px; border-start-end-radius: 0; border-end-end-radius: 0; border-inline-end: 0; }
+.desk-fold .icon { width: 18px; height: 18px; rotate: -90deg; }
+body.desk:not(.side-map) .desk-fold .icon { rotate: 90deg; }
+[dir="rtl"] .desk-fold .icon { scale: -1 1; }
+
+/* With a mouse the Plan's cards are compact, so more of the trip shows. */
+@media (pointer: fine) {
+  body.desk .group { padding: 10px 12px 12px; border-radius: 14px; }
+  body.desk .group-head h2 { font-size: 15px; }
+  body.desk .group-head .icon-btn.small { min-width: 30px; min-height: 30px; }
+  body.desk .slot { margin: 8px 0 3px; font-size: 11px; }
+  body.desk .cards { gap: 4px; margin-top: 4px; }
+  body.desk .slot + .cards { margin-top: 0; }
+  body.desk .card { border-inline-start-width: 3px; border-radius: 8px; }
+  body.desk .card-body { min-height: 0; padding-block: 5px; gap: 0; padding-inline-end: 8px; line-height: 1.35; }
+  body.desk .card-name { font-size: 14px; }
+  body.desk .card-meta, body.desk .card-note { font-size: 12.5px; }
+  body.desk .card-note { -webkit-line-clamp: 1; }
+  body.desk .tick { width: 30px; height: 30px; margin-top: 2px; }
+  body.desk .tick .icon { width: 11px; height: 11px; padding: 2px; border-width: 1.5px; }
+  body.desk .jline { font-size: 13px; gap: 6px; }
+  body.desk .jchange { padding-inline-start: 34px; font-size: 11.5px; margin: 0 0 2px; }
+  body.desk .dest-any .fold { min-height: 30px; margin: 0; }
+  body.desk .dest-any .group-head h2 { font-size: 15px; }
+  body.desk .dest-any .peek { font-size: 12.5px; margin-top: 2px; }
+}
+/* The List look: a line a place: done, rating, category, name (coloured by importance) and time. */
+:root[data-look="list"] body.desk .card { background: none; border: 0; border-radius: 6px; align-items: center; gap: 0; min-width: 0; }
+:root[data-look="list"] body.desk .card:hover { background: var(--bg); }
+:root[data-look="list"] body.desk .group, :root[data-look="list"] body.desk .cards { min-width: 0; }
+:root[data-look="list"] body.desk .card-body { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 0; padding: 1px 4px 1px 0; }
+:root[data-look="list"] body.desk .card-meta, :root[data-look="list"] body.desk .card-note, :root[data-look="list"] body.desk .jline,
+:root[data-look="list"] body.desk .jchange, :root[data-look="list"] body.desk .dest-any .peek { display: none; }
+:root[data-look="list"] body.desk .card-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 500; color: var(--want); text-decoration: none; }
+:root[data-look="list"] body.desk .card.imp-must .card-name { color: var(--must); font-weight: 650; }
+:root[data-look="list"] body.desk .card.imp-maybe .card-name { color: var(--maybe); }
+:root[data-look="list"] body.desk .card.journey .card-name { color: var(--text); }
+:root[data-look="list"] body.desk .card-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; unicode-bidi: plaintext; }
+:root[data-look="list"] body.desk .card-name .icon.cat { width: 15px; height: 15px; color: var(--text-dim); }
+:root[data-look="list"] body.desk .card-name .rating { order: -1; width: 14px; flex: none; text-align: end; color: var(--text-dim); font-size: 12.5px; font-weight: 600; }
+:root[data-look="list"] body.desk .card-name .rating .star { display: none; }
+:root[data-look="list"] body.desk .card-name:not(:has(.rating))::before { content: ""; order: -1; width: 14px; flex: none; }
+:root[data-look="list"] body.desk .card-time { display: block; flex: none; color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:root[data-look="list"] body.desk .tick { width: 24px; height: 24px; margin: 0; }
+:root[data-look="list"] body.desk .tick .icon { width: 9px; height: 9px; padding: 1px; }
+:root[data-look="list"] body.desk .cards { gap: 0; }
+:root[data-look="list"] body.desk .slot { margin: 6px 0 1px; font-size: 10.5px; }
+:root[data-look="list"] body.desk .jland { font-size: 12.5px; }
+:root[data-look="list"] body.desk .jland button { min-height: 0; padding-block: 1px; padding-inline: 24px 0; border: 0; background: none; }
