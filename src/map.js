@@ -6,6 +6,7 @@
 //   TripMap.places(list, selectedId)   pins, by importance
 //   TripMap.fit(list)                  frames them
 //   TripMap.route(list)                a line through them in order (a day's plan)
+//   TripMap.journeys(list)             each journey as a line between its two ends (a flight as an arc)
 //   TripMap.zoom(±1), TripMap.locate()  the map's own buttons (views.js draws them)
 //   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …, TripMap.onLocateFail = () => …
 (function () {
@@ -198,7 +199,7 @@
     delete r.style.__google;
     applied = want;
     T.last = { by: r.by, skipped: r.skipped };
-    if (map) { map.setStyle(r.style); map.once("style.load", () => { drawRoute(); paintCredit(); }); return T.last; }
+    if (map) { map.setStyle(r.style); map.once("style.load", () => { drawRoute(); drawLegs(); paintCredit(); }); return T.last; }
     map = new lib.Map({
       container, style: r.style, center: [10, 25], zoom: 1.2,
       attributionControl: false, dragRotate: false, pitchWithRotate: false,
@@ -217,13 +218,14 @@
       if (T.onTap) T.onTap({ lat: e.lngLat.lat, lng: e.lngLat.lng });
     });
     map.on("moveend", () => google && paintCredit());
-    map.on("style.load", () => { if (map.getLayer && !map.getLayer("tb-route")) drawRoute(); });
+    map.on("style.load", () => { if (map.getLayer && !map.getLayer("tb-route")) drawRoute(); if (map.getLayer && !map.getLayer("tb-legs-ground")) drawLegs(); });
     await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error(i18n.t("The map took too long to load."))), 20000);
       map.once("load", () => { clearTimeout(t); res(); });
     });
     paintCredit();
     drawRoute();
+    drawLegs();
     return T.last;
   }
 
@@ -240,6 +242,53 @@
     map.addLayer({ id: "tb-route", type: "line", source: "tb-route", layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": color, "line-width": 3, "line-dasharray": [1.5, 1.5] } });
   }
+  // Journeys: a solid line for the ground, a dotted arc for a flight, and a
+  // ring at each end. Kept like the route, for a new style.
+  let legs = [];
+  function arc(a, b) {
+    // A flight bends to one side, so it reads as a flight and two legs
+    // between the same airports don't sit on each other.
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+    const c = [(a[0] + b[0]) / 2 - dy * 0.2, (a[1] + b[1]) / 2 + dx * 0.2];
+    const out = [];
+    for (let i = 0; i <= 32; i++) {
+      const t = i / 32;
+      out.push([0, 1].map((k) => (1 - t) * (1 - t) * a[k] + 2 * (1 - t) * t * c[k] + t * t * b[k]));
+    }
+    return out;
+  }
+  let legsWaiting = false;
+  function drawLegs() {
+    if (!map) return;
+    // While a source is still loading the style doesn't count as loaded:
+    // try again once the map has settled, so a change isn't lost.
+    if (!map.getSource("tb-legs") && !map.isStyleLoaded()) {
+      if (!legsWaiting) { legsWaiting = true; map.once("idle", () => { legsWaiting = false; drawLegs(); }); }
+      return;
+    }
+    const lines = [], ends = [];
+    for (const j of legs) {
+      const a = j.lat != null ? [j.lng, j.lat] : null, b = j.toLat != null ? [j.toLng, j.toLat] : null;
+      for (const p of [a, b]) if (p) ends.push({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: p } });
+      if (a && b) lines.push({ type: "Feature", properties: { air: j.mode === "flight" }, geometry: { type: "LineString", coordinates: j.mode === "flight" ? arc(a, b) : [a, b] } });
+    }
+    const data = { line: { type: "FeatureCollection", features: lines }, end: { type: "FeatureCollection", features: ends } };
+    if (map.getSource("tb-legs")) { map.getSource("tb-legs").setData(data.line); map.getSource("tb-ends").setData(data.end); return; }
+    const css = getComputedStyle(document.documentElement);
+    const color = css.getPropertyValue("--accent").trim() || "#2F5D50";
+    const surface = css.getPropertyValue("--surface").trim() || "#FFFFFF";
+    map.addSource("tb-legs", { type: "geojson", data: data.line });
+    map.addSource("tb-ends", { type: "geojson", data: data.end });
+    const layout = { "line-join": "round", "line-cap": "round" };
+    map.addLayer({ id: "tb-legs-ground", type: "line", source: "tb-legs", filter: ["!", ["get", "air"]], layout, paint: { "line-color": color, "line-width": 4 } });
+    map.addLayer({ id: "tb-legs-air", type: "line", source: "tb-legs", filter: ["get", "air"], layout, paint: { "line-color": color, "line-width": 3, "line-dasharray": [0.1, 2.5] } });
+    map.addLayer({ id: "tb-ends", type: "circle", source: "tb-ends", paint: { "circle-radius": 6, "circle-color": surface, "circle-stroke-color": color, "circle-stroke-width": 3 } });
+  }
+  T.journeys = function (list) {
+    legs = list;
+    drawLegs();
+  };
+
   T.route = function (list) {
     route = list.filter((p) => p.lat != null).map((p) => [p.lng, p.lat]);
     drawRoute();

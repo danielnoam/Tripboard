@@ -286,6 +286,36 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.deepStrictEqual(g.read("categories.json").list.map((c) => c.id), core.M.CATEGORIES.map((c) => c[0]));
   });
 
+  await test("journeys: an overnight flight lands the next day, a train on from where it lands, back to a place", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Japan", "--start", "2026-11-30", "--end", "2026-12-03"], env, out);
+    await cli.main(["add-place", "Japan", "--name", "Hotel", "--day", "2026-12-01", "--time", "15:00", "--lat", "34.9871", "--lng", "135.7590"], env, out);
+    await cli.main(["add-place", "Japan", "--kind", "journey", "--mode", "flight", "--name", "Zurich (ZRH)", "--day", "2026-11-30", "--time", "13:00",
+      "--to-name", "Tokyo Narita (NRT)", "--to-lat", "35.772", "--to-lng", "140.3929", "--arrive-day", "2026-12-01", "--arrive-time", "08:55", "--number", "LX 160"], env, out);
+    const tb = core.open({ token: "tok", repo: "me/data", fetch: g.fetch });
+    const T = require("../cli/tools.js");
+    const q = (n, a) => T.run(tb, T.TOOLS.find((t) => t.tool === n), a, "mcp", env);
+    await q("add_place", { trip: "Japan", kind: "journey", mode: "train", name: "Tokyo Narita (NRT)", day: "2026-12-01", time: "06:00", toName: "Kyoto", toLat: 34.9858, toLng: 135.7588, arriveTime: "06:50" });
+    const legs = await q("find_places", { trip: "Japan", kind: "journey" });
+    assert.deepStrictEqual(legs.map((p) => [p.name, p.category, p.mode]), [["Zurich (ZRH)", "transport", "flight"], ["Tokyo Narita (NRT)", "transport", "train"]]);
+    await q("update_place", { trip: "Japan", place: legs[1].id, time: "09:45", arriveTime: "12:30" });
+    const day = await q("get_day", { trip: "Japan", day: "2026-12-01" });
+    assert.deepStrictEqual(day.arrivals.map((j) => [j.number, j.arriveTime]), [["LX 160", "08:55"]]);
+    assert.deepStrictEqual(day.plan.map((p) => p.name), ["Tokyo Narita (NRT)", "Hotel"]);
+    assert.ok(day.plan[1].fromPrevious.km < 3, "from Kyoto, where the train arrives");
+    assert.deepStrictEqual((await q("find_places", { trip: "Japan", kind: "place" })).map((p) => p.name), ["Hotel"]);
+    assert.ok((await q("get_board", { trip: "Japan", sort: "importance" })).every((x) => x.places.every((p) => !p.kind)), "journeys aren't in Importance");
+    const board = await q("get_board", { trip: "Japan" });
+    assert.strictEqual(board[0].slots[0].places[0].toName, "Tokyo Narita (NRT)");
+    await q("update_place", { trip: "Japan", place: legs[0].id, arriveDay: "2026-11-29" });
+    assert.strictEqual((await q("find_places", { trip: "Japan", text: "LX 160" }))[0].arriveDay, undefined, "an arrival before it leaves goes");
+    await q("update_place", { trip: "Japan", place: legs[1].id, kind: "place" });
+    const back = (await q("find_places", { trip: "Japan", text: "Narita" })).find((p) => p.id === legs[1].id);
+    assert.deepStrictEqual([back.kind, back.toName, back.mode], [undefined, undefined, undefined]);
+  });
+
   await test("queries: places by filter and distance, the board, and a day's plan with times between", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;

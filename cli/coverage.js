@@ -39,6 +39,11 @@ const fields = {
     rating: ["add_place", "update_place", "find_places", "get_board"],
     order: ["add_place", "update_place", "order_day"],
     geoAt: "auto: the day a Google location was fetched (Google's 30-day rule); only the app fetches from Google, and update_place drops it with a new location",
+    kind: ["add_place", "update_place", "find_places"], mode: ["add_place", "update_place"],
+    toName: ["add_place", "update_place"], toLat: ["add_place", "update_place", "find_location"], toLng: ["add_place", "update_place", "find_location"],
+    toAddress: ["add_place", "update_place"], toPlaceId: ["add_place", "update_place"],
+    arriveDay: ["add_place", "update_place", "get_day"], arriveTime: ["add_place", "update_place", "get_day"], number: ["add_place", "update_place"],
+    toGeoAt: "auto: as geoAt, for where a journey arrives",
   },
   expense: {
     id: made, trip: made, createdAt: made, updatedAt: made, by: made,
@@ -130,7 +135,9 @@ const model = {
   EXPENSE_CATEGORY: "auto: sanitizeExpense checks it", CURRENCIES: "device: the currency picker's first choices; any ISO code is taken",
   expenseDays: ui, placeDays: "auto: onDay and tripDays cover it", addDays: ui, daySpan: ui, IMPORTANCE_LABEL: ui, RATINGS: "auto: board's rating sort uses it", SLOTS: "auto: slotOf and board use it",
   isTime: "auto: sanitizePlace checks it", daysUntil: ui, staleGoogle: "device: refreshing Google locations needs the person's Google key",
-  dayRoute: "auto: get_day gives the same places in order", GOOGLE_DAYS: "device: as staleGoogle", swipeStep: ui,
+  dayRoute: "auto: get_day gives the same places in order",
+  MODES: "auto: add_place's mode enum", MODE: ui, isJourney: "cli", landsOn: "auto: arrivals uses it", endOf: "auto: leg uses it",
+  arrivals: "cli", connection: "cli", nextLeg: ui, staleGoogleTo: "device: as staleGoogle", GOOGLE_DAYS: "device: as staleGoogle", swipeStep: ui,
 };
 
 module.exports = { PUBLISHED, fields, collections, sheets, settings, actions, repo, model };
