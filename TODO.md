@@ -39,8 +39,6 @@ later, not decided):
   only be a place with a note.
 - **City date ranges.** A destination with its own dates ("Osaka 6–13
   Feb"), so a place can belong to a city's days without one exact day.
-- **Booking details on stays.** Check-in and check-out times, meals
-  included, a booking reference, as fields instead of note text.
 
 ## With other people
 
