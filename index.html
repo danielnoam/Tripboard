@@ -69,6 +69,7 @@
         <button class="icon-btn page-back" type="button" data-close aria-label="Back" data-t-attr="aria-label"></button>
         <h2 id="tripSheetTitle" data-t>New trip</h2>
       </div>
+      <div class="trip-col">
       <label class="field"><span data-t>Name</span>
         <input name="name" type="text" autocomplete="off" maxlength="120" placeholder="Japan in autumn" required data-t-attr="placeholder">
       </label>
@@ -84,6 +85,8 @@
         </div>
         <span class="hint" id="tripDestHint" data-t>Places go with the nearest destination by themselves. One without dates suits a day trip.</span>
       </div>
+      </div>
+      <div class="trip-col">
       <div class="field">
         <span data-t>Cover</span>
         <div class="cover-pick">
@@ -119,6 +122,7 @@
       <div class="field" id="tripFileRow" hidden>
         <span data-t>Backup</span>
         <div><button class="btn" id="tripExport" type="button" data-t>Save this trip as a file</button></div>
+      </div>
       </div>
       <div class="sheet-actions">
         <button class="btn danger" id="tripDelete" type="button" hidden data-t>Delete trip</button>

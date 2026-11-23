@@ -171,6 +171,25 @@ body.on-map .update { bottom: auto; top: 108px; }
   padding: 2px 10px; border-radius: 999px; font-size: var(--fs-small); font-weight: 600;
   background: var(--surface); color: var(--text);
 }
+.new-card-item, #newTrip .btn-label { display: none; }
+/* Home on a computer: wider, trips in as many columns as fit, a labelled New trip button and a last card that starts one. */
+@media (min-width: 1100px) {
+  body.on-home .bar, body.on-home main { max-width: 1240px; padding-inline: 40px; }
+  body.on-home .bar { padding-block-start: 20px; }
+  body.on-home .bar-title { font-size: 30px; }
+  body.on-home .trips { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+  body.on-home .trip-cover { height: 150px; }
+  body.on-home .trips .trip-card { height: 100%; }
+  body.on-home #newTrip { gap: 6px; min-height: 40px; padding: 0 16px 0 12px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600; }
+  body.on-home #newTrip:not([hidden]) { display: inline-flex; align-items: center; }
+  body.on-home #newTrip .btn-label { display: inline; }
+}
+@media (min-width: 1100px) and (pointer: fine) {
+  body.on-home .new-card-item { display: block; }
+  .new-card { display: grid; place-items: center; align-content: center; gap: 8px; width: 100%; height: 100%; min-height: 230px; border: 2px dashed var(--line); border-radius: var(--radius-lg); background: none; color: var(--text-dim); font: inherit; font-weight: 600; cursor: pointer; }
+  .new-card:hover { border-color: var(--accent); color: var(--accent); }
+  .new-card .icon { width: 30px; height: 30px; }
+}
 .empty { padding: var(--space-5) 0; text-align: center; }
 .empty p { margin: 0 0 var(--space-1); }
 .note { margin-top: var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius); background: var(--surface-2); }
@@ -815,6 +834,9 @@ dialog[tabindex="-1"]:focus { outline: none; }
   background: var(--bg);
 }
 .page-bar .page-back { margin-inline-start: calc(-1 * var(--space-2)); }
+.page-back .icon-x { display: none; }
+/* The trip form's two halves: one column on a phone, side by side on a computer. */
+.trip-col { display: contents; }
 .sheet.page .page-bar h2 { flex: 1; font-size: var(--fs-big); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet.page .field input, .sheet.page .field select, .sheet.page .field textarea { background-color: var(--surface); }
 .sheet.page .sheet-actions {
@@ -822,6 +844,22 @@ dialog[tabindex="-1"]:focus { outline: none; }
   padding: var(--space-2) 0 calc(env(safe-area-inset-bottom) + var(--space-2));
   margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--space-3)));
   background: var(--bg);
+}
+
+/* On a computer a new or edited trip is a wide dialog over the page, its
+   details on the left and its cover, places to start with and file on the right. */
+@media (min-width: 1100px) {
+  #tripSheet.page { width: 960px; max-width: calc(100vw - 64px); height: fit-content; max-height: 88dvh; margin: auto; border-radius: 20px; }
+  #tripSheet::backdrop { background: rgba(0, 0, 0, 0.35); }
+  #tripForm { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; align-items: start; align-content: start; max-width: none; padding: 0 28px var(--space-3); }
+  #tripForm > .page-bar { grid-column: 1 / -1; padding-block-start: var(--space-3); }
+  /* A dialog closes with x at its end rather than a back arrow at its start. */
+  #tripForm .page-back { order: 1; margin-inline: 0 calc(-1 * var(--space-2)); }
+  #tripForm .page-back .icon-back { display: none; }
+  #tripForm .page-back .icon-x { display: block; }
+  #tripForm > .sheet-actions { grid-column: 1 / -1; }
+  #tripForm .trip-col { display: grid; gap: var(--space-3); min-width: 0; }
+  #tripForm .art-row { flex-wrap: wrap; overflow: visible; }
 }
 
 /* Adding a place: a sheet from below over the trip, its title and its
@@ -835,6 +873,22 @@ dialog[tabindex="-1"]:focus { outline: none; }
   margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--space-3)));
   background: var(--surface);
 }
+
+/* On a computer, adding or editing a place opens a panel down the map's
+   side, so the plan stays in view. A click outside it closes it. */
+body.desk #placeSheet {
+  position: fixed; inset: 0 0 0 auto; width: 500px; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0;
+  border-radius: 0; border-inline-start: 1px solid var(--surface-2); background: var(--bg); box-shadow: -8px 0 30px rgba(0, 0, 0, 0.12);
+}
+[dir="rtl"] body.desk #placeSheet { inset: 0 auto 0 0; box-shadow: 8px 0 30px rgba(0, 0, 0, 0.12); }
+body.desk #placeSheet::backdrop { background: transparent; }
+body.desk #placeSheet .sheet-body { max-width: none; padding-inline: 24px; }
+body.desk #placeSheet .page-bar, body.desk #placeSheet .sheet-actions { background: var(--bg); }
+body.desk #placeSheet .page-bar h2 { flex: 1; }
+body.desk #placeSheet .page-back { display: inline-grid; order: 1; margin-inline: 0 calc(-1 * var(--space-2)); }
+body.desk #placeSheet .page-back .icon-back { display: none; }
+body.desk #placeSheet .page-back .icon-x { display: block; }
+body.desk #placeSheet .field input, body.desk #placeSheet .field select, body.desk #placeSheet .field textarea { background-color: var(--surface); }
 
 /* Sync in the bar: turning arrows while trips sync, a crossed cloud when
    the last sync didn't finish (tapped, Settings › Data says why). Hidden

@@ -353,7 +353,10 @@
             el("span.dim", { text: [rangeLabel(t), i18n.tn(n, "1 place", "{n} places")].join(" · ") }),
             t.destinations.length ? el("span.dim", { text: t.destinations.join(", ") }) : null),
           when ? el("span.badge", { text: when }) : null));
-      })));
+      }),
+      // On a computer, a last card that starts a new trip (the top button does the same; this one only for the mouse).
+      el("li.new-card-item", {}, el("button.new-card", { type: "button", tabindex: "-1", "aria-hidden": "true", onclick: (e) => openTrip(null, e.currentTarget) },
+        icon("plus"), el("span", { text: i18n.t("New trip") })))));
     }
     if (!store.persistent) main.append(el("p.note", { text: i18n.t("This browser isn't keeping data: trips last until the tab closes.") }));
     main.append(el("p.dim.version", { text: i18n.t("Version {version}", { version: window.Tripboard.version }) }));
@@ -4000,7 +4003,7 @@
     doc = M.sanitizeDoc(doc);
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
-    for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"));
+    for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"), icon("x", "icon-x"));
     $("editTrip").append(icon("pencil"));
     $("shareTrip").append(icon("users"));
     $("viewTrip").append(icon("sliders"));
@@ -4029,7 +4032,7 @@
     $("updateClose").append(icon("x"));
     mapButtons();
     $("offlineBadge").prepend(icon("check"));
-    $("newTrip").append(icon("plus"));
+    $("newTrip").append(icon("plus"), el("span.btn-label", { text: i18n.t("New trip") }));
     $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));
     $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; go("#/settings"); });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
