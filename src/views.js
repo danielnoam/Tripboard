@@ -2691,6 +2691,7 @@
   };
   function paintPanel(trip) {
     const panel = $("mapPanel");
+    panel.classList.remove("nowhere");
     const all = placesOf(trip.id);
     if (view.pick) {
       const p = all.find((x) => x.id === view.pick);
@@ -2718,6 +2719,7 @@
     if (!nowhere.length || !mayEdit(trip)) { panel.replaceChildren(); return; }
     // Folded to one line by default, so the map stays in view.
     const open = view.unplacedOpen;
+    panel.classList.add("nowhere");
     panel.replaceChildren(...[
       el("button.unplaced-head", { type: "button", "aria-expanded": String(open),
         onclick: () => { view.unplacedOpen = !open; remember(); render(); } },
