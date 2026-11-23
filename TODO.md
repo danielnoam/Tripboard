@@ -31,6 +31,17 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
   shipped 2026-11-21). A rain warning on outdoor places, what to pack,
   and typical weather for a trip more than 16 days off.
 
+Gaps found importing Daniel's Japan 2023 sheet (2026-11-23; to look at
+later, not decided):
+
+- **Flights and transport legs.** A journey item with from, to, depart
+  and arrive (flights, layovers, a train with its times). Today they can
+  only be a place with a note.
+- **City date ranges.** A destination with its own dates ("Osaka 6–13
+  Feb"), so a place can belong to a city's days without one exact day.
+- **Booking details on stays.** Check-in and check-out times, meals
+  included, a booking reference, as fields instead of note text.
+
 ## With other people
 
 - **Turn on the sharing server.** Built (server/); waits for Daniel's
