@@ -131,20 +131,32 @@
   <dialog class="sheet" id="viewSheet" aria-labelledby="viewTitle">
     <div class="sheet-body">
       <h2 id="viewTitle" data-t>View</h2>
-      <label class="field"><span data-t>Categories</span>
-        <select id="viewCat">
-          <option value="icon" data-t>Icon only</option>
-          <option value="both" data-t>Icon and name</option>
-          <option value="label" data-t>Name only</option>
-        </select>
-      </label>
-      <label class="field"><span data-t>Importance</span>
-        <select id="viewImp">
-          <option value="color" data-t>Colour only</option>
-          <option value="both" data-t>Colour and name</option>
-          <option value="label" data-t>Name only</option>
-        </select>
-      </label>
+      <div class="view-part" id="viewCards">
+        <h3 class="view-head" data-t>Plan</h3>
+        <label class="field"><span data-t>Categories</span>
+          <select id="viewCat">
+            <option value="icon" data-t>Icon only</option>
+            <option value="both" data-t>Icon and name</option>
+            <option value="label" data-t>Name only</option>
+          </select>
+        </label>
+        <label class="field"><span data-t>Importance</span>
+          <select id="viewImp">
+            <option value="color" data-t>Colour only</option>
+            <option value="both" data-t>Colour and name</option>
+            <option value="label" data-t>Name only</option>
+          </select>
+        </label>
+      </div>
+      <div class="view-part" id="viewMapPart">
+        <h3 class="view-head" data-t>Map</h3>
+        <label class="field"><span data-t>Place names</span>
+          <select id="viewLabels">
+            <option value="hover" data-t>When pointed at or selected</option>
+            <option value="always" data-t>Always</option>
+          </select>
+        </label>
+      </div>
       <div class="sheet-actions">
         <span class="grow"></span>
         <button class="btn quiet" type="button" data-close data-t>Close</button>

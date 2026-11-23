@@ -1,2 +1,5 @@
+### Added
+- The View sheet (sliders button) has a Map part, on the Map tab and, on a computer, beside the Plan's: Place names under the pins when pointed at or selected, or always. Pins keep their category icon on their importance colour.
+
 ### Changed
-- The View options (sliders button) now apply to the map too, and the button shows on the Map tab. Categories "Name only" leaves plain dots without icons; Importance "Name only" makes every pin one colour (must-sees stay bigger); and any "name" choice writes those words under each pin once you zoom in.
+- The View button is on the Map tab now, and no longer on Expenses and Files, where it did nothing.
