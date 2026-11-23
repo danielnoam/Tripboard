@@ -7,7 +7,9 @@
 // files/<trip id>/<file id> (named by id only; its name is in the bundle),
 // me.json, the person id all your devices use, categories.json, your own
 // place categories (the newer list wins), ai.json, whether AI tools may
-// delete (the newer change wins; only the app writes it), and shares.json, the keys
+// delete (the newer change wins; only the app writes it), keys.json, the map
+// and search keys while Settings › Services › Sync keys is on (each newer
+// change wins; nothing but the app reads it), and shares.json, the keys
 // of the shared trips you're on (src/share.js). A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
@@ -115,6 +117,20 @@
       state.aiAt = myAi().at;
     }
 
+    // The map and search keys, once Sync keys has been touched on any
+    // device: the newer switch, then each newer key, wins.
+    if (remote.has("keys.json") && state.keysSha !== remote.get("keys.json")) {
+      const got = await gh.getJson("keys.json");
+      if (got && got.data && T.settings.adoptKeys(got.data) && T.views) T.views.render();
+      state.keysSha = remote.get("keys.json");
+      state.keysSeen = got && got.data ? text(got.data) : "";
+    }
+    const myKeyFile = T.settings.keysFile();
+    if (myKeyFile.at && text(myKeyFile) !== (remote.has("keys.json") ? state.keysSeen : "")) {
+      writes.push({ path: "keys.json", text: text(myKeyFile) });
+      state.keysSeen = text(myKeyFile);
+    }
+
     // Shared trips' keys travel to your other devices in shares.json, so
     // each opens them as you (src/share.js). Your own repo only.
     if (T.share && T.share.enabled()) {
@@ -173,7 +189,9 @@
     const fileIds = new Set((doc.files || []).filter((f) => !f.local).map((f) => f.id));
     const localIds = new Set((doc.files || []).filter((f) => f.local).map((f) => f.id));
     // Links and notes have no bytes; their record is all there is.
-    for (const f of (doc.files || []).filter((x) => !x.local && x.kind !== "link" && x.kind !== "note")) {
+    // Only ids a file could really have, so one like "../keys.json" never
+    // turns into a path outside files/.
+    for (const f of (doc.files || []).filter((x) => !x.local && x.kind !== "link" && x.kind !== "note" && /^[\w-]{1,80}$/.test(x.id) && /^[\w-]{1,80}$/.test(x.trip))) {
       const path = "files/" + f.trip + "/" + f.id;
       if (state.files[f.id] && remote.has(path)) continue;
       const blob = await store.file(f.id);

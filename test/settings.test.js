@@ -55,6 +55,23 @@ test("a key's state: none, not checked, works or refused; a new key starts over"
   assert.deepStrictEqual(S.merge({ providers: { maptiler: { key: "M", check: { ok: false, at: "t" } } } }).providers.maptiler.check, { ok: false, at: "t" });
 });
 
+test("keys.json: off writes no keys; a newer switch and newer keys win, older or odd ones don't", () => {
+  assert.deepStrictEqual(S.keysFile(), { on: false, at: "" });
+  S.setProvider("google", { key: "G1" });
+  const gAt = S.get().providers.google.keyAt;
+  assert.strictEqual(S.adoptKeys({ on: true, at: "2000-01-01T00:00:00.000Z", keys: { google: { key: "OLD", at: "2000-01-01T00:00:00.000Z" } } }), true);
+  assert.strictEqual(S.get().providers.google.key, "G1");
+  assert.strictEqual(S.adoptKeys({ on: true, at: "2000-01-01T00:00:00.000Z", keys: { google: { key: 5, at: "9999" }, osm: { key: "x", at: "9999" } } }), false);
+  assert.strictEqual(S.adoptKeys({ on: true, at: "1999", keys: { google: { key: "NEW", at: "9999" } } }), true);
+  assert.deepStrictEqual([S.get().providers.google.key, S.keyState("google")], ["NEW", "unchecked"]);
+  assert.ok(gAt);
+  const f = S.keysFile();
+  assert.deepStrictEqual(Object.keys(f.keys).sort(), ["google", "maptiler"]);
+  S.setKeySync(false);
+  assert.strictEqual(S.keysFile().keys, undefined);
+  assert.strictEqual(S.adoptKeys({ on: true, at: "1999", keys: { google: { key: "X", at: "99999" } } }), false);
+});
+
 test("AI tools may not delete until turned on; another device's newer choice wins", () => {
   assert.deepStrictEqual(S.merge(null).ai, { deleting: false, at: "" });
   assert.deepStrictEqual(S.merge({ ai: { deleting: "yes", at: "x" } }).ai, { deleting: false, at: "" });

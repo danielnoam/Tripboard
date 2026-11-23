@@ -90,7 +90,7 @@ const settings = {
   data: ["export_backup", "import_backup"],
   categories: ["list_categories", "add_category", "update_category", "delete_category", "reset_categories"],
   appearance: "device: theme, language, °C or °F, clock and date order",
-  services: "device: map and search providers and their keys, never given to a chat",
+  services: "device: map and search providers and their keys (Sync keys puts the keys in keys.json, which no tool reads), never given to a chat",
   map: "device: the map provider", search: "device: the search provider (find_location uses OpenStreetMap)", p: "device: a provider's key and style, and whether its key last worked",
   drive: "device: Google Drive backups sign in on the device; export_backup makes the same file",
   server: "device: which sharing server this device shares through. A chat can't change it, since whoever runs a server reads the trips shared through it; get_trip says which server a shared trip is on",
@@ -122,6 +122,7 @@ const repo = {
   "me.json": "auto: read for your id (owner of new trips, `by`, what you may change)",
   "categories.json": ["list_categories", "add_category", "update_category", "delete_category", "reset_categories"],
   "shares.json": ["get_trip"],
+  "keys.json": "app: Settings › Services › Sync keys; the map and search keys, never read, written or returned by core.js or any tool",
   "ai.json": "app: Settings › AI tools; read by core.js before any tool that deletes, never written by it",
 };
 

@@ -187,6 +187,35 @@ const names = (list) => J(list.map((t) => t.name));
     assert.strictEqual(asked, 0);
   });
 
+  await test("keys: nothing until Sync keys is turned on; then keys reach other devices, and turning it off takes them out", async () => {
+    const g = fakeGitHub();
+    const a = device(g), b = device(g);
+    a.T.settings.setProvider("google", { key: "GKEY" });
+    await a.sync();
+    assert.ok(!g.files().has("keys.json"));
+    a.T.settings.setKeySync(true);
+    await a.sync();
+    assert.ok(g.files().has("keys.json"));
+    await b.sync();
+    assert.strictEqual(b.T.settings.get().keySync.on, true);
+    assert.strictEqual(b.T.settings.get().providers.google.key, "GKEY");
+    b.T.settings.setProvider("maptiler", { key: "MKEY" });
+    b.T.settings.setProvider("google", { key: "" });
+    await b.sync();
+    await a.sync();
+    assert.strictEqual(a.T.settings.get().providers.maptiler.key, "MKEY");
+    assert.strictEqual(a.T.settings.get().providers.google.key, "");
+    a.T.settings.setKeySync(false);
+    await a.sync();
+    await b.sync();
+    assert.strictEqual(b.T.settings.get().keySync.on, false);
+    assert.deepStrictEqual(Object.keys(g.read("keys.json")).sort(), ["at", "on"]);
+    b.T.settings.setProvider("maptiler", { key: "NEW" });
+    await b.sync();
+    await a.sync();
+    assert.strictEqual(a.T.settings.get().providers.maptiler.key, "MKEY");
+  });
+
   await test("a refused token and no connection end as errors Settings can explain", async () => {
     const g = fakeGitHub();
     const a = device(g);
