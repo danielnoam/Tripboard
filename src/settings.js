@@ -7,7 +7,7 @@
 //   view        how place cards show their category ("icon", "both" or
 //               "label") and importance ("color", "both" or "label"), and
 //               when the map names its pins ("hover": pointed at or
-//               selected, or "always")
+//               selected, or "always"); ratings on cards ("show" or "hide")
 //   sync        GitHub sync's token and repo
 //   me          who you are on shared trips: an id (made once, or taken from
 //               the sync repo so all your devices share it), and your name
@@ -44,7 +44,7 @@
     search: { main: "osm", fallback: "" },
     appearance: { theme: "system" },
     display: { clock: "", dates: "" },
-    view: { cat: "both", imp: "both", labels: "hover" },
+    view: { cat: "both", imp: "both", labels: "hover", ratings: "show" },
     // GitHub sync: a fine-grained token for one private repo of yours.
     sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
     me: { id: "", name: "" },
@@ -80,6 +80,7 @@
     if (["icon", "both", "label"].includes(vw.cat)) out.view.cat = vw.cat;
     if (["color", "both", "label"].includes(vw.imp)) out.view.imp = vw.imp;
     if (["hover", "always"].includes(vw.labels)) out.view.labels = vw.labels;
+    if (["show", "hide"].includes(vw.ratings)) out.view.ratings = vw.ratings;
     const th = saved.appearance && saved.appearance.theme;
     if (["system", "light", "dark"].includes(th)) out.appearance.theme = th;
     for (const k of Object.keys(out.sync)) if (saved.sync && typeof saved.sync[k] === "string") out.sync[k] = saved.sync[k];

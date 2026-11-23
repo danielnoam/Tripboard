@@ -467,6 +467,7 @@ body.on-map .bar { width: 100%; max-width: none; }
   font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; pointer-events: none;
 }
 .pin:hover .pin-label, .pin.hot .pin-label, .pin.selected .pin-label, .pin:focus-visible .pin-label, [data-labels="always"] .pin-label { display: block; }
+[data-ratings="hide"] .card-name .rating { display: none; }
 .pin:hover, .pin:focus-visible { z-index: 4; }
 .view-head { margin: var(--space-3) 0 0; font-size: 15px; }
 .view-part[hidden] { display: none; }
@@ -1125,7 +1126,7 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
 :root[data-look="list"] body.desk .card:hover { --halo: var(--bg); }
 /* Centre the digits, not their line boxes, so the rating and time sit level with the tick and icon */
 :root[data-look="list"] body.desk :is(.card-name .rating, .card-time) { text-box: trim-both cap alphabetic; }
-:root[data-look="list"] body.desk .card-name:not(:has(.rating))::before { content: ""; order: -1; width: 14px; flex: none; }
+:root[data-look="list"]:not([data-ratings="hide"]) body.desk .card-name:not(:has(.rating))::before { content: ""; order: -1; width: 14px; flex: none; }
 :root[data-look="list"] body.desk .card-time { display: block; flex: none; color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 :root[data-look="list"] body.desk .tick { width: 24px; height: 24px; margin: 0; }
 :root[data-look="list"] body.desk .tick .icon { width: 9px; height: 9px; padding: 1px; }

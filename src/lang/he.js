@@ -56,6 +56,7 @@ Keel.i18n.strings("he", {
   "Clear": "ניקוי",
   "Importance": "חשיבות",
   "Rating": "דירוג",
+  "Ratings": "דירוגים",
   "Not rated": "ללא דירוג",
   "Your rating": "הדירוג שלך",
   "Check-in": "צ׳ק-אין",
