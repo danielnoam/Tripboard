@@ -101,7 +101,7 @@ function printTrip(v) {
     lines.push("", "People (" + v.people.length + ")" + (t.share ? ": everyone " + (t.share.role === "viewer" ? "can view" : "can edit") + (t.share.hide.length ? ", doesn't see " + t.share.hide.join(", ") : "") : ""));
     for (const p of v.people) lines.push("  " + (p.name || "Someone") + "  " + p.role + (p.hidden.length ? ", doesn't see " + p.hidden.join(", ") : "") + "  (" + p.id + ")");
   }
-  lines.push("", "Files (" + v.files.length + ")");
+  lines.push("", "Attachments (" + v.files.length + ")");
   for (const f of v.files) lines.push("  " + f.name + "  " + (f.kind === "link" ? f.url : f.kind === "note" ? "note, " + f.text.length + " characters" : Math.max(1, Math.round(f.size / 1000)) + " KB") + "  (" + f.id + ")");
   return lines.join("\n");
 }
@@ -121,7 +121,7 @@ const TOOLS = [
     description: "Every trip, in Home's order (under way, upcoming, undated, past): id, name, dates, destinations, status and how many places.",
     print: (l) => l.map((t) => t.name + (t.start ? "  " + t.start : "") + "  " + t.places + " places  (" + t.id + ")").join("\n") || "No trips yet." },
   { tool: "get_trip", cmd: "show", kind: "read", query: "getTrip", args: [tripArg],
-    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people (and, when it is shared, which sharing server it is on) and Files: files (names only), links (with their address) and notes (with their text).",
+    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people (and, when it is shared, which sharing server it is on) and Attachments: files (names only), links (with their address) and notes (with their text).",
     print: printTrip },
   { tool: "find_places", cmd: "places", kind: "read", query: "findPlaces",
     description: "A trip's places that match every filter given. With near, nearest first, with km.",
@@ -265,10 +265,10 @@ const TOOLS = [
     description: "Keep a file with a trip (a ticket, a booking), up to " + M.MAX_FILE_MB + " MB. It syncs to the person's devices like one added in the app.",
     args: [tripArg, ...bytesArgs, ...fileFields, ["type", { type: "string", description: "Its MIME type; guessed from its name when left out." }]] },
   { tool: "add_link", cmd: "add-link", kind: "write", op: "addLink",
-    description: "Keep a link in a trip's Files (an IC card guide, a pass calculator, a booking page). http and https only; a bare address gets https://. Its name is the site's when left out.",
+    description: "Keep a link in a trip's Attachments (an IC card guide, a pass calculator, a booking page). http and https only; a bare address gets https://. Its name is the site's when left out.",
     args: [tripArg, ["url", { type: "string", description: "The web address." }, { req: true, pos: 1 }], ...fileFields] },
   { tool: "add_note", cmd: "add-note", kind: "write", op: "addNote",
-    description: "Keep a note in a trip's Files: a title and plain text, up to " + M.MAX_NOTE + " characters (a phrasebook, directions, door codes).",
+    description: "Keep a note in a trip's Attachments: a title and plain text, up to " + M.MAX_NOTE + " characters (a phrasebook, directions, door codes).",
     args: [tripArg, ["name", { type: "string", description: "The note's title." }], ["text", { type: "string", description: "The note itself; new lines are kept." }, { req: true }],
       ["place", fileFields[1][1]]] },
   { tool: "update_file", cmd: "edit-file", kind: "write", op: "updateFile", args: [tripArg, ["file", { type: "string", description: "The file's, link's or note's id or name." }, { req: true, pos: 1 }], ...fileFields,

@@ -53,8 +53,8 @@ they always match.
 | Change an expense | `edit-expense` | `update_expense` |
 | Delete an expense | `delete-expense` | `delete_expense` |
 | Keep a file with a trip (up to 25 MB) | `add-file` | `add_file` |
-| Keep a link with a trip, in Files | `add-link` | `add_link` |
-| Keep a note (title and text) with a trip, in Files | `add-note` | `add_note` |
+| Keep a link with a trip, in Attachments | `add-link` | `add_link` |
+| Keep a note (title and text) with a trip, in Attachments | `add-note` | `add_note` |
 | Rename a file, link or note, change its note or place, a link's address or a note's text | `edit-file` | `update_file` |
 | Delete a file | `delete-file` | `delete_file` |
 | Who on a shared trip may edit, and who sees expenses and files | `share` | `update_sharing` |

@@ -424,7 +424,7 @@
 
   // A trip's tabs, in the bar's order: Today sits in the middle while the trip is under way.
   const tripTabs = (trip) => [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"], ["today", "sun", i18n.t("Today"), "/today"],
-    ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "file", i18n.t("Files"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
+    ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "paperclip", i18n.t("Attachments"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
   // On a computer's wide screen a trip is laid out for it: its tabs in a
   // side bar at the start instead of the pill at the bottom, and the map
   // beside the Plan, Today, Expenses and Files (folded away with the handle
@@ -526,7 +526,7 @@
         icon(ico), el("span", { text: label }), mode === "board" && n ? el("span.count", { text: String(n) }) : null)));
     const add = side.querySelector(".side-add");
     add.hidden = !mayEdit(trip) || !!view.pick;
-    add.lastChild.textContent = view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add to Files") : i18n.t("Add a place");
+    add.lastChild.textContent = view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add an attachment") : i18n.t("Add a place");
     const dests = side.querySelector(".side-dests");
     dests.hidden = !trip.destinations.length;
     dests.textContent = trip.destinations.join(" · ");
@@ -1093,10 +1093,11 @@
     else openFile(f, trip, from);
   }
 
-  // The + on Files: a file, a link or a note.
-  $("addKindFile").addEventListener("click", async () => { await closeSheet($("addKindSheet")); $("fileAdd").click(); });
-  $("addKindLink").addEventListener("click", async () => { await closeSheet($("addKindSheet")); const t = findTrip(view.trip); if (t) openLink(null, t); });
-  $("addKindNote").addEventListener("click", async () => { await closeSheet($("addKindSheet")); const t = findTrip(view.trip); if (t) openNote(null, t); });
+  // The + on Attachments, and Attach in Edit place: a file, a link or a note.
+  const kindTrip = () => (sheetPlace() ? placeTrip : findTrip(view.trip));
+  $("addKindFile").addEventListener("click", async () => { await closeSheet($("addKindSheet")); attachTo = sheetPlace(); $("fileAdd").click(); });
+  $("addKindLink").addEventListener("click", async () => { await closeSheet($("addKindSheet")); const t = kindTrip(); if (t) openLink(null, t); });
+  $("addKindNote").addEventListener("click", async () => { await closeSheet($("addKindSheet")); const t = kindTrip(); if (t) openNote(null, t); });
 
   // A link's or note's sheet: Kept, and the place it belongs to.
   function keptSeg(prefix, get, set) {
@@ -1261,10 +1262,8 @@
     if (on) $("placeFiles").replaceChildren(...fileButtons(filesOn(editingPlace.id)));
     $("placeAttach").hidden = !mayEdit(placeTrip);
   }
-  $("placeAttach").addEventListener("click", () => {
-    if (!editingPlace) return;
-    attachTo = editingPlace.id;
-    $("fileAdd").click();
+  $("placeAttach").addEventListener("click", (e) => {
+    if (editingPlace) openSheet($("addKindSheet"), e.currentTarget);
   });
 
   // Bytes whose record is gone (deleted, past its Undo) are let go at start.
@@ -1569,7 +1568,7 @@
           ...(journey ? journeyParts(p) : [
             el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p)),
             el("span.card-meta", {}, ...metaParts(p, meta),
-              nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null)]),
+              nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 attachment", "{n} attachments"), "aria-label": i18n.tn(nFiles, "1 attachment", "{n} attachments") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null,
           listLook() && (journey ? p.time : timeLabel(p, g.day)) ? el("span.card-time", { text: journey ? [p.time, p.arriveTime].filter(Boolean).map(hm).join("–") : timeLabel(p, g.day) }) : null));
       // A change to the next leg, when this one lands the same day.
@@ -2236,7 +2235,7 @@
   // ---------- Sharing ----------
   const SHARE = window.Tripboard.share;
   // A trip's share settings: what everyone gets, and anyone set apart.
-  const SECTION_LABEL = () => [["expenses", i18n.t("Expenses")], ["files", i18n.t("Files")]];
+  const SECTION_LABEL = () => [["expenses", i18n.t("Expenses")], ["files", i18n.t("Attachments")]];
   function personName(trip, m) {
     if (m.id === meId()) return i18n.t("You");
     return m.name || i18n.t("Someone");
@@ -3569,7 +3568,7 @@
     else if (trip && view.mode === "share") renderShare(main, trip);
     else if (trip && view.mode === "today") renderToday(main, trip);
     else if (trip) renderBoard(main, trip); else renderHome(main);
-    $("fab").setAttribute("aria-label", view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add to Files") : i18n.t("Add a place"));
+    $("fab").setAttribute("aria-label", view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add an attachment") : i18n.t("Add a place"));
     if (view.mode !== "share") main.classList.remove("share-page");
     main.classList.toggle("today-page", !!trip && view.mode === "today");
     if (view.mode !== "files") { main.ondragover = main.ondragleave = main.ondrop = null; main.classList.remove("file-over"); }

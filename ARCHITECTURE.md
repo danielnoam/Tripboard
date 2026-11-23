@@ -268,7 +268,7 @@ adds a line here.
 - A trip's synced files are kept whole on every synced device (no
   download-on-demand yet), up to 25 MB each. In the repo they're named
   by id (files/<trip>/<id>); their names are in the trip's bundle.
-- Links and notes live in Files as file records with `kind` "link" (and
+- Links and notes live in Attachments as file records with `kind` "link" (and
   `url`) or "note" (and `text`), so sync, sharing (including hiding
   Files from someone), backups and places carry them with no new code.
   They have no bytes. A phone on 0.3.5 or older keeps them untouched but
@@ -294,7 +294,7 @@ adds a line here.
   The tools also say to ask before deleting (and are destructiveHint),
   and git history is the way back.
 - What a chat reads goes to its AI provider: trips, places, notes,
-  expenses, people's names, and the links and notes in Files (their text
+  expenses, people's names, and the links and notes in Attachments (their text
   is in the trip's bundle anyway, like a place's description). Files'
   contents are the exception, off
   unless the person sets TRIPBOARD_MCP_FILES=1 (tickets and passports are
