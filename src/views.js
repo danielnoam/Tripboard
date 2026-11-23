@@ -441,11 +441,11 @@
 
   // What's on screen before a render, so the tab that leaves can be moved.
   let shownHash = null;
-  // How deep a screen is: Home 0, a trip 1, its Sharing 2; Settings one
-  // more than where it was opened from, and each of its pages one more.
+  // How deep a screen is: Home 0, a trip 1, its Sharing 2, Settings 1 and
+  // each of its pages one more.
   function depthOf(hash) {
     const sm = /^#\/settings(?:\/(.+))?$/.exec(hash);
-    if (sm) { let d = view.settingsFrom ? 2 : 1; for (let pg = sm[1]; pg; pg = settingsParent(pg)) d++; return d; }
+    if (sm) { let d = 1; for (let pg = sm[1]; pg; pg = settingsParent(pg)) d++; return d; }
     if (/^#\/trip\/[\w-]+\/share/.test(hash)) return 2;
     return /^#\/(trip|join)\//.test(hash) ? 1 : 0;
   }
@@ -2676,10 +2676,10 @@
   function paint() {
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
-    $("settingsBtn").hidden = settings;
     const jm = /^#\/join\/([\w-]+)\/([\w-]+)(?:\/([\w.:-]+))?/.exec(location.hash);
     const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
+    $("settingsBtn").hidden = settings || !!m;
     if (m && !trip) { location.replace("#/"); return; }
     if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { location.replace("#/trip/" + trip.id); return; }
     if (trip && m[2] === "today" && !underWay(trip)) { location.replace("#/trip/" + trip.id); return; }
@@ -2977,16 +2977,16 @@
     $("shareTrip").append(icon("users"));
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
-    $("settingsBtn").append(icon("sliders"));
+    $("settingsBtn").append(icon("gear"));
     $("updateClose").append(icon("x"));
     mapButtons();
     $("offlineBadge").prepend(icon("check"));
     $("newTrip").append(icon("plus"));
     $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));
-    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; view.settingsFrom = /^#\/trip\//.test(location.hash) ? location.hash : null; location.hash = "#/settings"; });
+    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
       if (view.mode === "share" && view.trip) { location.hash = "#/trip/" + view.trip; return; }
-      location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : /^#\/settings$/.test(location.hash) && view.settingsFrom || "#/"; });
+      location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"; });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     // The + itself stays put; its icon swells and flashes green, like a tab's.
     $("fab").addEventListener("click", (e) => {
