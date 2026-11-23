@@ -4,6 +4,33 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.5.1] - 2026-11-23
+
+### Added
+- Back and Forward (the browser's buttons, a mouse's side buttons, Alt+arrows, a phone's Back) now move through the app: Back closes an open editor or sheet first (an edited place keeps what you typed), then goes back a tab or screen, out of a trip to Home; Forward opens them again.
+- Settings › About has Check for updates. The Android and desktop apps check GitHub for a newer release and offer it right there; the web app fetches the latest version and offers a reload.
+- PC Plan: an Expanded look, the List with each place's details (category, times, attachments) and its note under the name. Pick List or Expanded in View › Plan › Look.
+- On a computer, drag the line between the plan and the map to make either one wider. Arrow keys move it too when it has focus, and a double click puts it back. Each device remembers where you left it.
+- The View sheet (sliders button) has a Map part, on the Map tab and, on a computer, beside the Plan's: Place names under the pins when pointed at or selected, or always. Pins keep their category icon on their importance colour.
+- View › Plan › Ratings: show or hide the star ratings on places.
+
+### Changed
+- PC Plan: the Cards look is gone, and List is the default. The Cards | List switch above the Plan moved into the View sheet.
+- PC List look: each rating number has a small filled grey star at its bottom corner, with a thin gap around it.
+- Expenses and Files rows are more compact on phones too (still at least 44 px to tap), and smaller still on a computer with a mouse, where Files lays its links and notes out in columns.
+- The View button is on the Map tab now, and no longer on Expenses and Files, where it did nothing.
+- The Files tab is now Attachments, since it holds links and notes as well as files. Edit place's Files section is Attachments too, and its Attach button offers a file, a link or a note.
+- Right-clicking a place on the Plan (or the menu key) opens a small menu: Select, Edit, Delete. Select starts picking places; Delete asks first and can be undone. A long press on a phone still starts picking straight away.
+
+### Fixed
+- The app's own back arrow (and "All trips" on a computer) added a step, so the browser's Back after it went straight back into the trip you'd left. It now goes back in history.
+- Unticking the last picked place left the Plan's ticks as selection boxes instead of "been there" ticks.
+- PC List look: even gaps between the tick, the category icon and the name.
+- PC List look: the category icon and name now line up in one column whether or not a place has a rating, and the rating number sits level with the tick.
+- Map: opening or folding the "places have no location yet" list no longer moves the map's buttons; the list sits beside them. On a PC a place's card no longer pushes them up either.
+- PC map: the map credit sits at the bottom corner, under the place's card or the no-location list (bottom right in Hebrew).
+- Google Maps "How to get a key" step 5 no longer sends you to lower each API's quotas, which Google doesn't allow for Places API (New). It now says to set a budget with a spend cap of a small real amount, plus email alerts.
+
 ## [0.5.0] - 2026-11-23
 
 ### Added
