@@ -8,7 +8,7 @@
 // A place: id, trip, name, category, importance, and optionally day (and
 // endDay, when it lasts several days: a stay, a festival), time and endTime
 // (HH:MM, the same on each of its days), note, lat and lng, address, placeId (Google's id,
-// the only thing kept from Google), visited.
+// the only thing kept from Google), visited, rating (your own, 1 to 5 stars).
 // An expense: id, trip, title, amount (a number, in `currency`, an ISO
 // 4217 code), category, and optionally day, place (a place's id), note and
 // paidBy (who paid, for when a trip is shared).
@@ -79,6 +79,8 @@
   // art. A photo, when there is one, shows instead.
   const COVER_ART = ["mountains", "beach", "city", "desert", "forest", "snow", "lake", "countryside"];
   const RANK = { must: 0, want: 1, maybe: 2 };
+  // Your own rating of a place, in whole stars, best first; unrated last.
+  const RATINGS = [5, 4, 3, 2, 1].map((n) => [String(n), "★".repeat(n)]);
   // A day's time slots. A place with a day and no time is "Any time".
   const SLOTS = [["morning", i18n.t("Morning"), "00:00"], ["afternoon", i18n.t("Afternoon"), "12:00"], ["evening", i18n.t("Evening"), "17:00"]];
 
@@ -98,7 +100,7 @@
   const MAX_ORDER = 999;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "geoAt", "visited", "order", "by", "createdAt", "updatedAt"]);
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "rating", "order", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
   // additions survive an older one saving.
   function keepUnknown(src, out, known) {
@@ -237,6 +239,8 @@
     // When a Google location was fetched: Google allows keeping it 30 days.
     if (out.lat != null && isDay(p.geoAt)) out.geoAt = p.geoAt;
     if (p.visited) out.visited = true;
+    const rating = num(p.rating);
+    if (rating != null && rating >= 1 && rating <= 5) out.rating = Math.round(rating);
     if (isPersonId(p.by)) out.by = p.by;
     return keepUnknown(p, out, KNOWN_PLACE);
   }
@@ -411,6 +415,7 @@
   //   time        each day of the trip, its places in time slots, then "No date"
   //   category    one group per category that has places
   //   importance  Must see, Want to, Maybe
+  //   rating      five stars down to one, then "Not rated"
   //   distance    one list, nearest to `from` first, then "No location"
   function board(trip, places, sort, { only, from, cats } = {}) {
     const shown = only && only.length ? places.filter((p) => only.includes(p.importance)) : places.slice();
@@ -425,6 +430,11 @@
     }
     if (sort === "importance") {
       return IMPORTANCE.map(([id, title]) => ({ id, title, places: shown.filter((p) => p.importance === id).sort(byTime) }))
+        .filter((g) => g.places.length);
+    }
+    if (sort === "rating") {
+      return RATINGS.map(([id, title]) => ({ id, title, places: shown.filter((p) => String(p.rating) === id).sort(byImportance) }))
+        .concat([{ id: "none", title: i18n.t("Not rated"), places: shown.filter((p) => !p.rating).sort(byImportance) }])
         .filter((g) => g.places.length);
     }
     if (sort === "distance") {
@@ -540,7 +550,7 @@
 
   const api = {
     sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
-    placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, COVER_ART, SLOTS, newId, isDay, isTime,
+    placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.

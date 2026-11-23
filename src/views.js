@@ -343,7 +343,9 @@
   }
 
   // ---------- A trip's board ----------
-  const SORTS = [["time", i18n.t("Time")], ["category", i18n.t("Category")], ["importance", i18n.t("Importance")], ["distance", i18n.t("Distance")]];
+  const SORTS = [["time", i18n.t("Time")], ["category", i18n.t("Category")], ["importance", i18n.t("Importance")], ["rating", i18n.t("Rating")], ["distance", i18n.t("Distance")]];
+  const RATING_GROUPS = M.RATINGS.concat([["none", i18n.t("Not rated")]]);
+  const starsLabel = (n) => i18n.tn(n, "1 star", "{n} stars");
   function renderBoard(main, trip) {
     $("title").textContent = trip.name;
     const places = placesOf(trip.id);
@@ -375,7 +377,7 @@
     const kept = view.mapCats.length ? places.filter((p) => view.mapCats.includes(p.category)) : places;
     const groups = M.board(trip, kept, view.sort, { only: view.only, from: view.from, cats: cats() });
     // Groups with nothing in them yet, to drop into while dragging.
-    const all = view.sort === "category" ? cats() : view.sort === "importance" ? M.IMPORTANCE : [];
+    const all = view.sort === "category" ? cats() : view.sort === "importance" ? M.IMPORTANCE : view.sort === "rating" ? RATING_GROUPS : [];
     for (const [id, title] of all) {
       if (!groups.some((g) => g.id === id)) groups.push({ id, title, places: [], dropOnly: true });
     }
@@ -693,7 +695,7 @@
             el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
               onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
             el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
-              el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name),
+              el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name, ratingBadge(p)),
               el("span.card-meta", {}, ...metaParts(p, meta)),
               p.note ? el("span.card-note", { text: p.note }) : null)),
           isNext ? el("div.next-row", {},
@@ -1099,7 +1101,8 @@
     const isDay = !!g.day;
     const title = isDay ? (trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, g.day), date: dayLabel(g.day) }) : dayLabel(g.day)) : g.title;
     const head = el("div.group-head", {},
-      el("h2", {}, view.sort === "category" ? icon(catIcon(g.id), "cat") : null, title),
+      view.sort === "rating" && g.id !== "none" ? el("h2.stars-head", { "aria-label": starsLabel(+g.id) }, stars(+g.id))
+        : el("h2", {}, view.sort === "category" ? icon(catIcon(g.id), "cat") : null, title),
       isDay && wx && wx[g.day] ? wxChip(wx[g.day]) : null,
       el("span.count", { text: String(g.places.length) }),
       view.sort === "time" && mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
@@ -1125,19 +1128,20 @@
 
   // ---------- Drag and drop (mouse) ----------
   // Dropping a card on another group changes what that sort groups by: its
-  // day (and time slot), category or importance. Distance has nothing to change.
+  // day (and time slot), category, importance or rating. Distance has nothing to change.
   const canDrag = () => window.matchMedia("(pointer: fine)").matches && view.sort !== "distance" && mayEdit(findTrip(view.trip));
   const SLOT_TIME = { morning: "09:00", afternoon: "14:00", evening: "19:00" };
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
   function movePlace(p, groupId, slot) {
-    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance]);
+    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating]);
     undoable(i18n.t("Moved {name}.", { name: p.name }), () => shift(p, groupId, slot));
-    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance]) === before) $("toast").hidden = true;
+    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating]) === before) $("toast").hidden = true;
   }
   function shift(p, groupId, slot, sort = view.sort) {
     if (sort === "category") p.category = groupId;
     else if (sort === "importance") p.importance = groupId;
+    else if (sort === "rating") { if (groupId === "none") delete p.rating; else p.rating = +groupId; }
     else if (sort === "time") {
       if (groupId !== p.day) delete p.order;
       if (groupId === "nodate") { delete p.day; delete p.endDay; delete p.time; delete p.endTime; }
@@ -1208,6 +1212,10 @@
     document.documentElement.dataset.cat = v.cat;
     document.documentElement.dataset.imp = v.imp;
   }
+  // Gold stars, filled up to n of 5.
+  const stars = (n) => el("span.stars", { "aria-hidden": "true" }, [1, 2, 3, 4, 5].map((i) => el("span" + (i <= n ? ".on" : ""), { text: "★" })));
+  // A card's rating: a star and the number, at the end of its name.
+  const ratingBadge = (p) => (p.rating ? el("span.rating", { title: starsLabel(p.rating), "aria-label": starsLabel(p.rating) }, el("span.star", { text: "★", "aria-hidden": "true" }), String(p.rating)) : null);
   function cards(trip, list, g) {
     return el("ul.cards", {}, list.map((p) => {
       const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
@@ -1222,7 +1230,7 @@
           : el("button.tick", { type: "button", disabled: !mayEdit(trip), "aria-pressed": String(!!p.visited), "aria-label": p.visited ? i18n.t("Been to {name}", { name: p.name }) : i18n.t("Mark as been to {name}", { name: p.name }),
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
-          el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name),
+          el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name, view.sort === "rating" ? null : ratingBadge(p)),
           el("span.card-meta", {}, ...metaParts(p, meta),
             nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
           p.note ? el("span.card-note", { text: p.note }) : null));
@@ -1467,7 +1475,7 @@
   }
 
   // Place sheet
-  let editingPlace = null, placeTrip = null, importance = "want", loc, categoryTouched = false;
+  let editingPlace = null, placeTrip = null, importance = "want", rating = 0, loc, categoryTouched = false;
   // The place's location in the sheet: undefined unchanged, null cleared,
   // or { lat, lng, address } found by name.
   function paintWhere() {
@@ -1531,6 +1539,13 @@
       el("button.imp-" + id, { type: "button", role: "radio", "aria-checked": String(importance === id), text: label,
         onclick: () => { importance = id; paintImportance(); } })));
   }
+  // Your rating: tap a star to give that many, tap the same one again to take it away.
+  function paintRating() {
+    $("ratingSeg").replaceChildren(...[1, 2, 3, 4, 5].map((n) =>
+      el("button.star" + (n <= rating ? ".on" : ""), { type: "button", role: "radio", "aria-checked": String(rating === n), "aria-label": starsLabel(n), text: "★",
+        onclick: () => { rating = rating === n ? 0 : n; paintRating(); } })));
+    $("ratingClear").hidden = !rating;
+  }
   function openPlace(place, trip, preset, from) {
     editingPlace = place;
     placeTrip = trip;
@@ -1546,6 +1561,8 @@
     f.category.value = p.category;
     importance = p.importance;
     paintImportance();
+    rating = p.rating || 0;
+    paintRating();
     // A dated trip offers its days; one without dates takes any date.
     const days = M.tripDays(trip, placesOf(trip.id));
     const dated = !!trip.start;
@@ -1604,6 +1621,7 @@
     const same = (a, b) => JSON.stringify(M.sanitizePlace({ ...a, updatedAt: 0 })) === JSON.stringify(M.sanitizePlace({ ...b, updatedAt: 0 }));
     if (day && until > day) p.endDay = until; else delete p.endDay;
     if (day !== p.day) delete p.order;
+    if (rating) p.rating = rating; else delete p.rating;
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
     if (loc === null) { for (const k of ["lat", "lng", "address", "placeId", "geoAt"]) delete p[k]; }
     else if (loc) {
@@ -2002,6 +2020,7 @@
       const meta = [M.IMPORTANCE_LABEL.get(sel.importance), M.catName(cats(), findTrip(view.trip), sel.category)];
       if (sel.day) meta.push(daysLabel(sel));
       if (sel.time) meta.push(timeLabel(sel));
+      if (sel.rating) meta.push("★ " + sel.rating);
       panel.replaceChildren(el("div.sel", {},
         el("strong", { text: sel.name }), el("span.dim", { text: meta.join(" · ") }),
         sel.address ? el("span.dim.addr", { text: sel.address }) : null),
@@ -3201,6 +3220,8 @@
       box.append(row(i18n.t("No date"), null, () => moveMany("nodate", "", sort)));
     } else if (sort === "category") {
       for (const [id, label] of cats()) box.append(row(label, catIcon(id), () => moveMany(id, "", sort)));
+    } else if (sort === "rating") {
+      for (const [id] of RATING_GROUPS) box.append(row(id === "none" ? i18n.t("Not rated") : starsLabel(+id), null, () => moveMany(id, "", sort)));
     } else {
       for (const [id, label] of M.IMPORTANCE) box.append(row(label, null, () => moveMany(id, "", sort)));
     }
@@ -3228,6 +3249,7 @@
     });
     $("viewCat").addEventListener("change", (e) => { SET.setView({ cat: e.target.value }); render(); });
     $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
+    $("ratingClear").addEventListener("click", () => { rating = 0; paintRating(); });
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
     for (const [id, name] of [["addKindFile", "file"], ["addKindLink", "link"], ["addKindNote", "note"]]) $(id).querySelector(".xrow-ic").append(icon(name));

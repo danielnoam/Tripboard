@@ -59,6 +59,19 @@ test("by category and by importance: only groups with places, most important fir
     [["must", ["a", "e"]], ["want", ["b", "d"]], ["maybe", ["c"]]]);
 });
 
+test("a rating is a whole number of stars, 1 to 5; anything else is no rating", () => {
+  assert.strictEqual(P({ rating: 4 }).rating, 4);
+  assert.strictEqual(P({ rating: "3" }).rating, 3);
+  assert.strictEqual(P({ rating: 4.6 }).rating, 5);
+  for (const r of [0, 6, -1, "", null, "great"]) assert.ok(!("rating" in P({ rating: r })), String(r));
+});
+
+test("by rating: five stars down to one, then Not rated; most important first in each", () => {
+  const trip = { id: "t", name: "T" };
+  const ps = [P({ id: "a", name: "A", rating: 3 }), P({ id: "b", name: "B", rating: 5, importance: "maybe" }), P({ id: "c", name: "C", rating: 5, importance: "must" }), P({ id: "d", name: "D" })];
+  assert.deepStrictEqual(M.board(trip, ps, "rating").map((g) => [g.id, g.places.map((p) => p.id)]), [["5", ["c", "b"]], ["3", ["a"]], ["none", ["d"]]]);
+});
+
 test("importance filters every sort", () => {
   assert.deepStrictEqual(M.board(trip, places, "category", { only: ["must"] }).flatMap((g) => g.places.map((p) => p.id)), ["a", "e"]);
   assert.deepStrictEqual(M.board(trip, places, "time", { only: ["maybe"] })[0].places.map((p) => p.id), ["c"]);

@@ -38,6 +38,7 @@ const placeFields = [
   ["address", { type: "string" }],
   ["placeId", { type: "string", description: "Google's place id, if it came from Google." }],
   ["visited", { type: "boolean", description: "Been there (the Today view's tick)." }],
+  ["rating", { type: "number", description: "Your own rating, 1 to 5 whole stars." + clears }],
   ["order", { type: "number", description: "Its place in its day's plan, from 1. Places with a time go by time first; order sorts those at the same time and those without one. Moving it to another day clears it unless given again. order_day sets a whole day at once." + clears }],
 ];
 const expenseFields = [
@@ -73,7 +74,7 @@ async function googleList(url, env) {
 }
 
 const money = (n, cur) => { try { return new Intl.NumberFormat("en", { style: "currency", currency: cur }).format(n); } catch (e) { return n + " " + cur; } };
-const placeLine = (p) => [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
+const placeLine = (p) => [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.rating ? "★" + p.rating : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
 
 function printTrip(v) {
   const t = v.trip;
@@ -116,14 +117,16 @@ const TOOLS = [
       ["day", { type: "string", description: "YYYY-MM-DD (places on that day, multi-day ones too), or \"none\" for undated." }],
       ["category", { type: "string", description: "A category's id or name." }],
       ["importance", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) } }],
-      ["visited", { type: "boolean" }], ["located", { type: "boolean", description: "true: only places with a location; false: only those without." }],
+      ["visited", { type: "boolean" }],
+      ["rating", { type: "array", items: { type: "number", enum: [0, 1, 2, 3, 4, 5] }, description: "Only places with one of these ratings; 0 in the list means not rated." }],
+      ["located", { type: "boolean", description: "true: only places with a location; false: only those without." }],
       ["text", { type: "string", description: "In the name, note or address." }],
       ["near", { type: "string", description: "\"lat,lng\", or a place's name or id." }],
       ["limit", { type: "number" }]],
     print: (l) => l.map(placeLine).join("\n") || "No places match." },
   { tool: "get_board", cmd: "board", kind: "read", query: "getBoard",
-    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date), category, importance, or distance (from near).",
-    args: [tripArg, ["sort", { type: "string", enum: ["time", "category", "importance", "distance"] }],
+    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date), category, importance, rating (5 stars down to 1, then Not rated), or distance (from near).",
+    args: [tripArg, ["sort", { type: "string", enum: ["time", "category", "importance", "rating", "distance"] }],
       ["only", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) }, description: "The importance levels shown; all when empty." }],
       ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
     print: (gs) => gs.map((g) => g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n") : g.places.map((p) => "  " + placeLine(p)).join("\n"))).join("\n\n") },
