@@ -39,6 +39,15 @@ const placeFields = [
   ["placeId", { type: "string", description: "Google's place id, if it came from Google." }],
   ["visited", { type: "boolean", description: "Been there (the Today view's tick)." }],
   ["rating", { type: "number", description: "Your own rating, 1 to 5 whole stars." + clears }],
+  ["kind", { type: "string", enum: ["place", "journey"], description: "journey: a flight, train, bus or ferry leg. Then name, lat, lng and address are where it leaves from, day and time when; the to* fields where it arrives. place (or empty) turns it back into a plain place and drops the journey fields." }],
+  ["mode", { type: "string", enum: M.MODES.map((m) => m[0]), description: "A journey's transport." }],
+  ["toName", { type: "string", description: "Where a journey arrives, like \"Tokyo Narita (NRT)\". Use find_location for its toLat and toLng." + clears }],
+  ["toLat", { type: "number" }], ["toLng", { type: "number" }],
+  ["toAddress", { type: "string" }],
+  ["toPlaceId", { type: "string", description: "Google's place id for where it arrives, if it came from Google." }],
+  ["arriveDay", { type: "string", description: "YYYY-MM-DD, when a journey lands on a later day than it leaves (an overnight flight), up to 3 days after." + clears }],
+  ["arriveTime", { type: "string", description: "HH:MM, the local time where it arrives (each end keeps its own clock, so it can be before time)." + clears }],
+  ["number", { type: "string", description: "A flight or train number, like LX 160." + clears }],
   ["order", { type: "number", description: "Its place in its day's plan, from 1. Places with a time go by time first; order sorts those at the same time and those without one. Moving it to another day clears it unless given again. order_day sets a whole day at once." + clears }],
 ];
 const expenseFields = [
@@ -74,7 +83,7 @@ async function googleList(url, env) {
 }
 
 const money = (n, cur) => { try { return new Intl.NumberFormat("en", { style: "currency", currency: cur }).format(n); } catch (e) { return n + " " + cur; } };
-const placeLine = (p) => [p.day || "no date", p.time || "", p.name, "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.rating ? "★" + p.rating : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
+const placeLine = (p) => [p.day || "no date", p.time || "", M.isJourney(p) ? p.mode + " " + (p.number ? p.number + " " : "") + p.name + " → " + (p.toName || "?") + (p.arriveTime ? " " + p.arriveTime + (p.arriveDay ? " (" + p.arriveDay + ")" : "") : "") : p.name, M.isJourney(p) ? "" : "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.rating ? "★" + p.rating : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
 
 function printTrip(v) {
   const t = v.trip;
@@ -118,6 +127,7 @@ const TOOLS = [
       ["category", { type: "string", description: "A category's id or name." }],
       ["importance", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) } }],
       ["visited", { type: "boolean" }],
+      ["kind", { type: "string", enum: ["place", "journey"], description: "Only journeys (flights, trains) or only places." }],
       ["rating", { type: "array", items: { type: "number", enum: [0, 1, 2, 3, 4, 5] }, description: "Only places with one of these ratings; 0 in the list means not rated." }],
       ["located", { type: "boolean", description: "true: only places with a location; false: only those without." }],
       ["text", { type: "string", description: "In the name, note or address." }],
@@ -131,9 +141,10 @@ const TOOLS = [
       ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
     print: (gs) => gs.map((g) => g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n") : g.places.map((p) => "  " + placeLine(p)).join("\n"))).join("\n\n") },
   { tool: "get_day", cmd: "day", kind: "read", query: "getDay",
-    description: "One day as the Today view shows it: the plan in order, a guessed time from the place before (straight line, not a route), the next place not yet visited, and that day's expenses. The day defaults to today. status is the trip's against today (now, upcoming, past, undated); when is the day's (past, today, upcoming).",
+    description: "One day as the Today view shows it: the plan in order, a guessed time from the place before (straight line, not a route; after a journey, from where it arrives), a change between two journeys (change: where and how many minutes), overnight journeys landing that day (arrivals), the next place not yet visited, and that day's expenses. The day defaults to today. status is the trip's against today (now, upcoming, past, undated); when is the day's (past, today, upcoming).",
     args: [tripArg, ["day", day, { pos: 1 }]],
-    print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : ""), ...d.plan.map((p) => (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
+    print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : ""), ...d.arrivals.map((j) => "  lands " + (j.arriveTime || "") + "  " + j.mode + " " + (j.number || "") + " " + j.name + " → " + (j.toName || "?")),
+      ...d.plan.map((p) => (p.change ? "    change at " + p.change.at + ", " + p.change.min + " min\n" : "") + (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
       ...(d.totals.length ? ["Spent: " + d.totals.map((x) => money(x.total, x.currency)).join(" + ")] : [])].filter((x) => x !== "").join("\n") },
   { tool: "get_weather", cmd: "weather", kind: "read",
     description: "The weather forecast for a trip's days, as the app shows it on Today and the Plan, from Open-Meteo: per day the kind (clear, partly, cloudy, fog, drizzle, rain, snow, storm), high and low in °C, chance of rain in %, sunrise and sunset (local time). Only today to 15 days ahead has a forecast; other days are listed under noForecast. Sends each day's rough location (2 decimals, about 1 km) and the dates to Open-Meteo.",
