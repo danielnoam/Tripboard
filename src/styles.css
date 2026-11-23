@@ -273,7 +273,6 @@ body.dragging .slot-box.drop-only .cards { min-height: 44px; border: 1px dashed 
   min-height: 44px; padding-block: 6px; padding-inline: 0 10px; border: 0; background: transparent;
 }
 .card-name { font-weight: 600; font-size: 15px; }
-.card.visited .card-name { text-decoration: line-through; text-decoration-color: var(--text-dim); }
 .card-meta { color: var(--text-dim); font-size: 13px; }
 .card-meta .imp { font-weight: 600; }
 .card.imp-must .imp { color: var(--must); }
