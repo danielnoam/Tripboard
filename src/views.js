@@ -3220,11 +3220,35 @@
         el("p.hint.dim", { text: i18n.t("It stops a chat that only has Tripboard's tools. It isn't a lock: anything with your sync token can still change the repo directly. What's deleted stays in the repo's history on GitHub.") })));
   }
 
+  // About's Check for updates (app.js's checkUpdates). In the apps an
+  // update is offered right here, with keel's Update / Install button.
+  function updateCheck() {
+    const text = el("p.update-status", { "aria-live": "polite" });
+    const btn = el("button.btn", { type: "button", text: i18n.t("Check for updates") });
+    const box = el("div.update-check", {}, text, btn);
+    const say = (msg, label, onclick) => { text.textContent = msg; btn.textContent = label; btn.disabled = false; btn.onclick = onclick; };
+    const check = async () => {
+      text.textContent = i18n.t("Checking…");
+      btn.disabled = true;
+      try {
+        const r = await window.Tripboard.checkUpdates();
+        if (r.offer) r.offer({ bar: box, text, btn });
+        else if (r.reload) say(i18n.t("A new version is ready."), i18n.t("Reload"), () => location.reload());
+        else say(i18n.t("You have the latest version."), i18n.t("Check again"), check);
+      } catch (e) {
+        say(i18n.t("Couldn't check for updates. Are you online?"), i18n.t("Try again"), check);
+      }
+    };
+    btn.onclick = check;
+    return box;
+  }
+
   function renderAbout(main) {
     $("title").textContent = i18n.t("About");
     const link = (text, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer", text });
     main.append(el("section.panel", {}, el("h2", { text: i18n.t("Tripboard {version}", { version: window.Tripboard.version }) }),
-      el("p.dim", { text: i18n.t("Your trips stay on this device, and in your own private GitHub repo if you turn on sync. Keys and tokens you add are kept in this browser and sent only to their own service.") })),
+      el("p.dim", { text: i18n.t("Your trips stay on this device, and in your own private GitHub repo if you turn on sync. Keys and tokens you add are kept in this browser and sent only to their own service.") }),
+      updateCheck()),
     sgroup(i18n.t("Credits"), [el("ul.credits", {},
       el("li", {}, i18n.t("Icons: "), link("Lucide", "https://lucide.dev"), " (ISC)"),
       el("li", {}, i18n.t("Map: "), link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
