@@ -1,5 +1,8 @@
 // Tripboard's settings, on this device only (localStorage). Two parts:
-//   providers  each map or search provider's own setup (a key, a style)
+//   providers  each map or search provider's own setup (a key, a style),
+//              and for a key, how it last went: check { ok, at }, set by
+//              Test or by the map or search being refused, and cleared
+//              when the key changes
 //   map, search  which provider each service uses, and its fallback
 //   appearance  the theme: system, light or dark
 //   display     the clock ("" this device's, "12" or "24") and, in English,
@@ -63,7 +66,11 @@
   const merge = (saved) => {
     const out = JSON.parse(JSON.stringify(DEFAULTS));
     if (!saved || typeof saved !== "object") return out;
-    for (const id of Object.keys(out.providers)) Object.assign(out.providers[id], (saved.providers || {})[id]);
+    for (const id of Object.keys(out.providers)) {
+      Object.assign(out.providers[id], (saved.providers || {})[id]);
+      const ck = out.providers[id].check;
+      if (ck !== undefined && !(ck && typeof ck.ok === "boolean" && typeof ck.at === "string")) delete out.providers[id].check;
+    }
     for (const svc of ["map", "search"]) {
       const s = saved[svc] || {};
       const ok = (p) => PROVIDERS[p] && PROVIDERS[p].services.includes(svc);
@@ -101,7 +108,28 @@
     PROVIDERS,
     get: () => JSON.parse(JSON.stringify(cur)),
     provider: (id) => ({ ...cur.providers[id] }),
-    setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
+    setProvider(id, patch) {
+      const was = cur.providers[id] || {};
+      cur.providers[id] = { ...was, ...patch };
+      if ("key" in patch && patch.key !== was.key) delete cur.providers[id].check;
+      S.save();
+    },
+    // How a key last went: true (it worked) or false (refused). Saved
+    // without telling listeners, since a map or search reports it as it
+    // runs and shouldn't make itself run again.
+    setCheck(id, ok) {
+      const p = cur.providers[id];
+      if (!p || !PROVIDERS[id].key || !String(p.key || "").trim()) return;
+      if (p.check && p.check.ok === !!ok) return;
+      p.check = { ok: !!ok, at: new Date().toISOString() };
+      try { localStorage.setItem(KEY, JSON.stringify(cur)); } catch (e) { /* kept for this visit */ }
+    },
+    // A key's state: "none", "unchecked", "ok" or "refused".
+    keyState(id) {
+      const p = cur.providers[id] || {};
+      if (!PROVIDERS[id] || !PROVIDERS[id].key || !String(p.key || "").trim()) return "none";
+      return !p.check ? "unchecked" : p.check.ok ? "ok" : "refused";
+    },
     setWeather(patch) { cur.weather = { ...cur.weather, ...patch }; S.save(); },
     setDisplay(patch) { cur.display = { ...cur.display, ...patch }; S.save(); },
     setView(patch) { cur.view = { ...cur.view, ...patch }; S.save(); },

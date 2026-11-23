@@ -75,7 +75,7 @@
     let msg = "";
     try { const j = await res.json(); msg = (j.error && (j.error.message || j.error.status)) || j.message || ""; } catch (e) { /* no body */ }
     if (res.status === 429) return new Error(i18n.t("{who}: too many searches, or the quota is used up.", { who }));
-    if (res.status === 400 || res.status === 401 || res.status === 403) return new Error(msg ? i18n.t("{who} refused the key: {msg}", { who, msg }) : i18n.t("{who} refused the key.", { who }));
+    if (res.status === 400 || res.status === 401 || res.status === 403) return Object.assign(new Error(msg ? i18n.t("{who} refused the key: {msg}", { who, msg }) : i18n.t("{who} refused the key.", { who })), { refused: true });
     return new Error(i18n.t("{who} didn't answer ({status}).", { who, status: res.status }));
   }
 
@@ -145,8 +145,9 @@
       try {
         const results = await providers[id].search(query, { near, key: keys[id], fetchFn });
         return { results, by: id, skipped };
-      } catch (e) { last = e; skipped.push({ id, reason: e.message }); }
+      } catch (e) { last = e; skipped.push({ id, reason: e.message, refused: !!e.refused }); }
     }
+    if (last) last.skipped = skipped;
     throw last || new Error(i18n.t("No search is set up."));
   }
 

@@ -49,9 +49,10 @@ async function test(name, fn) {
       : { ok: true, json: async () => [{ name: "A", display_name: "A", lat: "1", lon: "2" }] });
     const got = await P.search("a", { chain: ["google", "osm"], keys: { google: "K" }, fetchFn });
     assert.strictEqual(got.by, "osm");
-    assert.deepStrictEqual(got.skipped, [{ id: "google", reason: "Google refused the key: API not enabled" }]);
+    assert.deepStrictEqual(got.skipped, [{ id: "google", reason: "Google refused the key: API not enabled", refused: true }]);
     const none = await P.search("a", { chain: ["maptiler", "osm"], keys: {}, fetchFn });
     assert.ok(/MapTiler needs a key/.test(none.skipped[0].reason));
+    assert.strictEqual(none.skipped[0].refused, false);
     await assert.rejects(P.search("a", { chain: ["google"], keys: {}, fetchFn }), /needs a key/);
   });
 

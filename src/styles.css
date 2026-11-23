@@ -401,6 +401,16 @@ body.with-tabbar .map-panel.nowhere { inset-inline-end: calc(var(--space-3) + 72
 .field textarea { resize: vertical; }
 .field [aria-invalid="true"] { border-color: var(--danger); }
 .field input[hidden], .field select[hidden] { display: none; }
+/* A key's field: how it last went beside "Key", and an eye to show it. */
+.key-label { display: inline-flex; align-items: center; gap: 6px; }
+.key-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--star); }
+.key-label[data-state="ok"] .key-dot { background: var(--want); }
+.key-label[data-state="refused"] .key-dot { background: var(--danger); }
+.key-label[data-state="refused"] { color: var(--danger); }
+.key-wrap { position: relative; display: block; }
+.field .key-wrap input { padding-inline-end: 48px; }
+.key-eye { position: absolute; inset-inline-end: 0; top: 0; bottom: 0; width: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--text-dim); cursor: pointer; border-radius: 10px; }
+.key-eye .icon { width: 20px; height: 20px; }
 .hint { font-weight: 400; font-size: var(--fs-small); }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
 .sheet .seg button.imp-must[aria-checked="true"] { color: var(--must); }

@@ -35,8 +35,9 @@
     if (!res.ok) {
       let msg = "";
       try { const j = await res.json(); msg = (j.error && j.error.message) || j.message || ""; } catch (e) { /* no body */ }
-      throw new Error(res.status === 401 || res.status === 403 || res.status === 400 ? (msg ? i18n.t("{who} refused the key: {msg}", { who, msg }) : i18n.t("{who} refused the key.", { who }))
-        : res.status === 429 ? i18n.t("{who}'s quota is used up for now.", { who }) : i18n.t("{who}'s map didn't load ({status}).", { who, status: res.status }));
+      const refused = res.status === 401 || res.status === 403 || res.status === 400;
+      throw Object.assign(new Error(refused ? (msg ? i18n.t("{who} refused the key: {msg}", { who, msg }) : i18n.t("{who} refused the key.", { who }))
+        : res.status === 429 ? i18n.t("{who}'s quota is used up for now.", { who }) : i18n.t("{who}'s map didn't load ({status}).", { who, status: res.status })), { refused });
     }
     return res.json();
   }
@@ -109,7 +110,7 @@
     for (const id of chain) {
       if (!SOURCES[id]) continue;
       try { return { style: await SOURCES[id](cfg.providers[id] || {}, dark()), by: id, skipped }; }
-      catch (e) { skipped.push({ id, reason: e.message }); }
+      catch (e) { skipped.push({ id, reason: e.message, refused: !!e.refused }); }
     }
     const err = new Error(skipped.map((x) => x.reason).join(" ") || i18n.t("No map is set up."));
     err.skipped = skipped;
