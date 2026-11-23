@@ -241,6 +241,20 @@ adds a line here.
   refused key), the location is removed and comes back when Google can.
   Offline, nothing is removed. A trip planned with Google search and no key
   loses those pins after 30 days.
+- Sync keys (Settings › Services, off until turned on, Daniel's choice
+  2026-11-23) puts the Google and MapTiler keys in the sync repo's
+  keys.json, in plain text, so his other devices get them. The switch and
+  each key's newer change win across devices; turning it off rewrites
+  keys.json without keys. Trade-off: anything that can read the repo can
+  read the keys: each device's sync token, the cloud connector's GitHub
+  App (its token on the Worker) and GitHub itself, and the repo's history
+  keeps every key ever synced, so a leaked key means making a new one; the
+  Google project's spend cap bounds the cost. Passphrase encryption was
+  turned down as nearly as much typing as pasting the key. core.js never
+  reads keys.json, and reads repo bytes only from covers/ and files/
+  (a file id like "../../keys.json" is refused, and the app's sync skips
+  such ids), so no CLI, MCP or cloud tool returns a key. Backups and
+  shared trips never hold it.
 - A backup file holds the trips, places and cover photos as plain JSON:
   anyone with the file can read them. Keys and Settings aren't in it.
 - MapTiler's terms on keeping search results weren't checked; its address

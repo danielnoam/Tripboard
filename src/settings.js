@@ -20,6 +20,9 @@
 //   categories  your own list of place categories, once you change the
 //               defaults: { list: [{ id, name? }], at }. GitHub sync keeps it
 //               in categories.json, and the newer list wins.
+//   keySync     whether the map and search keys travel in the sync repo's
+//               keys.json: { on, at }. The newer change wins, and while
+//               it's on each key's newer change (providers[id].keyAt) wins.
 //   ai          whether AI tools (the CLI, the MCP and the cloud connector)
 //               may delete: { deleting, at }. Off until you turn it on.
 //               GitHub sync keeps it in ai.json, the newer change wins, and
@@ -54,6 +57,7 @@
     weather: { on: null, unit: "" },
     categories: null,
     ai: { deleting: false, at: "" },
+    keySync: { on: false, at: "" },
   };
   const aiOf = (c) => (c && typeof c.deleting === "boolean" && typeof c.at === "string" ? { deleting: c.deleting, at: c.at } : null);
   const catsOf = (c) => {
@@ -96,6 +100,8 @@
     if (typeof me.name === "string") out.me.name = me.name.trim().slice(0, 60);
     out.categories = catsOf(saved.categories);
     out.ai = aiOf(saved.ai) || out.ai;
+    const ks = saved.keySync || {};
+    if (typeof ks.on === "boolean" && typeof ks.at === "string") out.keySync = { on: ks.on, at: ks.at };
     if (Array.isArray(me.was)) out.me.was = me.was.filter((x) => typeof x === "string" && /^[\w-]{4,40}$/.test(x)).slice(-5);
     return out;
   };
@@ -111,7 +117,7 @@
     setProvider(id, patch) {
       const was = cur.providers[id] || {};
       cur.providers[id] = { ...was, ...patch };
-      if ("key" in patch && patch.key !== was.key) delete cur.providers[id].check;
+      if ("key" in patch && patch.key !== was.key) { delete cur.providers[id].check; cur.providers[id].keyAt = new Date().toISOString(); }
       S.save();
     },
     // How a key last went: true (it worked) or false (refused). Saved
@@ -123,6 +129,37 @@
       if (p.check && p.check.ok === !!ok) return;
       p.check = { ok: !!ok, at: new Date().toISOString() };
       try { localStorage.setItem(KEY, JSON.stringify(cur)); } catch (e) { /* kept for this visit */ }
+    },
+    setKeySync(on) { cur.keySync = { on: !!on, at: new Date().toISOString() }; S.save(); },
+    // What keys.json holds: the switch, and while it's on, each key.
+    keysFile() {
+      const out = { on: cur.keySync.on, at: cur.keySync.at };
+      if (out.on) {
+        out.keys = {};
+        for (const id of Object.keys(PROVIDERS)) if (PROVIDERS[id].key) out.keys[id] = { key: String(cur.providers[id].key || ""), at: cur.providers[id].keyAt || "" };
+      }
+      return out;
+    },
+    // Another device's keys.json: a newer switch wins, then (while on) each
+    // newer key. True if anything changed here.
+    adoptKeys(f) {
+      if (!f || typeof f !== "object") return false;
+      let changed = false;
+      if (typeof f.on === "boolean" && typeof f.at === "string" && f.at > cur.keySync.at) { cur.keySync = { on: f.on, at: f.at }; changed = true; }
+      if (cur.keySync.on && f.keys && typeof f.keys === "object") {
+        for (const id of Object.keys(PROVIDERS)) {
+          const k = f.keys[id];
+          if (!PROVIDERS[id].key || !k || typeof k.key !== "string" || typeof k.at !== "string" || k.key.length > 400) continue;
+          const p = cur.providers[id];
+          if (k.at <= (p.keyAt || "")) continue;
+          if (k.key !== p.key) delete p.check;
+          p.key = k.key.trim();
+          p.keyAt = k.at;
+          changed = true;
+        }
+      }
+      if (changed) S.save();
+      return changed;
     },
     // A key's state: "none", "unchecked", "ok" or "refused".
     keyState(id) {

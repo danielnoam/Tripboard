@@ -2982,6 +2982,7 @@
         out.push({ ico: P_ICON[id], title: opt === "mapType" ? i18n.t("Map type") : i18n.t("Style"), where: P.name, href, words: choices.map((c) => c[1]).join(" ") });
       }
     }
+    out.push({ ico: "key", title: i18n.t("Sync keys"), where: i18n.t("Services"), href: "#/settings/services", words: "sync keys api key github devices share keys.json" });
     return out;
   }
   function searchSettings(q) {
@@ -3065,7 +3066,18 @@
       sgroup(i18n.t("Use"), SERVICES.map(([svc, title]) => srow("#/settings/" + svc, S_ICON[svc], title, serviceStatus(svc, cfg))).concat(
         srow("#/settings/weather", "cloudSun", i18n.t("Weather"), { text: wxOn() ? i18n.t("On, from Open-Meteo") : i18n.t("Off") }),
         srow("#/settings/ai", "key", i18n.t("AI tools"), { text: cfg.ai.deleting ? i18n.t("Can delete") : i18n.t("Can't delete") }))),
-      sgroup(i18n.t("Providers"), Object.entries(SET.PROVIDERS).map(([id, P]) => srow("#/settings/p/" + id, P_ICON[id], P.name, providerStatus(id)))));
+      sgroup(i18n.t("Providers"), Object.entries(SET.PROVIDERS).map(([id, P]) => srow("#/settings/p/" + id, P_ICON[id], P.name, providerStatus(id)))),
+      keySyncPanel());
+  }
+  // Sync keys: the Google and MapTiler keys in the sync repo's keys.json.
+  function keySyncPanel() {
+    const on = SET.get().keySync.on, linked = SYNC && SYNC.connected();
+    return el("section.panel", {},
+      el("fieldset.field", {}, el("legend", { text: i18n.t("Sync keys") }),
+        el("div.seg", { role: "radiogroup" }, [["off", i18n.t("Off")], ["on", i18n.t("On")]].map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String((on ? "on" : "off") === id), text: label,
+          onclick: () => { if ((id === "on") === on) return; SET.setKeySync(id === "on"); if (linked) SYNC.soon(); render(); } })))),
+      el("p.hint.dim", { text: i18n.t("On, your Google and MapTiler keys go to your GitHub sync repo (keys.json), so your other devices get them, and a key you change or remove changes everywhere. Anything that can read that repo can read them, and its history keeps old keys: if one leaks, make a new one. Tripboard's AI tools never read it.") }),
+      on && !linked ? el("p.hint", { "data-tone": "warn", text: i18n.t("GitHub sync is off, so keys stay on this device until it's on.") }) : null);
   }
 
   const THEMES = [["system", i18n.t("Same as this device")], ["light", i18n.t("Light")], ["dark", i18n.t("Dark")]];
@@ -3180,7 +3192,9 @@
     main.append(el("section.panel", {}, kids));
     if (STEPS[id]) main.append(el("section.panel", {}, el("h2", { text: i18n.t("How to get a key") }),
       el("ol.steps", {}, STEPS[id].map(([t, href]) => el("li", {}, t, href ? [" ", el("a", { href, target: "_blank", rel: "noopener noreferrer", text: i18n.t("Open") })] : null)))));
-    if (P.key) main.append(el("p.dim.hint", { text: i18n.t("The key is kept in this browser only, and sent only to {name} when it's used.", { name: P.name }) }));
+    if (P.key) main.append(el("p.dim.hint", { text: SET.get().keySync.on
+      ? i18n.t("Sync keys is on: the key is also in your GitHub sync repo, so your other devices get it. It's sent only to {name} when it's used.", { name: P.name })
+      : i18n.t("The key is kept in this browser only, and sent only to {name} when it's used.", { name: P.name }) }));
   }
 
   // Sharing server: Tripboard's, or one the person runs (server/README.md).

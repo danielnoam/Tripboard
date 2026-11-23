@@ -183,6 +183,14 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     const pdf = await mcpCall(s, sent, "add_file", { trip: "Kyoto", name: "ticket.pdf", content: Buffer.from("%PDF-1.4 x").toString("base64") });
     assert.strictEqual(pdf.value.type, "application/pdf");
     assert.strictEqual((await mcpCall(s, sent, "get_file", { trip: "Kyoto", file: "ticket" })).value.base64, Buffer.from("%PDF-1.4 x").toString("base64"));
+    // a file id can't climb out of files/ to read keys.json
+    g.put("keys.json", JSON.stringify({ on: true, at: "x", keys: { google: { key: "SECRET", at: "x" } } }));
+    const tp = [...g.files().keys()].find((p) => p.startsWith("trips/"));
+    const tb = g.read(tp);
+    tb.files.push({ ...tb.files[0], id: "../../keys.json", name: "sneaky.txt" });
+    g.put(tp, JSON.stringify(tb));
+    const sneaky = await mcpCall(s, sent, "get_file", { trip: "Kyoto", file: "sneaky" });
+    assert.ok(!JSON.stringify(sneaky).includes("SECRET"));
     await cli.main(["delete-file", "Kyoto", "ticket.pdf"], env, out);
     assert.ok(!g.files().has("files/" + f.trip + "/" + pdf.value.id));
     assert.ok(bundle(g).deleted[pdf.value.id]);

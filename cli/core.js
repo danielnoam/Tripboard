@@ -72,9 +72,12 @@ function open({ token, repo, branch, fetch } = {}) {
   async function read() { return (await load()).doc; }
   // Everything a read-only command may want: the doc, your id, your
   // categories, the repo's paths, and a way to fetch a file's bytes.
+  // Only a cover or a trip's file: an id like "../keys.json" in a trip
+  // can't reach the rest of the repo (keys.json holds the map keys).
+  const rawOk = (path) => /^(covers\/[\w-]+\.jpg|files\/[\w-]+\/[^/]+)$/.test(path) && !path.split("/").some((x) => x === "." || x === "..");
   async function snapshot() {
     const st = await load();
-    return { ...st, raw: (path) => gh.getRaw(path, { ref: st.head, as: "bytes" }), servers: () => sharesServers(st.paths.has("shares.json") ? gh.getJson("shares.json", { ref: st.head }) : null) };
+    return { ...st, raw: (path) => rawOk(path) ? gh.getRaw(path, { ref: st.head, as: "bytes" }) : Promise.reject(new Error("Not a trip's file: " + path)), servers: () => sharesServers(st.paths.has("shares.json") ? gh.getJson("shares.json", { ref: st.head }) : null) };
   }
 
   // fn(doc, ctx) changes the doc in place and gives a result. ctx: me,
