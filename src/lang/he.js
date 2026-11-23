@@ -709,4 +709,5 @@ Keel.i18n.strings("he", {
   "Look": "מראה",
   "Cards": "כרטיסים",
   "List": "רשימה",
+  "Expanded": "מורחבת",
 });
