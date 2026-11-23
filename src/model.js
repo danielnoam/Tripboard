@@ -4,11 +4,16 @@
 // (from-lifelog/src/travel.js).
 //
 // A trip: id, name, optional start and end (YYYY-MM-DD), destinations (a
-// list of names), cover (true when an image is stored for it).
+// list of names), cover (true when an image is stored for it), and
+// destInfo: { name: { start, end, lat, lng } } for destinations that have
+// dates or a location. It sits beside destinations, which stays a plain
+// list of names, so builds from before it read the trip as they always did.
 // A place: id, trip, name, category, importance, and optionally day (and
 // endDay, when it lasts several days: a stay, a festival), time and endTime
 // (HH:MM, the same on each of its days; a stay's are check-in and check-out), note, lat and lng, address, placeId (Google's id,
-// the only thing kept from Google), visited, rating (your own, 1 to 5 stars).
+// the only thing kept from Google), visited, rating (your own, 1 to 5 stars),
+// and dest: the trip destination it was put in by hand (without one it goes
+// with the nearest; destOf()).
 // A journey (a flight, a train) is a place with kind "journey": its name,
 // lat, lng and address are where it leaves from, day and time when; mode
 // (flight, train, bus, ferry, other), toName, toLat, toLng and toAddress
@@ -104,9 +109,9 @@
   const MAX_FILE_MB = 25;
   const MAX_NOTE = 50000;
   const MAX_ORDER = 999;
-  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
+  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "destInfo", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "geoAt", "visited", "rating", "order", "by", "createdAt", "updatedAt",
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "dest", "rating", "order", "by", "createdAt", "updatedAt",
     "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]);
   // A journey's kinds of transport, as [id, name].
   const MODES = [["flight", i18n.t("Flight")], ["train", i18n.t("Train")], ["bus", i18n.t("Bus")], ["ferry", i18n.t("Ferry")], ["other", i18n.t("Other")]];
@@ -136,6 +141,21 @@
     const dest = (Array.isArray(t.destinations) ? t.destinations : text(t.destinations).split(","))
       .map(text).filter(Boolean);
     out.destinations = [...new Set(dest)].slice(0, 20);
+    // Dates and a location for some destinations, keyed by name.
+    const info = {};
+    const src = t.destInfo && typeof t.destInfo === "object" ? t.destInfo : {};
+    for (const name of out.destinations) {
+      const v = src[name];
+      if (!v || typeof v !== "object") continue;
+      const r = {};
+      if (isDay(v.start)) { r.start = v.start; r.end = isDay(v.end) ? v.end : v.start; }
+      if (r.end < r.start) [r.start, r.end] = [r.end, r.start];
+      if (r.start && dayNum(r.end) - dayNum(r.start) >= MAX_TRIP_DAYS) r.end = dayOf(dayNum(r.start) + MAX_TRIP_DAYS - 1);
+      const lat = num(v.lat), lng = num(v.lng);
+      if (lat != null && lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { r.lat = lat; r.lng = lng; }
+      if (Object.keys(r).length) info[name] = r;
+    }
+    if (Object.keys(info).length) out.destInfo = info;
     if (t.cover) out.cover = true;
     if (COVER_ART.includes(t.art)) out.art = t.art;
     const members = (Array.isArray(t.members) ? t.members : []).filter((m) => m && isPersonId(m.id))
@@ -249,6 +269,8 @@
     // When a Google location was fetched: Google allows keeping it 30 days.
     if (out.lat != null && isDay(p.geoAt)) out.geoAt = p.geoAt;
     if (p.visited) out.visited = true;
+    const dest = text(p.dest).slice(0, 80);
+    if (dest) out.dest = dest;
     const rating = num(p.rating);
     if (rating != null && rating >= 1 && rating <= 5) out.rating = Math.round(rating);
     if (p.kind === "journey") journeyFields(p, out);
@@ -435,9 +457,58 @@
     return 12742 * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
+  // ---------- Destinations ----------
+  // A place goes with the destination it was put in by hand, or else the
+  // nearest located one within REACH_KM. A day goes with the dated
+  // destination that covers it and starts last, so a travel day is the
+  // arrival's and a stay inside another (Hakone in Tokyo's dates) wins.
+  const REACH_KM = 60;
+  const destsOf = (trip) => (trip.destinations || []).map((name) => ({ name, ...((trip.destInfo || {})[name] || {}) }));
+  const hasDestDates = (trip) => destsOf(trip).some((d) => d.start);
+  function destOf(trip, p) {
+    if (p.dest && (trip.destinations || []).includes(p.dest)) return p.dest;
+    if (p.lat == null) return null;
+    let best = null, km = REACH_KM;
+    for (const d of destsOf(trip)) {
+      if (d.lat == null) continue;
+      const k = distanceKm(d, p);
+      if (k <= km) { best = d.name; km = k; }
+    }
+    return best;
+  }
+  function dayDest(trip, day) {
+    let best = null;
+    for (const d of destsOf(trip)) if (d.start && d.start <= day && day <= d.end && (!best || d.start >= best.start)) best = d;
+    return best ? best.name : null;
+  }
+  // Puts a place in a destination (null: none chosen, the nearest): by
+  // hand only when the nearest isn't already it.
+  function setDest(trip, p, name) {
+    delete p.dest;
+    if (name && destOf(trip, p) !== name) p.dest = name;
+  }
+  // Each destination's dates from the trip's stays near it: the first
+  // stay's day to the last one's end. → { name: { start, end } }
+  function datesFromStays(trip, places) {
+    const out = {};
+    for (const p of places) {
+      if (p.category !== "stay" || !p.day) continue;
+      const name = destOf(trip, p);
+      if (!name) continue;
+      const end = p.endDay || p.day, r = out[name];
+      out[name] = r ? { start: p.day < r.start ? p.day : r.start, end: end > r.end ? end : r.end } : { start: p.day, end };
+    }
+    return out;
+  }
+
   // The board's groups for one sort. Each group: { id, title, places, day?,
   // slots? }. `only` is the importance levels shown (all when empty).
-  //   time        each day of the trip, its places in time slots, then "No date"
+  //   time        each day of the trip, its places in time slots, then "No date".
+  //               Once a destination has dates, each run of its days is
+  //               headed by { kind: "dest", dest, start, end, again } and,
+  //               the first time, { kind: "any", dest, places }: its places
+  //               with no day. No date then has parts: [{ dest, places }],
+  //               a destination's (one without dates) and then none.
   //   category    one group per category that has places
   //   importance  Must see, Want to, Maybe
   //   rating      five stars down to one, then "Not rated"
@@ -531,8 +602,31 @@
         .filter((s) => s.places.length);
       return { id: day, day, title: day, places: list, slots };
     });
-    groups.push({ id: "nodate", title: i18n.t("No date"), places: shown.filter((p) => !p.day).sort(byImportance) });
-    return groups;
+    const undated = shown.filter((p) => !p.day).sort(byImportance);
+    if (!hasDestDates(trip)) {
+      groups.push({ id: "nodate", title: i18n.t("No date"), places: undated });
+      return groups;
+    }
+    const where = new Map(undated.map((p) => [p.id, destOf(trip, p)]));
+    const out = [], seen = new Set();
+    let cur = null;
+    for (const g of groups) {
+      const name = dayDest(trip, g.day);
+      if (name && name !== cur) {
+        const d = destsOf(trip).find((x) => x.name === name);
+        out.push({ id: "dest:" + g.day, kind: "dest", title: name, dest: name, start: d.start, end: d.end, again: seen.has(name), places: [] });
+        if (!seen.has(name)) out.push({ id: "any:" + name, kind: "any", title: i18n.t("Any day in {name}", { name }), dest: name, places: undated.filter((p) => where.get(p.id) === name) });
+        seen.add(name);
+      }
+      cur = name;
+      g.dest = name;
+      out.push(g);
+    }
+    const rest = undated.filter((p) => !seen.has(where.get(p.id)));
+    const parts = (trip.destinations || []).filter((n) => !seen.has(n)).map((dest) => ({ dest, places: rest.filter((p) => where.get(p.id) === dest) }))
+      .concat([{ dest: null, places: rest.filter((p) => !where.get(p.id)) }]).filter((x) => x.places.length);
+    out.push({ id: "nodate", title: i18n.t("No date"), places: rest, parts });
+    return out;
   }
 
   // A backup file: the trips asked for (all when none), their places, and
@@ -634,7 +728,7 @@
     sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, isStay, timeOn, stayPart, distanceKm, board, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
+    slotOf, isStay, timeOn, stayPart, distanceKm, board, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.
     KNOWN: { trip: KNOWN_TRIP, place: KNOWN_PLACE, expense: KNOWN_EXPENSE, file: KNOWN_FILE },
   };

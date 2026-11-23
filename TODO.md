@@ -34,8 +34,6 @@ Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW
 Gaps found importing Daniel's Japan 2023 sheet (2026-11-23; to look at
 later, not decided):
 
-- **City date ranges.** A destination with its own dates ("Osaka 6–13
-  Feb"), so a place can belong to a city's days without one exact day.
 
 ## With other people
 

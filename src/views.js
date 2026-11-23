@@ -93,12 +93,18 @@
     }
     return p.time ? hm(p.time) + (p.endTime ? "–" + hm(p.endTime) : "") : "";
   }
+  // A destination's dates, "Feb 6 – 13", or "No dates".
+  function destRange(d) {
+    if (!d.start) return i18n.t("No dates");
+    const f = fmt({ day: "numeric", month: "short" });
+    return d.end === d.start ? f.format(asDate(d.start)) : f.formatRange ? f.formatRange(asDate(d.start), asDate(d.end)) : f.format(asDate(d.start)) + " – " + f.format(asDate(d.end));
+  }
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, from: null, mode: "board", pick: null, sel: null };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], from: null, mode: "board", pick: null, sel: null };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -275,7 +281,7 @@
         : !located ? i18n.t("They're found on the map by name once the trip is made.")
         : i18n.tn(located, "1 has a location; the rest are found on the map by name once the trip is made.", "{n} have a location; the rest are found on the map by name once the trip is made.");
     }
-    $("tripDestHint").textContent = list && located < n ? i18n.t("Separate them with commas. With a list, add the city too, so places are found in the right one.") : i18n.t("Separate them with commas.");
+    $("tripDestHint").textContent = list && located < n ? i18n.t("With a list, add its city as a destination too, so places are found in the right one.") : i18n.t("Places go with the nearest destination by themselves. One without dates suits a day trip.");
     $("tripSave").textContent = editingTrip ? i18n.t("Save") : list ? i18n.tn(n, "Create trip with 1 place", "Create trip with {n} places") : i18n.t("Create trip");
   }
   // Add from link opens the link's box under the two buttons, and closes it.
@@ -402,6 +408,12 @@
       wrap.append(group(trip, g, wx));
     }
     main.append(wrap);
+    // Today's "Show all" opens the Plan at that destination's list.
+    if (view.focus) {
+      const at = wrap.querySelector('[data-drop="' + CSS.escape(view.focus) + '"]');
+      view.focus = null;
+      if (at) requestAnimationFrame(() => at.scrollIntoView({ block: "start" }));
+    }
   }
 
   // A trip's tabs, in the bar's order: Today sits in the middle while the trip is under way.
@@ -665,9 +677,10 @@
     const next = M.nextOf(plan);
     const done = plan.filter((p) => p.visited).length;
     const total = trip.end ? M.dayIndex(trip, trip.end) : null;
+    const here = M.dayDest(trip, day);
     main.append(el("header.today-head", {},
       el("div", {},
-        el("p.today-kicker", { text: total ? i18n.t("Today · day {n} of {total}", { n: M.dayIndex(trip, day), total }) : i18n.t("Today") }),
+        el("p.today-kicker", { text: (total ? i18n.t("Today · day {n} of {total}", { n: M.dayIndex(trip, day), total }) : i18n.t("Today")) + (here ? " · " + here : "") }),
         el("h2.today-date", { text: fmt({ weekday: "long", day: "numeric", month: "long" }).format(asDate(day)) })),
       plan.length ? el("span.dim.today-done", { text: i18n.t("{n} of {total} done", { n: done, total: plan.length }) }) : null));
     const wx = wxDays(trip);
@@ -739,6 +752,22 @@
       });
       main.append(list);
       if (plan.some((p) => p.lat != null)) main.append(el("p.hint.dim", { text: i18n.t("Times are guesses from the straight line between places.") }));
+    }
+
+    // The destination's places with no day yet, to fit in while there.
+    const rank = (p) => M.IMPORTANCE.findIndex(([x]) => x === p.importance);
+    const open = here ? all.filter((p) => !p.day && !p.visited && M.destOf(trip, p) === here).sort((a, b) => rank(a) - rank(b)) : [];
+    if (open.length) {
+      main.append(el("section.panel.also", {},
+        el("div.also-head", {}, el("h2", { text: i18n.t("Also in {name}", { name: here }) }), el("span.dim", { text: String(open.length) })),
+        el("p.dim", { text: i18n.t("No day yet, most important first.") }),
+        cards(trip, open.slice(0, 3), {}),
+        open.length > 3 ? el("button.btn.quiet", { type: "button", text: i18n.t("Show all {n}", { n: open.length }), onclick: () => {
+          const k = destKey(trip, here);
+          if (!view.destOpen.includes(k)) { view.destOpen = view.destOpen.concat(k).slice(-50); remember(); }
+          view.focus = "any:" + here;
+          location.hash = "#/trip/" + trip.id;
+        } }) : null));
     }
 
     const tomorrow = M.addDays(day, 1);
@@ -1131,7 +1160,41 @@
     await closing;
   });
 
+  // A destination's run of days starts with its name and dates.
+  function destBand(g) {
+    const nights = g.start ? M.daySpan({ day: g.start, endDay: g.end }) : 0;
+    return el("div.dest-band", {}, icon("pin"),
+      el("h2", { text: g.again ? i18n.t("{name}, again", { name: g.dest }) : g.dest }),
+      el("span.dim", { text: destRange(g) + (nights ? " · " + i18n.tn(nights, "1 night", "{n} nights") : "") }));
+  }
+  // Its places with no day yet, folded to a line until opened (kept on this device).
+  const destKey = (trip, name) => trip.id + "|" + name;
+  function anyDay(trip, g) {
+    const open = view.destOpen.includes(destKey(trip, g.dest));
+    const flip = () => {
+      const k = destKey(trip, g.dest);
+      view.destOpen = open ? view.destOpen.filter((x) => x !== k) : view.destOpen.concat(k).slice(-50);
+      remember();
+      render();
+    };
+    const n = g.places.length;
+    const head = el("div.group-head", {},
+      n ? el("h2", {}, el("button.fold", { type: "button", "aria-expanded": String(open), onclick: flip }, el("span.fold-title", { text: g.title }), el("span.count", { text: String(n) }), icon("chevron")))
+        : el("h2", { text: g.title }),
+      mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: g.title }),
+        onclick: (e) => openPlace(null, trip, { dest: g.dest }, e.currentTarget) }, icon("plus")) : null);
+    const box = el("section.group.dest-any" + (open ? ".open" : ""), { "data-drop": g.id }, head);
+    if (!n) box.append(el("p.dim.slot-empty", { text: i18n.t("Places near {name} without a day show here.", { name: g.dest }) }));
+    else if (open) box.append(cards(trip, g.places, g));
+    else {
+      const names = g.places.slice(0, 3).map((p) => p.name);
+      box.append(el("p.dim.peek", { text: n > 3 ? i18n.tn(n - 3, "{names} and 1 more", "{names} and {n} more", { names: names.join(", ") }) : names.join(", ") }));
+    }
+    return box;
+  }
   function group(trip, g, wx) {
+    if (g.kind === "dest") return destBand(g);
+    if (g.kind === "any") return anyDay(trip, g);
     const isDay = !!g.day;
     const title = isDay ? (trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, g.day), date: dayLabel(g.day) }) : dayLabel(g.day)) : g.title;
     const head = el("div.group-head", {},
@@ -1154,6 +1217,8 @@
         const here = lands.filter((j) => (j.arriveTime ? M.slotOf({ time: j.arriveTime }) : "any") === id);
         box.append(el("div.slot-box" + (s || here.length ? "" : ".drop-only"), { "data-slot": id }, el("h3.slot", { text: t }), cards(trip, s ? s.places : [], g, here)));
       }
+    } else if (g.parts) {
+      for (const part of g.parts) box.append(el("h3.slot", { text: part.dest || i18n.t("No destination") }), cards(trip, part.places, g));
     } else if (g.places.length) {
       box.append(cards(trip, g.places, g));
     } else {
@@ -1170,9 +1235,9 @@
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
   function movePlace(p, groupId, slot) {
-    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating]);
+    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating, p.dest]);
     undoable(i18n.t("Moved {name}.", { name: p.name }), () => shift(p, groupId, slot));
-    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating]) === before) $("toast").hidden = true;
+    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating, p.dest]) === before) $("toast").hidden = true;
   }
   function shift(p, groupId, slot, sort = view.sort) {
     if (sort === "category") p.category = groupId;
@@ -1180,8 +1245,11 @@
     else if (sort === "rating") { if (groupId === "none") delete p.rating; else p.rating = +groupId; }
     else if (sort === "time") {
       if (groupId !== p.day) delete p.order;
-      if (groupId === "nodate") { delete p.day; delete p.endDay; delete p.time; delete p.endTime; }
-      else {
+      // "any:<name>": no day, in that destination.
+      if (groupId === "nodate" || groupId.startsWith("any:")) {
+        delete p.day; delete p.endDay; delete p.time; delete p.endTime;
+        if (groupId !== "nodate") M.setDest(findTrip(p.trip), p, groupId.slice(4));
+      } else {
         // A place over several days moves as a whole: it starts on the day it's dropped on.
         if (p.endDay) p.endDay = M.addDays(groupId, M.daySpan(p));
         p.day = groupId;
@@ -1416,8 +1484,10 @@
       f.name.value = trip.name;
       f.start.value = trip.start || "";
       f.end.value = trip.end || "";
-      f.destinations.value = trip.destinations.join(", ");
     }
+    destRows = trip ? M.destsOf(trip).map((d) => ({ ...d, orig: d.name, at: d.lat != null ? d.name : undefined })) : [];
+    if (!destRows.length) destRows.push({ name: "" });
+    paintDests();
     showCoverPreview(trip ? await coverUrl(trip) : null, trip && trip.art);
     $("tripDelete").hidden = !trip;
     $("tripFileRow").hidden = !trip;
@@ -1519,6 +1589,118 @@
     "aria-label": ART_NAMES[name], title: ART_NAMES[name],
     onclick: () => { pendingArt = name; pendingCover = null; $("coverFile").value = ""; showCoverPreview(null, name); } },
   el("img", { src: artUrl(name), alt: "" }))));
+  // Edit trip's destinations: a row each, with its dates under it when
+  // opened. A row remembers the name it came with (orig), so a rename
+  // carries the places put in it by hand.
+  let destRows = [];
+  function paintDests() {
+    const f = $("tripForm");
+    $("tripDests").replaceChildren(...destRows.map((d, i) => {
+      const chip = el("button.dest-when" + (d.start ? "" : ".none"), { type: "button", "aria-expanded": String(!!d.open), text: destRange(d),
+        onclick: () => { d.open = !d.open; paintDests(); if (d.open) $("tripDests").children[i].querySelector("input[type=date]").focus(); } });
+      const from = el("input", { type: "date", value: d.start || "", min: f.start.value || null, max: f.end.value || null });
+      const to = el("input", { type: "date", value: d.end || "", min: d.start || f.start.value || null, max: f.end.value || null });
+      const dated = () => { chip.textContent = destRange(d); chip.classList.toggle("none", !d.start); to.min = d.start || f.start.value || ""; };
+      from.addEventListener("change", () => { d.start = from.value || undefined; if (d.start && (!d.end || d.end < d.start)) to.value = d.end = d.start; if (!d.start) { d.end = undefined; to.value = ""; } dated(); });
+      to.addEventListener("change", () => { d.end = to.value || d.start; if (d.end && !d.start) from.value = d.start = d.end; if (d.end < d.start) [d.start, d.end] = [d.end, d.start]; from.value = d.start || ""; to.value = d.end || ""; dated(); });
+      return el("li.dest-row", {},
+        el("div.dest-line", {},
+          el("input.dest-name", { type: "text", value: d.name, autocomplete: "off", maxlength: "80", placeholder: i18n.t("Tokyo"), "aria-label": i18n.t("Destination"),
+            oninput: (e) => { d.name = e.target.value; } }),
+          chip,
+          el("button.icon-btn.small", { type: "button", "aria-label": d.name ? i18n.t("Remove {name}", { name: d.name }) : i18n.t("Remove"),
+            onclick: () => { destRows.splice(i, 1); if (!destRows.length) destRows.push({ name: "" }); paintDests(); } }, icon("x"))),
+        el("div.dest-dates", { hidden: !d.open },
+          el("label.field", {}, el("span", { text: i18n.t("From") }), from),
+          el("label.field", {}, el("span", { text: i18n.t("To") }), to),
+          d.start ? el("button.btn.quiet", { type: "button", text: i18n.t("No dates"), onclick: () => { d.start = d.end = undefined; d.open = false; paintDests(); } }) : null));
+    }));
+    const stays = editingTrip && placesOf(editingTrip.id).some((p) => p.category === "stay" && p.day);
+    $("tripDestStays").hidden = !stays;
+  }
+  $("tripDestAdd").prepend(icon("plus"));
+  $("tripDestStays").prepend(icon("bed"));
+  $("tripDestAdd").addEventListener("click", () => {
+    destRows.push({ name: "" });
+    paintDests();
+    $("tripDests").lastElementChild.querySelector(".dest-name").focus();
+  });
+  // The rows as the trip will keep them: names, and destInfo for those with dates or a place.
+  // Dated ones in date order, then the rest as they were.
+  const byDates = (list) => list.slice().sort((a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || "").localeCompare(b.start || "") || (a.end || "").localeCompare(b.end || ""));
+  function destsFromRows() {
+    const names = [], info = {};
+    for (const d of byDates(destRows)) {
+      const name = d.name.trim();
+      if (!name || names.includes(name)) continue;
+      names.push(name);
+      const r = {};
+      if (d.start) Object.assign(r, { start: d.start, end: d.end || d.start });
+      if (d.lat != null && name === d.at) Object.assign(r, { lat: d.lat, lng: d.lng });
+      if (Object.keys(r).length) info[name] = r;
+    }
+    return { destinations: names, destInfo: info };
+  }
+  function keepDests(trip) {
+    const { destinations, destInfo } = destsFromRows();
+    const renamed = new Map(destRows.filter((d) => d.orig && d.name.trim() && d.name.trim() !== d.orig).map((d) => [d.orig, d.name.trim()]));
+    for (const p of placesOf(trip.id)) {
+      if (!p.dest) continue;
+      const to = renamed.get(p.dest) || p.dest;
+      if (!destinations.includes(to)) { delete p.dest; p.updatedAt = trip.updatedAt; }
+      else if (to !== p.dest) { p.dest = to; p.updatedAt = trip.updatedAt; }
+    }
+    trip.destinations = destinations;
+    if (Object.keys(destInfo).length) trip.destInfo = destInfo; else delete trip.destInfo;
+  }
+  // Finds each destination on the map once (the search provider in
+  // Settings gets its name, as with Find by name), so places can go with
+  // the nearest. Only once there's a choice to make: two or more, or dates.
+  async function findDest(name) {
+    const prov = SET.get().providers;
+    const got = await PL.search(name, { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key } });
+    const r = got.results[0];
+    return r ? { lat: r.lat, lng: r.lng } : null;
+  }
+  const destsWanted = (list) => list.length >= 2 || list.some((d) => d.start);
+  async function locateDests(tripId) {
+    const trip = findTrip(tripId);
+    if (!trip || !mayEdit(trip) || navigator.onLine === false || !destsWanted(M.destsOf(trip))) return;
+    let first = true;
+    for (const d of M.destsOf(trip)) {
+      if (d.lat != null) continue;
+      if (!first) await new Promise((ok) => setTimeout(ok, 1100));
+      first = false;
+      let at = null;
+      try { at = await findDest(d.name); } catch (e) { /* stays unlocated; the next save tries again */ }
+      const cur = findTrip(tripId);
+      if (!at || !cur || !cur.destinations.includes(d.name)) continue;
+      cur.destInfo = { ...(cur.destInfo || {}), [d.name]: { ...((cur.destInfo || {})[d.name] || {}), ...at } };
+      cur.updatedAt = new Date().toISOString();
+      save();
+    }
+  }
+  $("tripDestStays").addEventListener("click", async () => {
+    const btn = $("tripDestStays");
+    btn.disabled = true;
+    try {
+      const rows = destRows.filter((d) => d.name.trim());
+      for (const [i, d] of rows.entries()) {
+        const name = d.name.trim();
+        if (d.lat != null && name === d.at) continue;
+        toast(i18n.t("Finding {name} on the map…", { name }));
+        if (i) await new Promise((ok) => setTimeout(ok, 1100));
+        const at = await findDest(name).catch(() => null);
+        if (at) Object.assign(d, at, { at: name });
+      }
+      const got = M.datesFromStays({ id: editingTrip.id, ...destsFromRows() }, placesOf(editingTrip.id));
+      let n = 0;
+      for (const d of rows) { const r = got[d.name.trim()]; if (r) { Object.assign(d, r); n++; } }
+      destRows = byDates(destRows);
+      paintDests();
+      toast(n ? i18n.tn(n, "Dates for 1 destination, from your stays.", "Dates for {n} destinations, from your stays.") : i18n.t("No stay is near one of these destinations."));
+    } finally { btn.disabled = false; }
+  });
   $("tripForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -1526,7 +1708,8 @@
     f.name.removeAttribute("aria-invalid");
     const stamp = new Date().toISOString();
     const trip = editingTrip || M.ownTrip({ id: M.newId(), createdAt: stamp }, SET.get().me);
-    Object.assign(trip, { name: f.name.value, start: f.start.value, end: f.end.value, destinations: f.destinations.value, updatedAt: stamp });
+    Object.assign(trip, { name: f.name.value, start: f.start.value, end: f.end.value, updatedAt: stamp });
+    keepDests(trip);
     if (pendingCover !== undefined) {
       if (covers.get(trip.id)) URL.revokeObjectURL(covers.get(trip.id));
       covers.delete(trip.id);
@@ -1543,6 +1726,7 @@
     const list = !editingTrip && pendingList;
     pendingList = null;
     if (list) await importList(doc.trips.find((t) => t.id === trip.id) || trip, list.places);
+    locateDests(trip.id);
   });
   async function deleteTrip(trip) {
     const blob = trip.cover ? await store.cover(trip.id) : null;
@@ -1690,6 +1874,13 @@
     if (!list.some(([id]) => id === p.category)) list.push([p.category, M.catName(list, trip, p.category)]);
     $("categorySelect").replaceChildren(...list.map(([id, label]) => el("option", { value: id, text: label })));
     f.category.value = p.category;
+    // A trip with a choice of destinations: this place's, or the nearest.
+    const dests = trip.destinations;
+    $("destField").hidden = !(dests.length >= 2 || M.hasDestDates(trip));
+    const near = M.destOf(trip, { ...p, dest: null });
+    $("destSelect").replaceChildren(el("option", { value: "", text: near ? i18n.t("{name} (nearest)", { name: near }) : i18n.t("None nearby") }),
+      ...dests.map((d) => el("option", { value: d, text: d })));
+    $("destSelect").value = p.dest && dests.includes(p.dest) ? p.dest : "";
     importance = p.importance;
     paintImportance();
     rating = p.rating || 0;
@@ -1794,6 +1985,7 @@
       else if (loc.placeId && loc.geoAt) Object.assign(p, { placeId: loc.placeId, geoAt: loc.geoAt });
       else if (loc.address) p.address = loc.address;
     }
+    if (!$("destField").hidden) M.setDest(placeTrip, p, $("destSelect").value || null);
     const closing = closeSheet($("placeSheet"));
     if (!editingPlace) undoable(i18n.t("Added {name}.", { name: p.name }), () => doc.places.push(p));
     else if (!same(p, JSON.parse(raw))) save();

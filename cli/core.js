@@ -196,7 +196,8 @@ function tripView(doc, trip, cats) {
   const used = [...new Set(places.map((p) => p.category))];
   return {
     trip,
-    places: places.slice().sort((a, b) => String(a.day || "9999").localeCompare(String(b.day || "9999")) || String(a.time || "").localeCompare(String(b.time || ""))),
+    places: places.slice().sort((a, b) => String(a.day || "9999").localeCompare(String(b.day || "9999")) || String(a.time || "").localeCompare(String(b.time || "")))
+      .map((p) => { const d = M.destOf(trip, p); return d ? { ...p, destination: d } : p; }),
     categories: Object.fromEntries(used.map((id) => [id, M.catName(list, trip, id)])),
     days: M.tripDays(trip, places),
     expenses, totals: M.expenseTotals(expenses),
@@ -226,6 +227,42 @@ const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time",
   "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "arriveDay", "arriveTime", "number"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
+// destInfo: [{ name, start, end, lat, lng }], each merged into the
+// trip's destInfo (an empty start clears the dates); a name not among the
+// destinations joins them. Names dropped from destinations lose their info
+// (sanitizeTrip), and places put in them by hand go back to the nearest.
+function setDestinations(doc, t, a) {
+  for (const d of a.destInfo || []) {
+    const name = String((d && d.name) || "").trim();
+    if (!name) throw new Error("Each of destInfo needs a name.");
+    if (!t.destinations.includes(name)) t.destinations.push(name);
+    const r = { ...((t.destInfo || {})[name] || {}) };
+    if (d.start === "" || d.start === null) { delete r.start; delete r.end; }
+    else if (d.start !== undefined) {
+      if (!M.isDay(d.start) || (d.end && !M.isDay(d.end))) throw new Error("Dates are YYYY-MM-DD.");
+      Object.assign(r, { start: d.start, end: d.end || d.start });
+    }
+    if (d.lat !== undefined || d.lng !== undefined) Object.assign(r, { lat: d.lat, lng: d.lng });
+    t.destInfo = { ...(t.destInfo || {}), [name]: r };
+  }
+  // As Edit trip's "Dates from your stays".
+  if (a.datesFromStays) {
+    const got = M.datesFromStays(t, doc.places.filter((p) => p.trip === t.id));
+    if (!Object.keys(got).length) throw new Error("No stay with a day is near one of " + t.name + "'s destinations (they need lat and lng: destInfo).");
+    for (const [name, r] of Object.entries(got)) t.destInfo = { ...(t.destInfo || {}), [name]: { ...((t.destInfo || {})[name] || {}), ...r } };
+  }
+  const clean = M.sanitizeTrip(t);
+  if (!clean.destInfo) delete t.destInfo;
+  Object.assign(t, clean);
+}
+const dropLostDests = (doc, t) => { for (const p of doc.places) if (p.trip === t.id && p.dest && !t.destinations.includes(p.dest)) { delete p.dest; p.updatedAt = now(); } };
+// A place's destination (dest): a trip destination's name, or
+// empty for the nearest.
+function placeDest(t, p, a) {
+  if (a.dest === undefined) return;
+  if (a.dest && !t.destinations.includes(a.dest)) throw new Error(t.name + " has no destination " + JSON.stringify(a.dest) + ". Its destinations: " + (t.destinations.join(", ") || "none") + ".");
+  M.setDest(t, p, a.dest || null);
+}
 const FILE_FIELDS = ["name", "place", "note"];
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 const clear = (r, a, keys) => { for (const k of keys) if (a[k] === null || a[k] === "") delete r[k]; };
@@ -255,6 +292,7 @@ const today = () => { const d = new Date(); return d.getFullYear() + "-" + Strin
 const ops = {
   createTrip(doc, a, ctx) {
     const t = M.sanitizeTrip({ id: M.newId(), createdAt: now(), ...pick(a, TRIP_FIELDS) });
+    setDestinations(doc, t, a);
     if (ctx && ctx.me) M.ownTrip(t, { id: ctx.me, name: "" });
     doc.trips.push(t);
     return t;
@@ -263,6 +301,8 @@ const ops = {
     const t = findTrip(doc, a.trip);
     Object.assign(t, pick(a, TRIP_FIELDS));
     clear(t, a, ["start", "end"]);
+    setDestinations(doc, t, a);
+    dropLostDests(doc, t);
     return t;
   },
   deleteTrip(doc, a) {
@@ -301,6 +341,7 @@ const ops = {
     if (!a.name) throw new Error("A place needs a name.");
     // A journey goes under Getting around, as in the app.
     const p = M.sanitizePlace({ id: M.newId(), trip: t.id, createdAt: now(), category: a.kind === "journey" ? "transport" : "sight", ...pick(a, PLACE_FIELDS) });
+    placeDest(t, p, a);
     doc.places.push(p);
     return p;
   },
@@ -322,6 +363,7 @@ const ops = {
       for (const k of Object.keys(p)) if (!(k in clean)) delete p[k];
       Object.assign(p, clean);
     }
+    placeDest(t, p, a);
     return p;
   },
   // A day's places in the order given: they get order 1, 2, 3…, and the
@@ -602,7 +644,9 @@ const queries = {
     const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, endTime: p.endTime, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}),
       ...(M.isJourney(p) ? { kind: "journey", mode: p.mode, toName: p.toName, arriveDay: p.arriveDay, arriveTime: p.arriveTime, number: p.number } : {}) });
     const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, from: nearOf(st.doc, t, a.near), cats });
-    return groups.map((g) => ({ id: g.id, title: g.title, ...(g.day ? { dayNumber: M.dayIndex(t, g.day) } : {}),
+    return groups.map((g) => g.kind === "dest" ? { id: g.id, kind: "destination", title: g.title, start: g.start, end: g.end, ...(g.again ? { again: true } : {}) } : ({ id: g.id, title: g.title,
+      ...(g.kind === "any" ? { kind: "anyDay", destination: g.dest } : {}), ...(g.day ? { dayNumber: M.dayIndex(t, g.day), ...(g.dest ? { destination: g.dest } : {}) } : {}),
+      ...(g.parts ? { parts: g.parts.map((x) => ({ destination: x.dest, places: x.places.map(brief) })) } : {}),
       ...(g.slots ? { slots: g.slots.map((s) => ({ id: s.id, title: s.title, places: s.places.map(brief) })) } : { places: g.places.map((p) => ({ ...brief(p), ...(g.km ? { km: Math.round(g.km.get(p.id) * 100) / 100 } : {}) })) }) }));
   },
   // One day as the Today view shows it: the plan in order, the guessed
@@ -616,7 +660,7 @@ const queries = {
     const next = M.nextOf(plan);
     const expenses = (st.doc.expenses || []).filter((x) => x.trip === t.id && x.day === day);
     return {
-      trip: t.name, day, dayNumber: M.dayIndex(t, day), status: M.tripStatus(t, today()),
+      trip: t.name, day, dayNumber: M.dayIndex(t, day), destination: M.dayDest(t, day), status: M.tripStatus(t, today()),
       when: day < today() ? "past" : day > today() ? "upcoming" : "today",
       plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p, day), ...(M.stayPart(p, day) ? { stay: M.stayPart(p, day) } : {}),
         ...(i && M.connection(plan[i - 1], p) ? { change: M.connection(plan[i - 1], p), fromPrevious: null } : { fromPrevious: i ? M.leg(plan[i - 1], p) : null }) })),

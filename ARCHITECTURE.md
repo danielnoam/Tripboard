@@ -12,7 +12,7 @@ icon.svg             the app icon
 assets/covers/       the ready-made covers, flat SVG drawings; a trip names its own as `art`, and a photo shows instead when it has one
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js), and the CSP's extra sharing servers
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips, places (a journey is one with kind "journey": its arrival, the change between legs), expenses and files' records: cleaning, days, time slots, the board's sorts and filter, a day's order (time, then a place's `order`, then importance; a stay's time is check-in on its first day and check-out on its last) and the guessed time between places, what counts as a swipe (Node-tested)
+src/model.js         trips, places (a journey is one with kind "journey": its arrival, the change between legs), expenses and files' records: cleaning, days, time slots, the board's sorts and filter, destinations with dates (which destination a place and a day go with, the plan headed by destination), a day's order (time, then a place's `order`, then importance; a stay's time is check-in on its first day and check-out on its last) and the guessed time between places, what counts as a swipe (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
@@ -111,6 +111,16 @@ adds a line here.
   sees only the files it made. In a browser the sign-in token lasts an
   hour and is kept in localStorage for that hour; connect-src allows
   www.googleapis.com and oauth2.googleapis.com for it.
+- Destinations are found on the map by name (Settings' search provider,
+  OpenStreetMap by default) when Edit trip is saved or Dates from your
+  stays is tapped, and only once a trip has two or more destinations or
+  one with dates: the provider gets each destination's name, nothing
+  else, as Find by name does. The location is kept in the trip's
+  destInfo, so it's asked once. A place then goes with the nearest
+  destination within 60 km, which is a guess: towns close together
+  (Osaka, Kobe, Nara) can swap a place, so Edit place can pick one by
+  hand. The CLI and MCP don't look destinations up by themselves; a chat
+  passes lat and lng (find_location) in destInfo.
 - Importing a Google Maps list by its link goes through the sharing
   server (server/googlelist.js), which reads the undocumented data Google
   Maps' own page loads. It isn't allowed by Google's terms for automated

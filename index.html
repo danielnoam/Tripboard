@@ -73,10 +73,14 @@
         <label class="field"><span data-t>From</span>  <input name="start" type="date"></label>
         <label class="field"><span data-t>To</span>  <input name="end" type="date"></label>
       </div>
-      <label class="field"><span data-t>Destinations</span>
-        <input name="destinations" type="text" autocomplete="off" placeholder="Tokyo, Kyoto, Osaka" data-t-attr="placeholder">
-        <span class="hint" id="tripDestHint" data-t>Separate them with commas.</span>
-      </label>
+      <div class="field"><span id="tripDestLabel" data-t>Destinations</span>
+        <ul class="dest-rows" id="tripDests" aria-labelledby="tripDestLabel"></ul>
+        <div class="dest-acts">
+          <button class="btn" type="button" id="tripDestAdd" data-t>Add a destination</button>
+          <button class="btn quiet" type="button" id="tripDestStays" data-t hidden>Dates from your stays</button>
+        </div>
+        <span class="hint" id="tripDestHint" data-t>Places go with the nearest destination by themselves. One without dates suits a day trip.</span>
+      </div>
       <div class="field">
         <span data-t>Cover</span>
         <div class="cover-pick">
@@ -376,6 +380,10 @@
       </fieldset>
       <label class="field p-only"><span data-t>Category</span>
         <select name="category" id="categorySelect"></select>
+      </label>
+      <label class="field" id="destField" hidden><span data-t>Destination</span>
+        <select name="dest" id="destSelect"></select>
+        <span class="hint" data-t>Without one picked, it goes with the nearest.</span>
       </label>
       <div class="row">
         <label class="field"><span class="p-only" data-t>Day</span><span class="j-only" data-t>Leaves</span>  <select name="daySelect" id="daySelect"></select><input name="dayInput" id="dayInput" type="date" hidden></label>
