@@ -404,6 +404,16 @@ body.on-map .bar { width: 100%; max-width: none; }
 .map-panel .sel { display: grid; }
 .map-panel .addr { font-size: 14px; }
 .unplaced { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; }
+/* No-location places: a one-line header that folds the list away. */
+.unplaced-head {
+  display: flex; align-items: center; gap: var(--space-2); min-height: 32px; margin: -4px; padding: 4px;
+  border: 0; border-radius: var(--radius); background: none; color: var(--text-dim); font: inherit; text-align: start; cursor: pointer;
+}
+.unplaced-head span { flex: 1; min-width: 0; }
+.unplaced-head .icon { flex: none; width: 18px; height: 18px; }
+.unplaced-head .fold { transition: transform 0.2s; }
+.unplaced-head[aria-expanded="true"] .fold { transform: rotate(180deg); }
+.unplaced-head:focus-visible { outline: 2px solid var(--accent); }
 .pin {
   width: 28px; height: 28px; padding: 0; border: 2px solid var(--surface); border-radius: 50%;
   background: var(--want); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); cursor: pointer;
@@ -439,6 +449,15 @@ body.on-map .bar { width: 100%; max-width: none; }
 .toast .btn { color: var(--bg); font-weight: 700; }
 body.on-map .toast { bottom: auto; top: 108px; }
 .map-days .chip::before { display: none; }
+/* The map's filters: importance chips as on the board, then categories. */
+/* The map's filters: a chip each, green while it hides something. */
+.map-filters .chip[aria-pressed="false"] { color: var(--text); }
+.map-filters .pick { gap: 4px; }
+.map-filters .pick .icon { width: 16px; height: 16px; }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--surface); }
+.dot.imp-must { background: var(--must); }
+.dot.imp-want { background: var(--want); }
+.dot.imp-maybe { background: var(--maybe); }
 .map-note {
   justify-self: stretch; margin: 0;
   padding: var(--space-2) 12px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); font-size: 14px;
