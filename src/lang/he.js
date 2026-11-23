@@ -207,7 +207,7 @@ Keel.i18n.strings("he", {
   "Turn on Places API (New), for Find by name.": "מפעילים את Places API (New), בשביל חיפוש לפי שם.",
   "Turn on Map Tiles API, for Google's map.": "מפעילים את Map Tiles API, בשביל המפה של Google.",
   "Create an API key. Restrict it to those two APIs, and to this site: {site}": "יוצרים מפתח API ומגבילים אותו לשני ה-API האלה ולאתר הזה: {site}",
-  "Set a budget alert, and a daily cap under each API's Quotas, so a leaked key can't run up a bill.": "מגדירים התראת תקציב ותקרה יומית תחת Quotas של כל API, כדי שמפתח שדלף לא יצבור חשבון.",
+  "Set a budget under Billing › Budgets & caps for this project, with a spend cap of a small real amount (not 0, or Maps stops at once) and email alerts, so a leaked key can't run up a bill.": "מגדירים תקציב תחת Billing › Budgets & caps לפרויקט הזה, עם תקרת הוצאה בסכום קטן אבל אמיתי (לא 0, אחרת Maps נעצר מיד) והתראות במייל, כדי שמפתח שדלף לא יצבור חשבון.",
   "Paste the key into Key, above, and press Test.": "מדביקים את המפתח בשדה מפתח למעלה ולוחצים על בדיקה.",
   "Sign up for a free MapTiler account.": "נרשמים לחשבון MapTiler חינמי.",
   "Copy a key from API keys, and restrict it to this site: {site}": "מעתיקים מפתח מתוך API keys ומגבילים אותו לאתר הזה: {site}",

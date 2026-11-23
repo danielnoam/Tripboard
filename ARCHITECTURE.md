@@ -224,8 +224,9 @@ adds a line here.
   localStorage on this device, in plain text like everything else there,
   and sent only to its own provider. Google's tile URLs carry the key, so
   it shows in the browser's network log; restrict it to the site and to
-  Places API (New) and Map Tiles API, and cap its daily quota (the How to
-  get a key steps say so). connect-src also allows places.googleapis.com,
+  Places API (New) and Map Tiles API, and give the project a budget with
+  a spend cap (the How to get a key steps say so; Places API (New)
+  quotas can't be lowered). connect-src also allows places.googleapis.com,
   tile.googleapis.com and api.maptiler.com, used only when picked.
 - Google's terms: only the place id is kept for good; a place's location
   from Google is kept with the day it came (geoAt), and its address isn't

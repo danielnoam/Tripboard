@@ -2748,7 +2748,7 @@
       [i18n.t("Turn on Places API (New), for Find by name."), "https://console.cloud.google.com/apis/library/places.googleapis.com"],
       [i18n.t("Turn on Map Tiles API, for Google's map."), "https://console.cloud.google.com/apis/library/tile.googleapis.com"],
       [i18n.t("Create an API key. Restrict it to those two APIs, and to this site: {site}", { site: location.origin + "/*" }), "https://console.cloud.google.com/apis/credentials"],
-      [i18n.t("Set a budget alert, and a daily cap under each API's Quotas, so a leaked key can't run up a bill."), "https://console.cloud.google.com/billing/budgets"],
+      [i18n.t("Set a budget under Billing › Budgets & caps for this project, with a spend cap of a small real amount (not 0, or Maps stops at once) and email alerts, so a leaked key can't run up a bill."), "https://console.cloud.google.com/billing/budgets"],
       [i18n.t("Paste the key into Key, above, and press Test.")],
     ],
     maptiler: [
