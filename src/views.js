@@ -1507,6 +1507,7 @@
     const v = SET.get().view;
     document.documentElement.dataset.cat = v.cat;
     document.documentElement.dataset.imp = v.imp;
+    document.documentElement.dataset.labels = v.labels;
   }
   // Gold stars, filled up to n of 5.
   const stars = (n) => el("span.stars", { "aria-hidden": "true" }, [1, 2, 3, 4, 5].map((i) => el("span" + (i <= n ? ".on" : ""), { text: "★" })));
@@ -3537,7 +3538,7 @@
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
     $("shareTrip").hidden = !trip || view.mode === "share";
-    $("viewTrip").hidden = !trip || view.mode === "share" || view.mode === "map";
+    $("viewTrip").hidden = !trip || ["share", "expenses", "files"].includes(view.mode);
     paintView();
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);
@@ -3837,11 +3838,15 @@
     $("viewTrip").append(icon("sliders"));
     $("viewTrip").addEventListener("click", (e) => {
       const v = SET.get().view;
-      $("viewCat").value = v.cat; $("viewImp").value = v.imp;
+      $("viewCat").value = v.cat; $("viewImp").value = v.imp; $("viewLabels").value = v.labels;
+      // The cards' part where there are cards, the map's where there's a map (both beside each other on a computer).
+      $("viewCards").hidden = view.mode === "map";
+      $("viewMapPart").hidden = !mapOn();
       openSheet($("viewSheet"), e.currentTarget);
     });
     $("viewCat").addEventListener("change", (e) => { SET.setView({ cat: e.target.value }); render(); });
     $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
+    $("viewLabels").addEventListener("change", (e) => { SET.setView({ labels: e.target.value }); paintView(); });
     $("ratingClear").addEventListener("click", () => { rating = 0; paintRating(); });
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));

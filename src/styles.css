@@ -460,6 +460,17 @@ body.on-map .bar { width: 100%; max-width: none; }
 .pin.imp-maybe { background: var(--maybe); }
 .pin.visited { opacity: 0.55; }
 .pin.selected { outline: 3px solid var(--text); outline-offset: 2px; z-index: 2; }
+/* A pin's name under it: when pointed at or selected, or always (View sheet). */
+.pin-label {
+  display: none; position: absolute; top: calc(100% + 3px); left: 50%; translate: -50% 0; padding: 1px 6px; border-radius: 6px;
+  background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; pointer-events: none;
+}
+.pin:hover .pin-label, .pin.hot .pin-label, .pin.selected .pin-label, .pin:focus-visible .pin-label, [data-labels="always"] .pin-label { display: block; }
+.pin:hover, .pin:focus-visible { z-index: 4; }
+.view-head { margin: var(--space-3) 0 0; font-size: 15px; }
+.view-part[hidden] { display: none; }
+.view-part:first-of-type .view-head { margin-top: var(--space-1); }
 
 .map-top {
   position: absolute; z-index: 3; top: var(--space-2); inset-inline: var(--space-3); display: grid; gap: var(--space-1); justify-items: start;

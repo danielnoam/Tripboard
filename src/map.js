@@ -323,6 +323,11 @@
       if (n) el.textContent = String(n);
       else if (T2 && T2.icon) el.replaceChildren(T2.icon(T2.catIcon(p.category)));
       else el.textContent = "";
+      // Its name, shown by styles.css on hover and when selected, or always (View sheet).
+      const label = document.createElement("span");
+      label.className = "pin-label";
+      label.textContent = p.name;
+      el.append(label);
       el.setAttribute("aria-label", p.name);
       m.setLngLat([p.lng, p.lat]);
     }
