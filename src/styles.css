@@ -864,6 +864,22 @@ dialog[tabindex="-1"]:focus { outline: none; }
   background: var(--surface);
 }
 
+/* On a computer, adding or editing a place opens a panel down the map's
+   side, so the plan stays in view. A click outside it closes it. */
+body.desk #placeSheet {
+  position: fixed; inset: 0 0 0 auto; width: 500px; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0;
+  border-radius: 0; border-inline-start: 1px solid var(--surface-2); background: var(--bg); box-shadow: -8px 0 30px rgba(0, 0, 0, 0.12);
+}
+[dir="rtl"] body.desk #placeSheet { inset: 0 auto 0 0; box-shadow: 8px 0 30px rgba(0, 0, 0, 0.12); }
+body.desk #placeSheet::backdrop { background: transparent; }
+body.desk #placeSheet .sheet-body { max-width: none; padding-inline: 24px; }
+body.desk #placeSheet .page-bar, body.desk #placeSheet .sheet-actions { background: var(--bg); }
+body.desk #placeSheet .page-bar h2 { flex: 1; }
+body.desk #placeSheet .page-back { display: inline-grid; order: 1; margin-inline: 0 calc(-1 * var(--space-2)); }
+body.desk #placeSheet .page-back .icon-back { display: none; }
+body.desk #placeSheet .page-back .icon-x { display: block; }
+body.desk #placeSheet .field input, body.desk #placeSheet .field select, body.desk #placeSheet .field textarea { background-color: var(--surface); }
+
 /* Sync in the bar: turning arrows while trips sync, a crossed cloud when
    the last sync didn't finish (tapped, Settings › Data says why). Hidden
    the rest of the time. */
