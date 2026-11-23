@@ -66,6 +66,7 @@ const sheets = {
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
   fileSheet: ["update_file", "delete_file", "get_file"],
   addFilesSheet: ["add_file"],
+  viewSheet: "device: how this device's place cards show category and importance (icons, names or both), never in the sync repo",
   mapStyleSheet: "device: the map's look is this device's map provider and style (Settings › Services › Map), never in the sync repo",
   confirmSheet: ["delete_trip", "delete_place"],
   moveSheet: ["batch_update", "update_place"],
