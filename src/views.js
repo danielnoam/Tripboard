@@ -102,9 +102,9 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], destShut: [], from: null, mode: "board", pick: null, sel: null, look: "list", deskMap: true, split: 0 };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, look: "list", deskMap: true, split: 0 };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -433,13 +433,9 @@
   const deskTrip = () => desk() && !!view.trip && view.mode !== "share";
   const sideMap = () => deskTrip() && view.deskMap && view.mode !== "map";
   const mapOn = () => view.mode === "map" || sideMap();
-  // The Plan's Cards | List switch, on a wide screen with a mouse: List
-  // is a line a place, like a spreadsheet.
-  const FINE = window.matchMedia("(pointer: fine)");
-  // On a PC the Plan is a list: one line a place, or Expanded with its
-  // details and note under it (View sheet). Phones keep the cards.
-  const listLook = () => desk() && FINE.matches;
-  const expandedLook = () => listLook() && view.look === "expanded";
+  // The Plan is a list: one line a place, or Expanded with its details and
+  // note under it (View sheet).
+  const expandedLook = () => view.look === "expanded";
   // On a computer a trip's page scrolls by itself, beside the side bar and the map.
   const scrollTop = () => (document.body.classList.contains("desk") ? $("app").scrollTop : window.scrollY);
   // The line between the page and the map drags to share the width between
@@ -951,7 +947,7 @@
         cards(trip, open.slice(0, 3), {}),
         open.length > 3 ? el("button.btn.quiet", { type: "button", text: i18n.t("Show all {n}", { n: open.length }), onclick: () => {
           const k = destKey(trip, here);
-          if (!view.destOpen.includes(k)) { view.destOpen = view.destOpen.concat(k).slice(-50); remember(); }
+          if (view.destShut.includes(k)) { view.destShut = view.destShut.filter((x) => x !== k); remember(); }
           view.focus = "any:" + here;
           go("#/trip/" + trip.id);
         } }) : null));
@@ -1360,12 +1356,11 @@
   // Its places with no day yet, folded to a line until opened (kept on this device).
   const destKey = (trip, name) => trip.id + "|" + name;
   function anyDay(trip, g) {
-    // In the List look they start open, as a spreadsheet's columns.
-    const k = destKey(trip, g.dest), list = listLook();
-    const open = list ? !view.destShut.includes(k) : view.destOpen.includes(k);
+    // They start open, as a spreadsheet's columns.
+    const k = destKey(trip, g.dest);
+    const open = !view.destShut.includes(k);
     const flip = () => {
-      const key = list ? "destShut" : "destOpen", has = view[key].includes(k);
-      view[key] = has ? view[key].filter((x) => x !== k) : view[key].concat(k).slice(-50);
+      view.destShut = open ? view.destShut.concat(k).slice(-50) : view.destShut.filter((x) => x !== k);
       remember();
       render();
     };
@@ -1576,7 +1571,7 @@
             el("span.card-meta", {}, ...metaParts(p, meta),
               nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 attachment", "{n} attachments"), "aria-label": i18n.tn(nFiles, "1 attachment", "{n} attachments") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null,
-          listLook() && (journey ? p.time : timeLabel(p, g.day)) ? el("span.card-time", { text: journey ? [p.time, p.arriveTime].filter(Boolean).map(hm).join("–") : timeLabel(p, g.day) }) : null));
+          (journey ? p.time : timeLabel(p, g.day)) ? el("span.card-time", { text: journey ? [p.time, p.arriveTime].filter(Boolean).map(hm).join("–") : timeLabel(p, g.day) }) : null));
       // A change to the next leg, when this one lands the same day.
       return journey && !p.arriveDay && view.sort === "time" ? [card, changeRow(p, trip)].filter(Boolean) : [card];
     }));
@@ -3683,7 +3678,7 @@
     $("mapView").hidden = !mapOn();
     document.body.classList.toggle("desk", deskTrip());
     document.body.classList.toggle("side-map", sideMap());
-    document.documentElement.dataset.look = listLook() ? "list" : "cards";
+    document.documentElement.dataset.look = "list";
     document.documentElement.dataset.rows = expandedLook() ? "expanded" : "one";
     paintSide(deskTrip() ? trip : null);
     paintTripBar(view.mode === "share" ? null : trip);
@@ -4012,7 +4007,6 @@
       const v = SET.get().view;
       $("viewCat").value = v.cat; $("viewImp").value = v.imp; $("viewLabels").value = v.labels; $("viewRatings").value = v.ratings;
       $("viewLook").value = view.look === "expanded" ? "expanded" : "list";
-      $("viewLookField").hidden = !listLook();
       // The cards' part where there are cards, the map's where there's a map (both beside each other on a computer).
       $("viewCards").hidden = view.mode === "map";
       $("viewMapPart").hidden = !mapOn();
