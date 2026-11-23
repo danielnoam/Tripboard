@@ -359,11 +359,21 @@ body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 
 .hint { font-weight: 400; font-size: var(--fs-small); }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
 .sheet .seg button.imp-must[aria-checked="true"] { color: var(--must); }
-.cover-pick { display: flex; align-items: center; gap: var(--space-3); }
-.cover-preview { display: grid; place-items: center; width: 112px; height: 72px; flex: none; border-radius: 10px; color: var(--on-photo); }
-.cover-preview .dim { color: var(--on-photo); font-weight: 400; font-size: var(--fs-small); }
-.cover-preview .error { padding: var(--space-1); font-size: 12px; font-weight: 400; text-align: center; }
-.cover-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* The trip's cover: the box itself picks the photo; x takes it off. */
+.cover-pick { position: relative; }
+.cover-preview {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 7; border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--line); background: var(--surface); color: var(--text-dim); cursor: pointer;
+}
+.cover-preview.has-photo { border: 0; background: var(--tint-0); }
+.cover-preview:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cover-show { display: grid; justify-items: center; gap: var(--space-1); font-weight: 600; }
+.cover-show svg { width: 28px; height: 28px; }
+.cover-preview .error { padding: var(--space-2); color: var(--danger); font-size: var(--fs-small); text-align: center; }
+.cover-remove {
+  position: absolute; inset-block-start: var(--space-2); inset-inline-end: var(--space-2);
+  background: var(--scrim); color: var(--on-photo); border-radius: 999px;
+}
 .sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .grow { flex: 1; }
 
@@ -676,6 +686,16 @@ dialog[tabindex="-1"]:focus { outline: none; }
 .cat-keep { display: inline-block; min-width: 72px; }
 
 /* The trip sheet: importing a Google Maps list by its link */
+/* The trip sheet: Import from file and Add from link, side by side */
+.import-pick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.import-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1);
+  min-height: 84px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--surface); color: var(--text); font: inherit; font-weight: 600; text-align: center; cursor: pointer;
+}
+.import-btn svg { width: 24px; height: 24px; color: var(--accent); }
+.import-btn[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.import-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .link-row { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 .link-row input { flex: 1; min-width: 0; }
 

@@ -230,7 +230,7 @@
     const located = list ? list.places.filter((p) => p.lat != null).length : 0;
     $("tripListCard").hidden = !list;
     $("tripImportPick").hidden = $("tripImportHint").hidden = !!list;
-    $("tripImportLinkRow").hidden = !!list || !SHARE.enabled();
+    if (list) showLinkRow(false);
     if (list) {
       $("tripListCount").textContent = list.title ? i18n.tn(n, "1 place from {name}", "{n} places from {name}", { name: list.title }) : i18n.tn(n, "1 place", "{n} places");
       $("tripListHow").textContent = located === n ? i18n.t("All of them have a location.")
@@ -240,6 +240,22 @@
     $("tripDestHint").textContent = list && located < n ? i18n.t("Separate them with commas. With a list, add the city too, so places are found in the right one.") : i18n.t("Separate them with commas.");
     $("tripSave").textContent = editingTrip ? i18n.t("Save") : list ? i18n.tn(n, "Create trip with 1 place", "Create trip with {n} places") : i18n.t("Create trip");
   }
+  // Add from link opens the link's box under the two buttons, and closes it.
+  function showLinkRow(on) {
+    $("tripImportLinkRow").hidden = !on;
+    $("tripFromLink").setAttribute("aria-expanded", String(on));
+    $("tripImportHint").textContent = on ? i18n.t("The link from Share on a Google Maps list.")
+      : editingTrip ? i18n.t("A list from Google Takeout (Saved, as CSV), a map from My Maps (Export to KML), or Saved Places.json.")
+      : i18n.t("A trip saved from Tripboard, or a Google Maps list: Takeout (CSV), My Maps (KML) or Saved Places.json.");
+  }
+  $("tripFromFile").prepend(icon("file"));
+  $("tripFromLink").prepend(icon("link"));
+  $("coverRemove").append(icon("x"));
+  $("tripFromLink").addEventListener("click", () => {
+    const on = $("tripImportLinkRow").hidden;
+    showLinkRow(on);
+    if (on) $("tripImportLink").focus();
+  });
   $("tripListRemove").addEventListener("click", () => {
     const f = $("tripForm");
     if (pendingList && pendingList.title && f.name.value === pendingList.title) f.name.value = "";
@@ -252,6 +268,14 @@
     if (!file) return;
     if (/\.kmz$/i.test(file.name)) { toast(i18n.t("That's a KMZ. In My Maps, tick Export to a .KML file and try again.")); return; }
     const text = await file.text();
+    // A trip saved from Tripboard (or a backup) comes in whole, as Restore does.
+    let data = null;
+    if (/\.json$/i.test(file.name)) { try { data = JSON.parse(text); } catch (err) { /* not JSON: a list's parser says so */ } }
+    if (data && data.app === "tripboard") {
+      if (editingTrip) { toast(i18n.t("That's a whole trip saved from Tripboard. Open it with Import from file in New trip.")); return; }
+      if (await restoreData(data)) await closeSheet($("tripSheet"));
+      return;
+    }
     const LI = window.Tripboard.listImport;
     await gotList({ title: LI.title(text, file.name), places: LI.parse(text, file.name) });
   });
@@ -1145,8 +1169,8 @@
   // Trip sheet
   let editingTrip = null, pendingCover;
   function showCoverPreview(url) {
-    const box = $("coverPreview");
-    box.replaceChildren(url ? el("img", { src: url, alt: "" }) : el("span.dim", { text: i18n.t("No photo") }));
+    $("coverShow").replaceChildren(...(url ? [el("img", { src: url, alt: "" })] : [icon("image"), el("span", { text: i18n.t("Add a cover photo") })]));
+    $("coverPreview").classList.toggle("has-photo", !!url);
     $("coverRemove").hidden = !url;
   }
   async function openTrip(trip, from) {
@@ -1171,7 +1195,8 @@
     const listRow = $("tripImportRow");
     listRow.hidden = false;
     if (trip) $("tripOfflineRow").before(listRow); else f.querySelector(".page-bar").after(listRow);
-    $("tripImportLabel").textContent = trip ? i18n.t("Import places from Google Maps") : i18n.t("Start from a Google Maps list");
+    $("tripImportLabel").textContent = trip ? i18n.t("Import places") : i18n.t("Start with places");
+    showLinkRow(false);
     pendingList = null;
     paintList();
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
@@ -1252,7 +1277,7 @@
     } catch (err) {
       window.Keel.errlog.note("cover", String(err));
       showCoverPreview(null);
-      $("coverPreview").replaceChildren(el("span.error", { text: i18n.t("That file couldn't be read as a photo.") }));
+      $("coverShow").replaceChildren(el("span.error", { text: i18n.t("That file couldn't be read as a photo.") }));
     }
   });
   $("coverRemove").addEventListener("click", () => { pendingCover = null; showCoverPreview(null); $("coverFile").value = ""; });
