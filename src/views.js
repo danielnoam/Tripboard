@@ -1191,10 +1191,7 @@
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
     $("tripOfflineRow").hidden = !trip;
     $("tripImportLink").value = "";
-    // New trip starts from a list, at the top; Edit trip imports into it, lower down.
-    const listRow = $("tripImportRow");
-    listRow.hidden = false;
-    if (trip) $("tripOfflineRow").before(listRow); else f.querySelector(".page-bar").after(listRow);
+    $("tripImportRow").hidden = false;
     $("tripImportLabel").textContent = trip ? i18n.t("Import places") : i18n.t("Start with places");
     showLinkRow(false);
     pendingList = null;
