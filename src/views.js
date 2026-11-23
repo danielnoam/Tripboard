@@ -102,7 +102,7 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], destShut: [], from: null, mode: "board", pick: null, sel: null, look: "cards", deskMap: true, split: 0 };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destOpen: [], destShut: [], from: null, mode: "board", pick: null, sel: null, look: "list", deskMap: true, split: 0 };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
   const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destOpen: view.destOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
 
@@ -376,14 +376,9 @@
       el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), SORTS.map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
           onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.sort = id; remember(); render(); } }))),
-      places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null,
-      desk() && FINE.matches && places.length ? el("div.seg.looks", { role: "tablist", "aria-label": i18n.t("Look") }, segBubble(), [["cards", i18n.t("Cards")], ["list", i18n.t("List")]].map(([id, label]) =>
-        el("button", { type: "button", role: "tab", "aria-selected": String(view.look === id), text: label,
-          onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.look = id; remember(); render(); } }))) : null);
+      places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
     main.append(controls);
     slideSeg(controls.firstChild);
-    const looks = controls.querySelector(".looks");
-    if (looks) slideSeg(looks);
     const ask = wxAsk(trip);
     if (ask) main.append(ask);
 
@@ -438,7 +433,10 @@
   // The Plan's Cards | List switch, on a wide screen with a mouse: List
   // is a line a place, like a spreadsheet.
   const FINE = window.matchMedia("(pointer: fine)");
-  const listLook = () => view.look === "list" && desk() && FINE.matches;
+  // On a PC the Plan is a list: one line a place, or Expanded with its
+  // details and note under it (View sheet). Phones keep the cards.
+  const listLook = () => desk() && FINE.matches;
+  const expandedLook = () => listLook() && view.look === "expanded";
   // On a computer a trip's page scrolls by itself, beside the side bar and the map.
   const scrollTop = () => (document.body.classList.contains("desk") ? $("app").scrollTop : window.scrollY);
   // The line between the page and the map drags to share the width between
@@ -1502,7 +1500,7 @@
   // its importance as the colour on its edge, its name or both.
   const catWords = () => SET.get().view.cat !== "icon";
   function metaParts(p, meta) {
-    const parts = SET.get().view.imp === "color" ? [] : [el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) })];
+    const parts = SET.get().view.imp === "color" || expandedLook() ? [] : [el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) })];
     if (meta.length) parts.push((parts.length ? " · " : "") + meta.join(" · "));
     return parts;
   }
@@ -3665,6 +3663,7 @@
     document.body.classList.toggle("desk", deskTrip());
     document.body.classList.toggle("side-map", sideMap());
     document.documentElement.dataset.look = listLook() ? "list" : "cards";
+    document.documentElement.dataset.rows = expandedLook() ? "expanded" : "one";
     paintSide(deskTrip() ? trip : null);
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
@@ -3990,6 +3989,8 @@
     $("viewTrip").addEventListener("click", (e) => {
       const v = SET.get().view;
       $("viewCat").value = v.cat; $("viewImp").value = v.imp; $("viewLabels").value = v.labels; $("viewRatings").value = v.ratings;
+      $("viewLook").value = view.look === "expanded" ? "expanded" : "list";
+      $("viewLookField").hidden = !listLook();
       // The cards' part where there are cards, the map's where there's a map (both beside each other on a computer).
       $("viewCards").hidden = view.mode === "map";
       $("viewMapPart").hidden = !mapOn();
@@ -3999,6 +4000,7 @@
     $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
     $("viewLabels").addEventListener("change", (e) => { SET.setView({ labels: e.target.value }); paintView(); });
     $("viewRatings").addEventListener("change", (e) => { SET.setView({ ratings: e.target.value }); paintView(); });
+    $("viewLook").addEventListener("change", (e) => { view.look = e.target.value; remember(); render(); });
     $("ratingClear").addEventListener("click", () => { rating = 0; paintRating(); });
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; go("#/trip/" + view.trip + "/share"); });
     $("fab").append(icon("plus"));
