@@ -201,8 +201,8 @@ const TOOLS = [
   { tool: "delete_trip", cmd: "delete-trip", kind: "write", op: "deleteTrip", args: [tripArg],
     description: "Delete a trip with its places, expenses, files and cover. Ask the person first." },
   { tool: "set_trip_cover", cmd: "cover", kind: "write", op: "setCover", input: "bytes",
-    description: "Set a trip's cover photo (JPEG, PNG or WebP, up to 5 MB; the app shrinks its own, this keeps it as given), or remove it.",
-    args: [tripArg, ...bytesArgs.filter(([n]) => n !== "text"), ["remove", { type: "boolean" }]] },
+    description: "Set a trip's cover: a photo (JPEG, PNG or WebP, up to 5 MB; the app shrinks its own, this keeps it as given), or one of the app's drawings by name (art), or remove it.",
+    args: [tripArg, ...bytesArgs.filter(([n]) => n !== "text"), ["art", { type: "string", enum: M.COVER_ART, description: "A drawn cover instead of a photo." }], ["remove", { type: "boolean" }]] },
 
   // ---------- Places ----------
   { tool: "add_place", cmd: "add-place", kind: "write", op: "addPlace", args: [tripArg, ...placeFields.map((f, i) => (i ? f : [f[0], f[1], { req: true }]))],

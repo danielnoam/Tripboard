@@ -268,6 +268,23 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.ok(!g.files().has("covers/" + t.id + ".jpg"));
   });
 
+  await test("covers: a drawing by name takes the photo's place, and a photo takes the drawing's", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Oslo"], env, out);
+    await cli.main(["cover", "Oslo", "--path", at("c.jpg", JPEG)], env, out);
+    const id = bundle(g).trip.id;
+    await cli.main(["cover", "Oslo", "--art", "snow"], env, out);
+    assert.strictEqual(bundle(g).trip.art, "snow");
+    assert.strictEqual(bundle(g).trip.cover, undefined);
+    assert.ok(!g.files().has("covers/" + id + ".jpg"));
+    await assert.rejects(cli.main(["cover", "Oslo", "--art", "moon"], env, out), /one of: mountains/);
+    await cli.main(["cover", "Oslo", "--path", at("c.jpg", JPEG)], env, out);
+    assert.strictEqual(bundle(g).trip.art, undefined);
+    assert.strictEqual(bundle(g).trip.cover, true);
+  });
+
   await test("categories: added, renamed, moved, used by a place, then removed to Other", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;

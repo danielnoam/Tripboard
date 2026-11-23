@@ -72,6 +72,9 @@
   // Highest first. Importance is both a sort and a filter on the board.
   const IMPORTANCE = [["must", i18n.t("Must see")], ["want", i18n.t("Want to")], ["maybe", i18n.t("Maybe")]];
   const IMPORTANCE_LABEL = new Map(IMPORTANCE);
+  // Ready-made covers (assets/covers/<name>.svg): a trip keeps the name, as
+  // art. A photo, when there is one, shows instead.
+  const COVER_ART = ["mountains", "beach", "city", "desert", "forest", "snow", "lake", "countryside"];
   const RANK = { must: 0, want: 1, maybe: 2 };
   // A day's time slots. A place with a day and no time is "Any time".
   const SLOTS = [["morning", i18n.t("Morning"), "00:00"], ["afternoon", i18n.t("Afternoon"), "12:00"], ["evening", i18n.t("Evening"), "17:00"]];
@@ -89,7 +92,7 @@
   const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
   const MAX_FILE_MB = 25;
   const MAX_ORDER = 999;
-  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
+  const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
     "lat", "lng", "address", "placeId", "geoAt", "visited", "order", "by", "createdAt", "updatedAt"]);
   // Fields this build doesn't know are carried through, so a newer build's
@@ -118,6 +121,7 @@
       .map(text).filter(Boolean);
     out.destinations = [...new Set(dest)].slice(0, 20);
     if (t.cover) out.cover = true;
+    if (COVER_ART.includes(t.art)) out.art = t.art;
     const members = (Array.isArray(t.members) ? t.members : []).filter((m) => m && isPersonId(m.id))
       .map((m) => {
         const r = { id: m.id, name: text(m.name).slice(0, 60) };
@@ -509,7 +513,7 @@
 
   const api = {
     sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
-    placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, SLOTS, newId, isDay, isTime,
+    placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.

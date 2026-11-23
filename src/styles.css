@@ -370,6 +370,17 @@ body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 
 .cover-show { display: grid; justify-items: center; gap: var(--space-1); font-weight: 600; }
 .cover-show svg { width: 28px; height: 28px; }
 .cover-preview .error { padding: var(--space-2); color: var(--danger); font-size: var(--fs-small); text-align: center; }
+/* Ready-made covers under the box, the camera first: a row that scrolls sideways. */
+.art-row { display: flex; gap: var(--space-2); margin-top: var(--space-2); padding-block-end: 2px; overflow-x: auto; scrollbar-width: none; }
+.art-row > * {
+  flex: none; display: grid; place-items: center; width: 72px; height: 46px; padding: 0; overflow: hidden;
+  border: 2px solid transparent; border-radius: 10px; background: var(--surface); color: var(--text-dim); cursor: pointer;
+}
+.art-row img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.art-row [aria-pressed="true"] { border-color: var(--accent); }
+.art-row .art-photo { border: 1.5px dashed var(--line); }
+.art-row .art-photo svg { width: 22px; height: 22px; }
+.art-row > :focus-visible, .art-row .art-photo:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cover-remove {
   position: absolute; inset-block-start: var(--space-2); inset-inline-end: var(--space-2);
   background: var(--scrim); color: var(--on-photo); border-radius: 999px;

@@ -145,6 +145,7 @@
     });
   }
 
+  const artUrl = (name) => (M.COVER_ART.includes(name) ? "assets/covers/" + name + ".svg" : null);
   async function coverUrl(trip) {
     if (!trip.cover) return null;
     if (covers.has(trip.id)) return covers.get(trip.id);
@@ -157,7 +158,7 @@
   const tint = (id) => "tint-" + ([...id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5);
   function coverBox(trip, cls) {
     const box = el("div." + cls + "." + tint(trip.id));
-    coverUrl(trip).then((url) => { if (url) box.append(el("img", { src: url, alt: "" })); });
+    coverUrl(trip).then((url) => { const src = url || artUrl(trip.art); if (src) box.append(el("img", { src, alt: "" })); });
     return box;
   }
 
@@ -1167,15 +1168,19 @@
   }
 
   // Trip sheet
-  let editingTrip = null, pendingCover;
-  function showCoverPreview(url) {
-    $("coverShow").replaceChildren(...(url ? [el("img", { src: url, alt: "" })] : [icon("image"), el("span", { text: i18n.t("Add a cover photo") })]));
-    $("coverPreview").classList.toggle("has-photo", !!url);
-    $("coverRemove").hidden = !url;
+  // pendingCover: a new photo (a blob), null to drop it, undefined to keep it;
+  // pendingArt the same for a drawing's name.
+  let editingTrip = null, pendingCover, pendingArt;
+  function showCoverPreview(url, art) {
+    const src = url || artUrl(art);
+    $("coverShow").replaceChildren(...(src ? [el("img", { src, alt: "" })] : [icon("image"), el("span", { text: i18n.t("Add a cover photo") })]));
+    $("coverPreview").classList.toggle("has-photo", !!src);
+    $("coverRemove").hidden = !src;
+    for (const b of $("coverArt").querySelectorAll("[data-art]")) b.setAttribute("aria-pressed", String(!url && b.dataset.art === art));
   }
   async function openTrip(trip, from) {
     editingTrip = trip;
-    pendingCover = undefined;
+    pendingCover = pendingArt = undefined;
     const f = $("tripForm");
     f.reset();
     $("tripSheetTitle").textContent = trip ? i18n.t("Edit trip") : i18n.t("New trip");
@@ -1185,7 +1190,7 @@
       f.end.value = trip.end || "";
       f.destinations.value = trip.destinations.join(", ");
     }
-    showCoverPreview(trip ? await coverUrl(trip) : null);
+    showCoverPreview(trip ? await coverUrl(trip) : null, trip && trip.art);
     $("tripDelete").hidden = !trip;
     $("tripFileRow").hidden = !trip;
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
@@ -1270,6 +1275,7 @@
     if (!file) return;
     try {
       pendingCover = await shrink(file);
+      pendingArt = null;
       showCoverPreview(URL.createObjectURL(pendingCover));
     } catch (err) {
       window.Keel.errlog.note("cover", String(err));
@@ -1277,7 +1283,14 @@
       $("coverShow").replaceChildren(el("span.error", { text: i18n.t("That file couldn't be read as a photo.") }));
     }
   });
-  $("coverRemove").addEventListener("click", () => { pendingCover = null; showCoverPreview(null); $("coverFile").value = ""; });
+  $("coverRemove").addEventListener("click", () => { pendingCover = pendingArt = null; showCoverPreview(null); $("coverFile").value = ""; });
+  const ART_NAMES = { mountains: i18n.t("Mountains"), beach: i18n.t("Beach"), city: i18n.t("City"), desert: i18n.t("Desert"),
+    forest: i18n.t("Forest"), snow: i18n.t("Snow"), lake: i18n.t("Lake"), countryside: i18n.t("Countryside") };
+  $("coverPhotoTile").append(icon("camera"));
+  $("coverArt").append(...M.COVER_ART.map((name) => el("button", { type: "button", "data-art": name, "aria-pressed": "false",
+    "aria-label": ART_NAMES[name], title: ART_NAMES[name],
+    onclick: () => { pendingArt = name; pendingCover = null; $("coverFile").value = ""; showCoverPreview(null, name); } },
+  el("img", { src: artUrl(name), alt: "" }))));
   $("tripForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -1293,6 +1306,7 @@
       else { await store.dropCover(trip.id); trip.cover = false; }
       trip.coverAt = stamp;
     }
+    if (pendingArt !== undefined) { if (pendingArt) trip.art = pendingArt; else delete trip.art; }
     if (!editingTrip) doc.trips.push(trip);
     const closing = closeSheet($("tripSheet"));
     save();

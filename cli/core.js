@@ -272,7 +272,14 @@ const ops = {
   // A cover photo (JPEG, PNG or WebP bytes), or none.
   setCover(doc, a, ctx) {
     const t = findTrip(doc, a.trip);
+    if (a.art !== undefined && a.art !== "") {
+      if (!M.COVER_ART.includes(a.art)) throw new Error("A drawn cover is one of: " + M.COVER_ART.join(", ") + ".");
+      t.art = a.art;
+      if (t.cover) { t.cover = false; t.coverAt = now(); ctx.drop("covers/" + t.id + ".jpg"); }
+      return { trip: t.name, cover: a.art };
+    }
     if (a.remove) {
+      delete t.art;
       t.cover = false;
       t.coverAt = now();
       ctx.drop("covers/" + t.id + ".jpg");
@@ -284,6 +291,7 @@ const ops = {
     if (b.length > MAX_COVER_MB * MB) throw new Error("A cover can be up to " + MAX_COVER_MB + " MB.");
     t.cover = true;
     t.coverAt = now();
+    delete t.art;
     ctx.put("covers/" + t.id + ".jpg", b);
     return { trip: t.name, cover: true, size: b.length };
   },
