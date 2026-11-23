@@ -7,8 +7,8 @@
 //   appearance  the theme: system, light or dark
 //   display     the clock ("" this device's, "12" or "24") and, in English,
 //               the date order ("" the language's, "md" Nov 21, "dm" 21 Nov)
-//   view        how place cards show their category ("icon", "both" or
-//               "label") and importance ("color", "both" or "label"), and
+//   view        how place cards show their category ("icon", the default, "both" or
+//               "label") and importance ("color", the default, "both" or "label"), and
 //               when the map names its pins ("hover": pointed at or
 //               selected, or "always"); ratings on cards ("show" or "hide")
 //   sync        GitHub sync's token and repo
@@ -50,7 +50,7 @@
     search: { main: "osm", fallback: "" },
     appearance: { theme: "system" },
     display: { clock: "", dates: "" },
-    view: { cat: "both", imp: "both", labels: "hover", ratings: "show" },
+    view: { cat: "icon", imp: "color", labels: "hover", ratings: "show" },
     // GitHub sync: a fine-grained token for one private repo of yours.
     sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
     me: { id: "", name: "" },
