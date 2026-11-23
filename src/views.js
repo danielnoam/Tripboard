@@ -373,11 +373,12 @@
     main.append(hero);
 
     const controls = el("div.controls", {},
-      el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, SORTS.map(([id, label]) =>
+      el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), SORTS.map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
-          onclick: () => { view.sort = id; remember(); render(); } }))),
+          onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.sort = id; remember(); render(); } }))),
       places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
     main.append(controls);
+    slideSeg(controls.firstChild);
     const ask = wxAsk(trip);
     if (ask) main.append(ask);
 
@@ -483,6 +484,35 @@
       if (left !== on) left.animate([{ color: white }, { color: dim }], { duration: 160, easing: "linear" });
     }
     swell(on.firstChild, 60);
+  }
+  // The Plan's Time / Category / Importance switch: its white pill slides
+  // to the picked one on the bar's spring, stretching on the way, as the
+  // bar's circle does. The switch is drawn again on each pick, so where
+  // the pill was is kept from the tap.
+  let segWas = null;
+  const segBubble = () => el("span.seg-bubble", { "aria-hidden": "true" });
+  function segSpot(seg) {
+    const b = seg && seg.querySelector(".seg-bubble");
+    if (!b) return null;
+    const r = b.getBoundingClientRect(), o = seg.getBoundingClientRect();
+    return { x: r.left - o.left + seg.scrollLeft, w: r.width };
+  }
+  function slideSeg(seg) {
+    const was = segWas;
+    segWas = null;
+    const b = seg.querySelector(".seg-bubble"), on = seg.querySelector("[aria-selected=true]");
+    b.hidden = !on;
+    if (!on) return;
+    const x = on.offsetLeft, w = on.offsetWidth;
+    b.style.transform = "translateX(" + x + "px)";
+    b.style.width = w + "px";
+    if (x < seg.scrollLeft || x + w > seg.scrollLeft + seg.clientWidth) seg.scrollLeft = x - (seg.clientWidth - w) / 2;
+    if (!was || Math.abs(was.x - x) < 1 || lessMotion() || !b.animate) return;
+    const t = onSpring(TAB_BUBBLE), reach = Math.min(1, Math.abs(x - was.x) / 100);
+    b.animate(TAB_BUBBLE.pts.map((k) => ({ transform: "translateX(" + (was.x + (x - was.x) * k) + "px)", width: Math.max(0, was.w + (w - was.w) * k) + "px" })),
+      { duration: t.duration, easing: "linear" });
+    b.animate([{ scale: "1 1" }, { scale: (1 + 0.12 * reach) + " " + (1 - 0.08 * reach), offset: 0.22 }, { scale: "1 1", offset: 0.6 }, { scale: "1 1" }],
+      { duration: t.duration, easing: "ease-out" });
   }
   // A tab's icon, or the +'s, swells and settles when picked.
   function swell(n, delay) {
