@@ -697,6 +697,7 @@ Keel.i18n.strings("he", {
   "Change at {place} · {time}": "החלפה: {place} · {time}",
   "Leaves in {time}": "יציאה בעוד {time}",
   "Hide the map": "הסתרת המפה",
+  "Drag to share the width between the plan and the map": "גרירה לחלוקת הרוחב בין התוכנית למפה",
   "Show the map": "הצגת המפה",
   "Look": "מראה",
   "Cards": "כרטיסים",

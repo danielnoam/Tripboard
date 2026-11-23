@@ -1036,6 +1036,17 @@ body.desk.side-map .map-view:not([hidden]) { inset-inline-start: calc(var(--side
 body.desk.with-tabbar .map-panel { bottom: var(--space-3); }
 body.desk.with-tabbar .map-tools { bottom: var(--space-3); }
 .pin.hot { scale: 1.3; z-index: 3; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
+/* The line between the page and the map: drag it (or arrow keys on it) to share the width. */
+.desk-split { display: none; }
+body.desk.side-map .desk-split:not([hidden]) {
+  display: block; position: fixed; z-index: 7; inset-block: 0; inset-inline-start: calc(var(--side) + var(--panel) - 5px); width: 10px;
+  cursor: col-resize; touch-action: none;
+}
+body.desk .desk-split::after { content: ""; position: absolute; inset-block: 0; inset-inline-start: 4px; width: 2px; background: transparent; transition: background-color 120ms; }
+body.desk .desk-split:hover::after, body.desk .desk-split:focus-visible::after, body.splitting .desk-split::after { background: var(--accent); }
+body.desk .desk-split:focus-visible { outline: none; }
+body.splitting, body.splitting * { cursor: col-resize !important; user-select: none; }
+body.splitting .map-view { pointer-events: none; }
 /* The handle that folds the map away, on its edge, and brings it back from the window's. */
 body.desk .desk-fold:not([hidden]) {
   position: fixed; z-index: 8; top: 50%; translate: 0 -50%; inset-inline-start: calc(var(--side) + var(--panel) - 14px);
