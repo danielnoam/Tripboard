@@ -2556,6 +2556,9 @@
     paintFilters(trip);
     const list = shownPlaces(trip);
     const route = view.mapDay ? M.dayRoute(list, view.mapDay) : [];
+    // The View sheet's words go under the pins too: importance and/or category.
+    const v = SET.get().view;
+    TM.labelOf = (p) => [v.imp !== "color" ? M.IMPORTANCE_LABEL.get(p.importance) : "", v.cat !== "icon" ? M.catName(cats(), trip, p.category) : ""].filter(Boolean).join(" · ");
     // A journey is a line on the map, not a pin.
     TM.places(list.filter((p) => !M.isJourney(p)), view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
     TM.route(route);
@@ -3537,7 +3540,7 @@
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
     $("shareTrip").hidden = !trip || view.mode === "share";
-    $("viewTrip").hidden = !trip || view.mode === "share" || view.mode === "map";
+    $("viewTrip").hidden = !trip || view.mode === "share";
     paintView();
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);

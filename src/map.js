@@ -5,6 +5,7 @@
 //   TripMap.open(container, { chain, providers }) → { by, skipped }
 //   TripMap.places(list, selectedId)   pins, by importance
 //   TripMap.fit(list)                  frames them
+//   TripMap.labelOf = (place) => words  shown under its pin once zoomed in
 //   TripMap.route(list)                a line through them in order (a day's plan)
 //   TripMap.journeys(list)             each journey as a line between its two ends (a flight as an arc)
 //   TripMap.zoom(±1), TripMap.locate()  the map's own buttons (views.js draws them)
@@ -208,6 +209,10 @@
       ...(still() ? { reduceMotion: true, fadeDuration: 0 } : {}),
     });
     map.touchZoomRotate.disableRotation();
+    // Pins' words (TripMap.labelOf) show only once zoomed in, where they fit.
+    const near = () => map.getContainer().classList.toggle("map-near", map.getZoom() >= 12);
+    map.on("zoom", near);
+    near();
     // Where am I: MapLibre's own, with its button hidden (styles.css); the
     // map's buttons are views.js's.
     geo = new lib.GeolocateControl({ positionOptions: { enableHighAccuracy: false } });
@@ -323,6 +328,8 @@
       if (n) el.textContent = String(n);
       else if (T2 && T2.icon) el.replaceChildren(T2.icon(T2.catIcon(p.category)));
       else el.textContent = "";
+      const words = T.labelOf ? T.labelOf(p) : "";
+      if (words) { const s = document.createElement("span"); s.className = "pin-label"; s.textContent = words; el.append(s); }
       el.setAttribute("aria-label", p.name);
       m.setLngLat([p.lng, p.lat]);
     }
@@ -341,6 +348,7 @@
   };
   T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(still() ? { duration: 0 } : {}) });
   T.resize = () => map && map.resize();
+  // TripMap.labelOf(place): words under its pin (the View sheet's), or "".
   // A place's pin stands out while its card is under the pointer.
   T.hover = (id, on) => { const m = pins.get(id); if (m) m.getElement().classList.toggle("hot", !!on); };
   T.zoom = (d) => map && (d > 0 ? map.zoomIn(still() ? { duration: 0 } : {}) : map.zoomOut(still() ? { duration: 0 } : {}));
