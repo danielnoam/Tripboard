@@ -251,6 +251,14 @@ adds a line here.
 - A trip's synced files are kept whole on every synced device (no
   download-on-demand yet), up to 25 MB each. In the repo they're named
   by id (files/<trip>/<id>); their names are in the trip's bundle.
+- Links and notes live in Files as file records with `kind` "link" (and
+  `url`) or "note" (and `text`), so sync, sharing (including hiding
+  Files from someone), backups and places carry them with no new code.
+  They have no bytes. A phone on 0.3.5 or older keeps them untouched but
+  lists them as a file that isn't on the device yet, until it updates.
+  A link must be http or https (no javascript:, data: or file:), and
+  opening it opens that site in the browser, which then knows you
+  visited. A note is plain text, up to 50,000 characters.
 - A backup file holds each file's bytes as base64, so it grows by about
   a third more than the files themselves.
 - The CLI and MCP server need a token in an environment variable or an
@@ -269,7 +277,9 @@ adds a line here.
   The tools also say to ask before deleting (and are destructiveHint),
   and git history is the way back.
 - What a chat reads goes to its AI provider: trips, places, notes,
-  expenses and people's names. Files' contents are the exception, off
+  expenses, people's names, and the links and notes in Files (their text
+  is in the trip's bundle anyway, like a place's description). Files'
+  contents are the exception, off
   unless the person sets TRIPBOARD_MCP_FILES=1 (tickets and passports are
   the kind of file people keep there). A chat can always add a file and
   see file names. A chat never gives the server a path, only bytes, so it

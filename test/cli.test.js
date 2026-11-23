@@ -189,6 +189,41 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.ok(g.files().has("files/" + f.trip + "/" + f.id));
   });
 
+  await test("links and notes: added, listed, edited, read without the files switch, deleted; no bytes in the repo", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const lines = [];
+    const out = (x) => lines.push(x);
+    await cli.main(["new-trip", "--name", "Japan"], env, out);
+    await cli.main(["add-place", "Japan", "--name", "Narita Airport"], env, out);
+    await cli.main(["add-link", "Japan", "www.jreast.co.jp/en/", "--place", "narita"], env, out);
+    await assert.rejects(cli.main(["add-link", "Japan", "javascript:alert(1)"], env, out), /http/);
+    const sent = [];
+    const s = mcp.server({ env, fetch: g.fetch, write: (l) => sent.push(JSON.parse(l)) });
+    const note = await mcpCall(s, sent, "add_note", { trip: "Japan", name: "Phrasebook", text: "Sumimasen\nArigatou" });
+    assert.strictEqual(note.value.kind, "note");
+    assert.match((await mcpCall(s, sent, "add_note", { trip: "Japan", text: "  " })).error, /needs its text/);
+    const b = bundle(g);
+    const link = b.files.find((f) => f.kind === "link");
+    assert.deepStrictEqual([link.url, link.name, link.place], ["https://www.jreast.co.jp/en/", "jreast.co.jp", b.places[0].id]);
+    assert.ok(![...g.files().keys()].some((p) => p.startsWith("files/")), "links and notes have no bytes");
+    await cli.main(["edit-file", "Japan", "jreast", "--name", "IC card: info", "--url", "https://www.jreast.co.jp/en/multi/pass/suica.html"], env, out);
+    await cli.main(["edit-file", "Japan", "phrasebook", "--text", "Sumimasen\nArigatou\nOnegaishimasu"], env, out);
+    await assert.rejects(cli.main(["edit-file", "Japan", "phrasebook", "--url", "https://x.com"], env, out), /isn't a link/);
+    const trip = (await mcpCall(s, sent, "get_trip", { trip: "Japan" })).value;
+    const kinds = Object.fromEntries(trip.files.map((f) => [f.kind, f]));
+    assert.strictEqual(kinds.link.name, "IC card: info");
+    assert.strictEqual(kinds.link.url, "https://www.jreast.co.jp/en/multi/pass/suica.html");
+    assert.strictEqual(kinds.note.text, "Sumimasen\nArigatou\nOnegaishimasu");
+    assert.strictEqual((await mcpCall(s, sent, "get_file", { trip: "Japan", file: "phrasebook" })).value.file.text, "Sumimasen\nArigatou\nOnegaishimasu");
+    lines.length = 0;
+    await cli.main(["show", "Japan"], env, out);
+    assert.match(lines.join("\n"), /IC card: info {2}https:\/\/www\.jreast/);
+    await cli.main(["delete-file", "Japan", "phrasebook"], env, out);
+    assert.ok(bundle(g).deleted[note.value.id]);
+    assert.strictEqual(bundle(g).files.length, 1);
+  });
+
   await test("covers: set from an image, refused for anything else, removed", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;

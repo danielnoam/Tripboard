@@ -170,6 +170,23 @@ const names = (list) => J(list.map((t) => t.name));
     assert.deepStrictEqual(J(b.doc.files.map((f) => f.id)), ["f1"]);
   });
 
+  await test("a link and a note reach the other device in the trip, with no bytes asked for or sent", async () => {
+    const g = fakeGitHub();
+    const a = device(g), b = device(g);
+    a.edit((doc) => {
+      doc.trips.push({ id: "k", name: "Kyoto" });
+      doc.files.push({ id: "l1", trip: "k", kind: "link", url: "https://www.jreast.co.jp/en/", name: "IC card" }, { id: "n1", trip: "k", kind: "note", name: "Phrasebook", text: "Sumimasen\nArigatou" });
+    });
+    await a.sync();
+    assert.ok(![...g.files().keys()].some((p) => p.startsWith("files/")));
+    let asked = 0;
+    const read = b.files.get.bind(b.files);
+    b.files.get = (id) => { if (id === "l1" || id === "n1") asked++; return read(id); };
+    await b.sync();
+    assert.deepStrictEqual(J(b.doc.files.map((f) => [f.kind, f.url || f.text])), [["link", "https://www.jreast.co.jp/en/"], ["note", "Sumimasen\nArigatou"]]);
+    assert.strictEqual(asked, 0);
+  });
+
   await test("a refused token and no connection end as errors Settings can explain", async () => {
     const g = fakeGitHub();
     const a = device(g);

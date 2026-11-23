@@ -172,7 +172,8 @@
     const filePulls = [];
     const fileIds = new Set((doc.files || []).filter((f) => !f.local).map((f) => f.id));
     const localIds = new Set((doc.files || []).filter((f) => f.local).map((f) => f.id));
-    for (const f of (doc.files || []).filter((x) => !x.local)) {
+    // Links and notes have no bytes; their record is all there is.
+    for (const f of (doc.files || []).filter((x) => !x.local && x.kind !== "link" && x.kind !== "note")) {
       const path = "files/" + f.trip + "/" + f.id;
       if (state.files[f.id] && remote.has(path)) continue;
       const blob = await store.file(f.id);
