@@ -35,6 +35,26 @@ test("the chain is main then fallback; a fallback the same as main is dropped", 
   assert.strictEqual(S.ready("osm"), true);
 });
 
+test("a key's state: none, not checked, works or refused; a new key starts over", () => {
+  S.setProvider("maptiler", { key: "" });
+  assert.strictEqual(S.keyState("maptiler"), "none");
+  assert.strictEqual(S.keyState("osm"), "none");
+  S.setCheck("maptiler", true);
+  assert.strictEqual(S.keyState("maptiler"), "none");
+  S.setProvider("maptiler", { key: "M" });
+  assert.strictEqual(S.keyState("maptiler"), "unchecked");
+  S.setCheck("maptiler", false);
+  assert.strictEqual(S.keyState("maptiler"), "refused");
+  S.setProvider("maptiler", { style: "outdoor" });
+  assert.strictEqual(S.keyState("maptiler"), "refused");
+  S.setCheck("maptiler", true);
+  assert.strictEqual(S.keyState("maptiler"), "ok");
+  S.setProvider("maptiler", { key: "M2" });
+  assert.strictEqual(S.keyState("maptiler"), "unchecked");
+  assert.strictEqual(S.merge({ providers: { maptiler: { key: "M", check: { ok: "x" } } } }).providers.maptiler.check, undefined);
+  assert.deepStrictEqual(S.merge({ providers: { maptiler: { key: "M", check: { ok: false, at: "t" } } } }).providers.maptiler.check, { ok: false, at: "t" });
+});
+
 test("AI tools may not delete until turned on; another device's newer choice wins", () => {
   assert.deepStrictEqual(S.merge(null).ai, { deleting: false, at: "" });
   assert.deepStrictEqual(S.merge({ ai: { deleting: "yes", at: "x" } }).ai, { deleting: false, at: "" });

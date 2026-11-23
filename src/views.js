@@ -235,7 +235,7 @@
       toast(i18n.t("Finding {name} on the map ({at} of {total})…", { name: p.name, at: i + 1, total: ids.length }));
       const near = placesOf(trip.id).filter((x) => x.lat != null);
       try {
-        const got = await PL.search(p.name + (trip.destinations[0] && !near.length ? ", " + trip.destinations[0] : ""),
+        const got = await keyedSearch(p.name + (trip.destinations[0] && !near.length ? ", " + trip.destinations[0] : ""),
           { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key }, near });
         const r = got.results[0];
         const cur = doc.places.find((x) => x.id === id);
@@ -1965,7 +1965,7 @@
   // the nearest. Only once there's a choice to make: two or more, or dates.
   async function findDest(name) {
     const prov = SET.get().providers;
-    const got = await PL.search(name, { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key } });
+    const got = await keyedSearch(name, { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key } });
     const r = got.results[0];
     return r ? { lat: r.lat, lng: r.lng } : null;
   }
@@ -2100,9 +2100,9 @@
     const prov = SET.get().providers;
     const opts = { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key }, near };
     try {
-      let got = await PL.search(q, opts);
+      let got = await keyedSearch(q, opts);
       // Nothing for the bare name: try it with the trip's first destination.
-      if (!got.results.length && dest && !q.toLowerCase().includes(dest.toLowerCase())) got = await PL.search(q + ", " + dest, opts);
+      if (!got.results.length && dest && !q.toLowerCase().includes(dest.toLowerCase())) got = await keyedSearch(q + ", " + dest, opts);
       if (me !== searching) return;
       const list = got.results;
       const via = SET.PROVIDERS[got.by] ? SET.PROVIDERS[got.by].name : got.by;
@@ -2639,8 +2639,9 @@
     if (mapFailed) { mapMessage(mapFailed); return; }
     const first = !TM.ready;
     let got;
-    try { got = await TM.open($("map"), { chain: SET.chain("map"), providers: SET.get().providers }); }
+    try { got = await TM.open($("map"), { chain: SET.chain("map"), providers: SET.get().providers }); noteKeys(got); }
     catch (e) {
+      noteKeys(e);
       window.Keel.errlog.note("map", String(e));
       mapFailed = navigator.onLine === false ? i18n.t("The map needs a connection the first time it opens.")
         : i18n.t("The map couldn't load. {why}", { why: e.skipped && e.skipped.length ? e.message : i18n.t("Check the connection and try again.") });
@@ -2923,6 +2924,14 @@
   const S_ICON = { map: "map", search: "search" };
   const svcName = (svc) => SERVICES.find(([s]) => s === svc)[1];
 
+  // A map or search run tells each key how it went: refused, or worked.
+  function noteKeys(r) {
+    if (!r) return;
+    for (const x of r.skipped || []) if (x.refused) SET.setCheck(x.id, false);
+    if (r.by) SET.setCheck(r.by, true);
+  }
+  function keyedSearch(q, o) { return PL.search(q, o).then((r) => { noteKeys(r); return r; }, (e) => { noteKeys(e); throw e; }); }
+
   // A line under each row: what it's set to, or what needs you.
   function serviceStatus(svc, cfg) {
     const main = cfg[svc].main, fb = cfg[svc].fallback, name = (id) => SET.PROVIDERS[id].name;
@@ -3132,6 +3141,14 @@
       sgroup(i18n.t("Set up"), ids.map((id) => srow("#/settings/p/" + id, P_ICON[id], SET.PROVIDERS[id].name, providerStatus(id)))));
   }
 
+  // "Key", with how it last went: a dot and a word, once there's a key.
+  const KEY_STATE = { unchecked: () => i18n.t("not checked yet"), ok: () => i18n.t("works"), refused: () => i18n.t("refused") };
+  function keyLabel(id) {
+    const st = SET.keyState(id);
+    if (st === "none") return el("span.key-label", { text: i18n.t("Key") });
+    return el("span.key-label", { "data-state": st }, el("span.key-dot", { "aria-hidden": "true" }), i18n.t("Key") + " · " + KEY_STATE[st]());
+  }
+
   function renderProvider(main, id) {
     const P = SET.PROVIDERS[id], conf = SET.get().providers[id];
     $("title").textContent = P.name;
@@ -3145,10 +3162,16 @@
     if (P.key) {
       const input = el("input", { type: "password", value: conf.key || "", autocomplete: "off", spellcheck: false, placeholder: i18n.t("Paste your key"),
         onchange: (e) => { SET.setProvider(id, { key: e.target.value.trim() }); render(); } });
-      kids.push(el("label.field", {}, i18n.t("Key"), input),
+      const eye = el("button.key-eye", { type: "button", "aria-label": i18n.t("Show key"), "aria-pressed": "false", onclick: () => {
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        eye.setAttribute("aria-pressed", String(show));
+        eye.setAttribute("aria-label", show ? i18n.t("Hide key") : i18n.t("Show key"));
+        eye.replaceChildren(icon(show ? "eyeOff" : "eye"));
+      } }, icon("eye"));
+      kids.push(el("label.field", {}, keyLabel(id), el("span.key-wrap", {}, input, eye)),
         el("div.loc-actions", {},
           el("button.btn", { type: "button", text: i18n.t("Test"), onclick: () => testProvider(id, status) }),
-          el("button.btn.quiet", { type: "button", text: i18n.t("Show"), onclick: (e) => { const show = input.type === "password"; input.type = show ? "text" : "password"; e.currentTarget.textContent = show ? i18n.t("Hide") : i18n.t("Show"); } }),
           conf.key ? el("button.btn.danger", { type: "button", text: i18n.t("Remove key"), onclick: () => { SET.setProvider(id, { key: "" }); render(); } }) : null),
         status);
     } else {
@@ -3642,14 +3665,19 @@
     const conf = SET.get().providers[id];
     const P = SET.PROVIDERS[id];
     const lines = [];
+    let worked = 0, refused = false;
     if (P.services.includes("search")) {
-      try { const r = await PL.providers[id].search("Eiffel Tower", { key: conf.key }); lines.push(r.length ? i18n.t("Find by name works.") : i18n.t("Find by name works, though it found nothing for a test search.")); }
-      catch (e) { lines.push(i18n.t("Find by name: {why}", { why: e.message })); }
+      try { const r = await PL.providers[id].search("Eiffel Tower", { key: conf.key }); worked++; lines.push(r.length ? i18n.t("Find by name works.") : i18n.t("Find by name works, though it found nothing for a test search.")); }
+      catch (e) { refused = refused || !!e.refused; lines.push(i18n.t("Find by name: {why}", { why: e.message })); }
     }
     if (P.services.includes("map")) {
-      try { await TM.SOURCES[id](conf, false); lines.push(i18n.t("The map works.")); }
-      catch (e) { lines.push(i18n.t("Map: {why}", { why: e.message })); }
+      try { await TM.SOURCES[id](conf, false); worked++; lines.push(i18n.t("The map works.")); }
+      catch (e) { refused = refused || !!e.refused; lines.push(i18n.t("Map: {why}", { why: e.message })); }
     }
+    if (refused) SET.setCheck(id, false);
+    else if (worked) SET.setCheck(id, true);
+    const label = status.parentNode && status.parentNode.querySelector(".key-label");
+    if (label) label.replaceWith(keyLabel(id));
     status.textContent = navigator.onLine === false ? i18n.t("Testing needs a connection.") : lines.join(" ");
   }
   SET.onChange(() => { mapFailed = null; });
