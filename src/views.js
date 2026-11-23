@@ -1498,9 +1498,18 @@
   // its importance as the colour on its edge, its name or both.
   const catWords = () => SET.get().view.cat !== "icon";
   function metaParts(p, meta) {
-    const parts = SET.get().view.imp === "color" || expandedLook() ? [] : [el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) })];
+    const parts = SET.get().view.imp === "color" ? [] : [el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) })];
     if (meta.length) parts.push((parts.length ? " · " : "") + meta.join(" · "));
     return parts;
+  }
+  // The List's one line has no room for the meta line, so the category and
+  // importance words the View sheet asks for follow the name.
+  function listTags(p, trip) {
+    if (expandedLook()) return null;
+    const cat = view.sort !== "category" && catWords() ? M.catName(cats(), trip, p.category) : "";
+    const imp = SET.get().view.imp !== "color" && view.sort !== "importance";
+    if (!cat && !imp) return null;
+    return el("span.card-tags", {}, imp ? el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }) : null, cat && imp ? " · " : null, cat || null);
   }
   function paintView() {
     const v = SET.get().view;
@@ -1556,7 +1565,6 @@
       const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
       if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
       else if (p.endDay && g.day && !["in", "out"].includes(M.stayPart(p, g.day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
-      if (timeLabel(p, g.day)) meta.push(timeLabel(p, g.day));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
       const on = !!(picked && picked.has(p.id));
@@ -1567,7 +1575,7 @@
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
           ...(journey ? journeyParts(p) : [
-            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p)),
+            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p), listTags(p, trip)),
             el("span.card-meta", {}, ...metaParts(p, meta),
               nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 attachment", "{n} attachments"), "aria-label": i18n.tn(nFiles, "1 attachment", "{n} attachments") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null,
