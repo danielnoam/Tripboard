@@ -85,9 +85,9 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], from: null, mode: "board", pick: null, sel: null };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, from: null, mode: "board", pick: null, sel: null };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -1710,11 +1710,44 @@
   const SET = window.Tripboard.settings;
   const PL = window.Tripboard.places;
   let mapFailed = null;
-  // The map's places: the importance filter, and the day picked on the map.
+  // The map's places: the day picked on the map, the importance filter
+  // (the board's too) and the map's categories (all when none picked).
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
     if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay));
+    if (view.mapCats.length) all = all.filter((p) => view.mapCats.includes(p.category));
     return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
+  }
+  // The trip's categories, in the app's order, each with how many places.
+  function tripCats(trip) {
+    const n = new Map();
+    for (const p of placesOf(trip.id)) n.set(p.category, (n.get(p.category) || 0) + 1);
+    return cats().filter(([id]) => n.has(id)).map(([id, name]) => ({ id, name, n: n.get(id) }));
+  }
+  function paintFilters(trip) {
+    const bar = $("mapFilters");
+    const here = tripCats(trip);
+    view.mapCats = view.mapCats.filter((id) => here.some((c) => c.id === id));
+    bar.hidden = !placesOf(trip.id).length;
+    const picked = here.filter((c) => view.mapCats.includes(c.id));
+    const label = !picked.length ? i18n.t("Categories") : picked.length === 1 ? picked[0].name : i18n.tn(picked.length, "1 category", "{n} categories");
+    bar.replaceChildren(...[
+      here.length > 1 ? el("button.chip.cat-pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "dialog",
+        onclick: (e) => { paintMapCats(trip); openSheet($("mapCatSheet"), e.currentTarget); } },
+        picked.length === 1 ? icon(catIcon(picked[0].id)) : null, label, icon("chevron")) : null,
+      ...M.IMPORTANCE.map(([id, name]) => el("button.chip.imp-" + id, { type: "button", "aria-pressed": String(!view.only.length || view.only.includes(id)), text: name, onclick: () => toggleOnly(id) })),
+    ].filter(Boolean));
+  }
+  function paintMapCats(trip) {
+    const here = tripCats(trip);
+    const on = (id) => !view.mapCats.length || view.mapCats.includes(id);
+    $("mapCats").replaceChildren(...here.map((c) => el("button.chip", { type: "button", "aria-pressed": String(on(c.id)),
+      onclick: () => {
+        let next = here.map((x) => x.id).filter(on);
+        next = next.includes(c.id) ? next.filter((x) => x !== c.id) : next.concat(c.id);
+        view.mapCats = !next.length || next.length === here.length ? [] : next;
+        remember(); paintMapCats(trip); render();
+      } }, icon(catIcon(c.id)), c.name + " · " + c.n)));
   }
   function paintDays(trip) {
     const days = M.tripDays(trip, placesOf(trip.id));
@@ -1748,6 +1781,7 @@
     if (got && got.skipped.length) note.textContent = i18n.t("Showing {name}: {join}", { name: SET.PROVIDERS[got.by].name, join: got.skipped.map((x) => x.reason).join(" ") });
     if (view.mode !== "map" || view.trip !== trip.id) return;
     paintDays(trip);
+    paintFilters(trip);
     const list = shownPlaces(trip);
     const route = view.mapDay ? M.dayRoute(list, view.mapDay) : [];
     TM.places(list, view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
@@ -1802,10 +1836,15 @@
     }
     const nowhere = shownPlaces(trip).filter((p) => p.lat == null);
     if (!nowhere.length || !mayEdit(trip)) { panel.replaceChildren(); return; }
-    panel.replaceChildren(
-      el("p.dim", { text: i18n.tn(nowhere.length, "1 place has no location yet. Pick one, then tap the map.", "{n} places have no location yet. Pick one, then tap the map.") }),
-      el("ul.unplaced", {}, nowhere.map((p) => el("li", {}, el("button.chip.imp-" + p.importance, { type: "button", "aria-pressed": "true", text: p.name,
-        onclick: () => { view.pick = p.id; render(); } })))));
+    // Folded to one line by default, so the map stays in view.
+    const open = view.unplacedOpen;
+    panel.replaceChildren(...[
+      el("button.unplaced-head", { type: "button", "aria-expanded": String(open),
+        onclick: () => { view.unplacedOpen = !open; remember(); render(); } },
+        icon("pin"), el("span", { text: i18n.tn(nowhere.length, "1 place has no location yet", "{n} places have no location yet") }), icon("chevron", "fold")),
+      open ? el("p.dim", { text: i18n.t("Pick one, then tap the map.") }) : null,
+      open ? el("ul.unplaced", {}, nowhere.map((p) => el("li", {}, el("button.chip.imp-" + p.importance, { type: "button", "aria-pressed": "true", text: p.name,
+        onclick: () => { view.pick = p.id; render(); } })))) : null].filter(Boolean));
   }
 
   // The map's style: the free maps (OpenFreeMap's), then the ones that need
@@ -1861,6 +1900,7 @@
     $("mapCreditIc").append(icon("info"));
     $("mapZoomIn").addEventListener("click", () => TM.zoom(1));
     $("mapZoomOut").addEventListener("click", () => TM.zoom(-1));
+    $("mapCatsAll").addEventListener("click", () => { view.mapCats = []; remember(); const t = findTrip(view.trip); if (t) paintMapCats(t); render(); });
     $("mapStyleBtn").addEventListener("click", (e) => { paintMapStyles(); openSheet($("mapStyleSheet"), e.currentTarget); });
     $("mapFit").addEventListener("click", () => {
       const trip = findTrip(view.trip);
