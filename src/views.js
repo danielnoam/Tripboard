@@ -122,15 +122,41 @@
   }
 
   // A short note at the bottom, with Undo when the change can be taken back.
-  let toastTimer = null;
-  function toast(text, undo) {
+  let toastTimer = null, undoUntil = 0;
+  function toast(text, undo, act) {
     let box = $("toast");
     if (!box) { box = el("div.toast", { role: "status" }); box.id = "toast"; document.body.append(box); }
     clearTimeout(toastTimer);
-    box.replaceChildren(el("span", { text }), ...(undo ? [el("button.btn.quiet", { type: "button", text: i18n.t("Undo"),
-      onclick: () => { box.hidden = true; undo(); } })] : []));
+    const tap = undo || (act && act.run);
+    box.replaceChildren(el("span", { text }), ...(tap ? [el("button.btn.quiet", { type: "button", text: undo ? i18n.t("Undo") : act.label,
+      onclick: () => { box.hidden = true; undoUntil = 0; tap(); } })] : []));
     box.hidden = false;
-    toastTimer = setTimeout(() => { box.hidden = true; }, undo ? 8000 : 3000);
+    const ms = undo ? 8000 : act ? 6000 : 3000;
+    undoUntil = undo ? Date.now() + ms : 0;
+    toastTimer = setTimeout(() => { box.hidden = true; undoUntil = 0; }, ms);
+  }
+  // What a sync brought from your other devices, the AI connector or a
+  // shared trip's people, as one note. It waits for an Undo note to go, so
+  // a sync never takes your Undo away.
+  let arrivalTimer = null;
+  function tellArrivals(came) {
+    const { added, updated, removed } = came;
+    if (!added.length && !updated.length && !removed.length) return;
+    const parts = [];
+    if (added.length === 1) parts.push(i18n.t("New trip: {name}.", { name: added[0].name }));
+    else if (added.length && added.length <= 3) parts.push(i18n.t("New trips: {join}.", { join: i18n.join(added.map((t) => t.name)) }));
+    else if (added.length) parts.push(i18n.tn(added.length, "1 new trip.", "{n} new trips."));
+    if (updated.length === 1) parts.push(i18n.t("{name} was updated.", { name: updated[0].name }));
+    else if (updated.length && updated.length <= 3) parts.push(i18n.t("Updated: {join}.", { join: i18n.join(updated.map((t) => t.name)) }));
+    else if (updated.length) parts.push(i18n.tn(updated.length, "1 trip was updated.", "{n} trips were updated."));
+    if (removed.length === 1) parts.push(i18n.t("{name} was deleted on another device.", { name: removed[0].name }));
+    else if (removed.length) parts.push(i18n.tn(removed.length, "1 trip was deleted on another device.", "{n} trips were deleted on another device."));
+    const one = added.length === 1 && !updated.length && !removed.length && view.trip !== added[0].id ? added[0] : null;
+    const show = () => {
+      if (Date.now() < undoUntil) { clearTimeout(arrivalTimer); arrivalTimer = setTimeout(show, undoUntil - Date.now() + 200); return; }
+      toast(parts.join(" "), null, one ? { label: i18n.t("Open"), run: () => { location.hash = "#/trip/" + one.id; } } : null);
+    };
+    show();
   }
   // Makes a change that Undo can take back: the whole doc as it was before.
   function undoable(text, change, after) {
@@ -3010,8 +3036,10 @@
     sweepFiles();
     if (doc.trips.length) OFF.sweep(doc.trips.map((t) => t.id));
     const T = window.Tripboard;
+    $("syncBadge").prepend(icon("refresh"));
+    SHARE.onStatus = paintSyncBadge;
     if (T.sync) {
-      T.sync.onStatus = () => { if (syncPaint) syncPaint(); };
+      T.sync.onStatus = () => { if (syncPaint) syncPaint(); paintSyncBadge(); };
       T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
     }
     SHARE.onChange = () => { if (view.mode === "share") render(); };
@@ -3026,15 +3054,42 @@
     SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, unshared });
   }
 
+  // The bar's sync badge. Turning arrows show only for a sync that takes a
+  // moment, and stay long enough to be seen, so a quick one doesn't flash.
+  let badgeShow = null, badgeHide = null, badgeSince = 0;
+  function paintSyncBadge() {
+    const b = $("syncBadge"), st = SYNC && SYNC.connected() ? SYNC.status : { state: "off" };
+    const busy = st.state === "syncing" || !!SHARE.busy;
+    const set = (state, ico, text) => {
+      b.dataset.state = state;
+      b.firstChild.replaceWith(icon(ico));
+      $("syncBadgeText").textContent = text;
+      b.title = text;
+      b.hidden = false;
+    };
+    if (busy) {
+      clearTimeout(badgeHide); badgeHide = null;
+      if (!b.hidden && b.dataset.state === "syncing") return;
+      if (!badgeShow) badgeShow = setTimeout(() => { badgeShow = null; badgeSince = Date.now(); set("syncing", "refresh", i18n.t("Syncing…")); }, 300);
+      return;
+    }
+    clearTimeout(badgeShow); badgeShow = null;
+    if (st.state === "error") { const off = st.error && st.error.kind === "offline"; set(off ? "offline" : "error", "cloudOff", off ? i18n.t("Offline") : i18n.t("Not synced")); return; }
+    if (b.hidden || badgeHide) return;
+    badgeHide = setTimeout(() => { badgeHide = null; b.hidden = true; }, Math.max(0, 900 - (Date.now() - badgeSince)));
+  }
+
   // Sync's side: a doc it merged comes in as it is (already stamped by
   // whichever device made each change), and a cover it fetched is redrawn.
   function adopt(next) {
     next = M.sanitizeDoc(next);
     if (JSON.stringify(next) === JSON.stringify(doc)) return;
+    const came = window.Tripboard.merge.arrivals(doc, next);
     doc = next;
     lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
+    tellArrivals(came);
   }
   // A shared trip that stopped being shared with you stays here, as your
   // own: you own this copy, and nobody else is on it.
