@@ -810,27 +810,137 @@
     main.ondragleave = (e) => { if (e.target === main) main.classList.remove("file-over"); };
     main.ondrop = (e) => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); main.classList.remove("file-over"); askFiles([...e.dataTransfer.files], trip); };
     if (!list.length) {
-      main.append(el("div.empty", {}, el("p", { text: i18n.t("No files yet.") }),
-        el("p.dim", { text: window.matchMedia("(pointer: fine)").matches ? i18n.t("Keep tickets, bookings and PDFs with the trip, to open without a connection. Add one with +, or drop it here.") : i18n.t("Keep tickets, bookings and PDFs with the trip, to open without a connection. Add one with +.") })));
+      main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing here yet.") }),
+        el("p.dim", { text: window.matchMedia("(pointer: fine)").matches ? i18n.t("Keep tickets, bookings, links and notes with the trip, to open without a connection. Add one with +, or drop a file here.") : i18n.t("Keep tickets, bookings, links and notes with the trip, to open without a connection. Add one with +.") })));
       return;
     }
+    const placeName = (f) => { const p = f.place && doc.places.find((x) => x.id === f.place); return p ? p.name : ""; };
+    const local = (f) => (f.local ? el("span.attached-local", { title: i18n.t("Only this device"), "aria-label": i18n.t("Only this device") }, icon("phone")) : null);
     const row = (f) => {
-      const place = f.place && doc.places.find((p) => p.id === f.place);
-      const here = haveFiles.has(f.id);
-      return el("button.xrow", { type: "button", onclick: (e) => openFile(f, trip, e.currentTarget) },
-        el("span.xrow-ic", {}, icon(f.type.startsWith("image/") ? "image" : "file")),
-        el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }),
-          el("span.xrow-meta", { text: [kindOf(f), sizeLabel(f.size), place ? place.name : "", here ? "" : i18n.t("not on this device yet")].filter(Boolean).join(" · ") })));
+      const meta = f.kind === "link" ? [M.linkHost(f.url), placeName(f)]
+        : f.kind === "note" ? [firstLine(f.text), placeName(f)]
+        : [kindOf(f), sizeLabel(f.size), placeName(f), haveFiles.has(f.id) ? "" : i18n.t("not on this device yet")];
+      return el("button.xrow", { type: "button", onclick: (e) => openEntry(f, trip, e.currentTarget) },
+        el("span.xrow-ic", {}, icon(entryIcon(f))),
+        el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }), el("span.xrow-meta", { text: meta.filter(Boolean).join(" · ") })), local(f));
     };
-    const synced = list.filter((f) => !f.local), local = list.filter((f) => f.local);
+    const byAdded = (a, b) => String(a.createdAt).localeCompare(String(b.createdAt));
     const wrap = el("div.groups");
-    if (synced.length) wrap.append(el("section.group", {}, el("div.group-head", {}, el("h2", { text: i18n.t("Synced") }), el("span.count", { text: String(synced.length) })),
-      el("p.hint.dim", { text: i18n.t("On all your devices, and with everyone the trip is shared with.") }), el("div.xrows", {}, synced.map(row))));
-    if (local.length) wrap.append(el("section.group", {}, el("div.group-head", {}, el("h2", { text: i18n.t("On this device only") }), el("span.count", { text: String(local.length) })),
-      el("p.hint.dim", { text: i18n.t("Stays here. Other devices and other people don't see it.") }), el("div.xrows", {}, local.map(row))));
+    for (const [kind, title, items] of [["note", i18n.t("Notes"), list.filter((f) => f.kind === "note").sort(byAdded)],
+      ["link", i18n.t("Links"), list.filter((f) => f.kind === "link").sort(byAdded)], ["file", i18n.t("Files"), list.filter(M.hasBytes)]]) {
+      if (items.length) wrap.append(el("section.group.files-" + kind, {}, el("div.group-head", {}, el("h2", { text: title }), el("span.count", { text: String(items.length) })),
+        el("div.xrows", {}, items.map(row))));
+    }
     main.append(wrap);
     if (window.matchMedia("(pointer: fine)").matches) main.append(el("p.dim.hint.page-hint", { text: i18n.t("Drop files here to add them.") }));
   }
+  const entryIcon = (f) => (f.kind === "link" ? "link" : f.kind === "note" ? "note" : f.type.startsWith("image/") ? "image" : "file");
+  const firstLine = (t) => { const l = String(t || "").split("\n").find((x) => x.trim()) || ""; return l.length > 80 ? l.slice(0, 80) + "…" : l; };
+  function openEntry(f, trip, from) {
+    if (f.kind === "link") openLink(f, trip, from);
+    else if (f.kind === "note") openNote(f, trip, from);
+    else openFile(f, trip, from);
+  }
+
+  // The + on Files: a file, a link or a note.
+  $("addKindFile").addEventListener("click", async () => { await closeSheet($("addKindSheet")); $("fileAdd").click(); });
+  $("addKindLink").addEventListener("click", async () => { await closeSheet($("addKindSheet")); const t = findTrip(view.trip); if (t) openLink(null, t); });
+  $("addKindNote").addEventListener("click", async () => { await closeSheet($("addKindSheet")); const t = findTrip(view.trip); if (t) openNote(null, t); });
+
+  // A link's or note's sheet: Kept, and the place it belongs to.
+  function keptSeg(prefix, get, set) {
+    const paint = () => {
+      $(prefix + "KeptSeg").replaceChildren(...[[false, i18n.t("Synced")], [true, i18n.t("Only this device")]].map(([local, label]) =>
+        el("button", { type: "button", role: "radio", "aria-checked": String(get() === local), text: label, onclick: () => { set(local); paint(); } })));
+      $(prefix + "KeptHint").textContent = get() ? i18n.t("Stays here. Other devices and other people don't see it.") : i18n.t("On all your devices, and with everyone the trip is shared with.");
+    };
+    paint();
+  }
+  function placeOptions(select, trip, value) {
+    select.replaceChildren(el("option", { value: "", text: i18n.t("None") }),
+      ...placesOf(trip.id).slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => el("option", { value: p.id, text: p.name })));
+    select.value = value && placesOf(trip.id).some((p) => p.id === value) ? value : "";
+  }
+  const sheetPlace = () => ($("placeSheet").open && editingPlace ? editingPlace.id : "");
+  // Adds a new link or note, or changes the one being edited.
+  function keepEntry(editing, trip, fields, local) {
+    if (editing) {
+      const f = (doc.files || []).find((x) => x.id === editing.id);
+      if (f) { Object.assign(f, fields); if (local) f.local = true; else delete f.local; }
+    } else {
+      const stamp = new Date().toISOString();
+      doc.files = (doc.files || []).concat(M.sanitizeFile({ id: M.newId(), trip: trip.id, ...fields, local, createdAt: stamp, updatedAt: stamp }));
+    }
+    save();
+    if ($("placeSheet").open) paintPlaceFiles();
+  }
+  function deleteEntry(btn, sheet, f) {
+    btn.hidden = !f;
+    if (!f) return;
+    armDelete(btn, i18n.t("Delete"), () => {
+      closeSheet(sheet);
+      undoable(i18n.t("Deleted {name}.", { name: f.name }), () => { doc.files = doc.files.filter((x) => x.id !== f.id); });
+      if ($("placeSheet").open) paintPlaceFiles();
+    });
+  }
+
+  let editingLink = null, linkTrip = null, linkLocal = false;
+  function openLink(f, trip, from) {
+    editingLink = f; linkTrip = trip;
+    const form = $("linkForm");
+    form.reset();
+    form.url.removeAttribute("aria-invalid");
+    $("linkSheetTitle").textContent = f ? i18n.t("Link") : i18n.t("Add a link");
+    form.url.value = f ? f.url : "";
+    form.name.value = f ? f.name : "";
+    form.note.value = (f && f.note) || "";
+    $("linkOpenRow").hidden = !f || !f.url;
+    if (f && f.url) $("linkOpen").href = f.url;
+    placeOptions($("linkPlace"), trip, f ? f.place : sheetPlace());
+    linkLocal = !!(f && f.local);
+    keptSeg("link", () => linkLocal, (v) => { linkLocal = v; });
+    deleteEntry($("linkDelete"), $("linkSheet"), f);
+    lockForm(form, !mayEdit(trip));
+    openSheet($("linkSheet"), from);
+    if (!f) form.url.focus();
+  }
+  $("linkForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const url = M.linkUrl(form.url.value);
+    if (!url) { form.url.setAttribute("aria-invalid", "true"); form.url.focus(); toast(i18n.t("That isn't a web address. Links start with http:// or https://.")); return; }
+    form.url.removeAttribute("aria-invalid");
+    const closing = closeSheet($("linkSheet"));
+    keepEntry(editingLink, linkTrip, { kind: "link", url, name: form.name.value.trim() || M.linkHost(url), place: form.place.value, note: form.note.value }, linkLocal);
+    await closing;
+  });
+
+  let editingNote = null, noteTrip = null, noteLocal = false;
+  function openNote(f, trip, from) {
+    editingNote = f; noteTrip = trip;
+    const form = $("noteForm");
+    form.reset();
+    form.text.removeAttribute("aria-invalid");
+    $("noteSheetTitle").textContent = f ? f.name : i18n.t("Add a note");
+    form.name.value = f ? f.name : "";
+    form.text.value = f ? f.text || "" : "";
+    placeOptions($("notePlace"), trip, f ? f.place : sheetPlace());
+    noteLocal = !!(f && f.local);
+    keptSeg("note", () => noteLocal, (v) => { noteLocal = v; });
+    deleteEntry($("noteDelete"), $("noteSheet"), f);
+    lockForm(form, !mayEdit(trip));
+    openSheet($("noteSheet"), from);
+    if (!f) form.name.focus();
+  }
+  $("noteForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.text.value.trim()) { form.text.setAttribute("aria-invalid", "true"); form.text.focus(); return; }
+    form.text.removeAttribute("aria-invalid");
+    const closing = closeSheet($("noteSheet"));
+    keepEntry(editingNote, noteTrip, { kind: "note", text: form.text.value, name: form.name.value.trim() || firstLine(form.text.value).slice(0, 60) || i18n.t("Note"), place: form.place.value }, noteLocal);
+    await closing;
+  });
 
   let editingFile = null, fileLocal = false;
   function paintKept() {
@@ -887,9 +997,12 @@
   }
   const filesOn = (placeId) => (doc.files || []).filter((f) => f.place === placeId);
   function fileButtons(list) {
-    return list.map((f) => el("li", {}, el("button.attached-file", { type: "button", onclick: () => viewFile(f) },
-      icon(f.type.startsWith("image/") ? "image" : "file"), el("span", { text: f.name }),
-      f.local ? el("span.attached-local", { title: i18n.t("Only this device"), "aria-label": i18n.t("Only this device") }, icon("phone")) : null)));
+    return list.map((f) => {
+      const kids = [icon(entryIcon(f)), el("span", { text: f.name }),
+        f.local ? el("span.attached-local", { title: i18n.t("Only this device"), "aria-label": i18n.t("Only this device") }, icon("phone")) : null];
+      return el("li", {}, f.kind === "link" ? el("a.attached-file", { href: f.url, target: "_blank", rel: "noopener noreferrer" }, ...kids)
+        : el("button.attached-file", { type: "button", onclick: (e) => (f.kind === "note" ? openNote(f, findTrip(f.trip), e.currentTarget) : viewFile(f)) }, ...kids));
+    });
   }
   function paintPlaceFiles() {
     const on = !!editingPlace && sees(placeTrip, "files");
@@ -2042,7 +2155,7 @@
       const blob = t.cover ? await store.cover(t.id) : null;
       if (blob) data.covers[t.id] = await toDataUrl(blob);
     }
-    for (const f of data.files) {
+    for (const f of data.files.filter(M.hasBytes)) {
       const blob = await store.file(f.id);
       if (blob) data.blobs[f.id] = await toDataUrl(blob.type ? blob : new Blob([blob], { type: f.type }));
     }
@@ -2851,7 +2964,7 @@
     else if (trip && view.mode === "share") renderShare(main, trip);
     else if (trip && view.mode === "today") renderToday(main, trip);
     else if (trip) renderBoard(main, trip); else renderHome(main);
-    $("fab").setAttribute("aria-label", view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add files") : i18n.t("Add a place"));
+    $("fab").setAttribute("aria-label", view.mode === "expenses" ? i18n.t("Add an expense") : view.mode === "files" ? i18n.t("Add to Files") : i18n.t("Add a place"));
     if (view.mode !== "share") main.classList.remove("share-page");
     main.classList.toggle("today-page", !!trip && view.mode === "today");
     if (view.mode !== "files") { main.ondragover = main.ondragleave = main.ondrop = null; main.classList.remove("file-over"); }
@@ -3117,6 +3230,8 @@
     $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
+    for (const [id, name] of [["addKindFile", "file"], ["addKindLink", "link"], ["addKindNote", "note"]]) $(id).querySelector(".xrow-ic").append(icon(name));
+    $("linkOpen").prepend(icon("external"));
     $("settingsBtn").append(icon("gear"));
     $("updateClose").append(icon("x"));
     mapButtons();
@@ -3138,7 +3253,7 @@
     // What the + opens comes up at once, with the swell under it.
     $("fab").addEventListener("click", (e) => {
       const fab = e.currentTarget, trip = findTrip(view.trip), mode = view.mode;
-      if (mode === "files") $("fileAdd").click();
+      if (mode === "files") openSheet($("addKindSheet"), e.currentTarget);
       else if (mode === "expenses") openExpense(null, trip, fab);
       else openPlace(null, trip, mode === "today" ? { day: today() } : null, fab);
     });

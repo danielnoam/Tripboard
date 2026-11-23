@@ -261,7 +261,7 @@
     let pulled = false;
     if (!(st.hidden || []).includes("files")) {
       for (const f of merged.files || []) {
-        if (st.files[f.id]) continue;
+        if (st.files[f.id] || f.kind === "link" || f.kind === "note") continue;
         const blob = await ctx.store.file(f.id);
         if (blob) {
           if (st.role !== "viewer") await call("PUT", "/trips/" + id + "/files/" + f.id, { key: st.key, to: at(id), raw: blob });

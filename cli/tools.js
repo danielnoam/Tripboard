@@ -89,7 +89,7 @@ function printTrip(v) {
     for (const p of v.people) lines.push("  " + (p.name || "Someone") + "  " + p.role + (p.hidden.length ? ", doesn't see " + p.hidden.join(", ") : "") + "  (" + p.id + ")");
   }
   lines.push("", "Files (" + v.files.length + ")");
-  for (const f of v.files) lines.push("  " + f.name + "  " + Math.max(1, Math.round(f.size / 1000)) + " KB  (" + f.id + ")");
+  for (const f of v.files) lines.push("  " + f.name + "  " + (f.kind === "link" ? f.url : f.kind === "note" ? "note, " + f.text.length + " characters" : Math.max(1, Math.round(f.size / 1000)) + " KB") + "  (" + f.id + ")");
   return lines.join("\n");
 }
 const done = (x) => (x.deleted ? "Deleted " + x.deleted + "." + (x.movedToOther ? " " + x.movedToOther + " places are in Other now." : "")
@@ -108,7 +108,7 @@ const TOOLS = [
     description: "Every trip, in Home's order (under way, upcoming, undated, past): id, name, dates, destinations, status and how many places.",
     print: (l) => l.map((t) => t.name + (t.start ? "  " + t.start : "") + "  " + t.places + " places  (" + t.id + ")").join("\n") || "No trips yet." },
   { tool: "get_trip", cmd: "show", kind: "read", query: "getTrip", args: [tripArg],
-    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people (and, when it is shared, which sharing server it is on) and files (names only).",
+    description: "One trip in full: its places (by day), the names of the categories they use, its days, expenses with totals per currency and per category, its people (and, when it is shared, which sharing server it is on) and Files: files (names only), links (with their address) and notes (with their text).",
     print: printTrip },
   { tool: "find_places", cmd: "places", kind: "read", query: "findPlaces",
     description: "A trip's places that match every filter given. With near, nearest first, with km.",
@@ -155,10 +155,11 @@ const TOOLS = [
     description: "Your place categories, in order, one list for all trips: id, name, whether it's built in, and how many places use it.",
     print: (l) => l.map((c) => c.position + ". " + c.name + "  " + c.places + " places  (" + c.id + ")").join("\n") },
   { tool: "get_file", cmd: "file", kind: "read", query: "getFile",
-    description: "A file kept with a trip: its record and contents (text, or base64 for other kinds). " + FILES_OFF,
+    description: "A file kept with a trip: its record and contents (text, or base64 for other kinds). " + FILES_OFF + " A link's or note's record (with its address or text) always comes.",
     args: [tripArg, ["file", { type: "string", description: "The file's id or name." }, { req: true, pos: 1 }],
       ["out", { type: "string", description: "Where to save it; without it a text file is printed." }, { mcp: false }]],
     mcp: (r, a, env) => {
+      if (!M.hasBytes(r.file)) return { file: r.file };
       if (!filesOk(env)) throw new Error(FILES_OFF);
       if (!r.bytes) return { file: r.file, missing: "Its bytes aren't in the sync repo yet (the device that added it hasn't synced)." };
       const b = Buffer.from(r.bytes);
@@ -166,6 +167,8 @@ const TOOLS = [
       return core.isText(r.file.type) ? { file: r.file, text: b.toString("utf8") } : { file: r.file, base64: b.toString("base64") };
     },
     cli: (r, a) => {
+      if (r.file.kind === "link") return r.file.name + "\n" + r.file.url + (r.file.note ? "\n\n" + r.file.note : "");
+      if (r.file.kind === "note") return r.file.name + "\n\n" + r.file.text;
       if (!r.bytes) return "Its bytes aren't in the sync repo yet.";
       if (a.out) { fs().writeFileSync(a.out, r.bytes); return "Saved " + r.file.name + " to " + a.out + "."; }
       if (core.isText(r.file.type)) return Buffer.from(r.bytes).toString("utf8");
@@ -240,10 +243,18 @@ const TOOLS = [
   { tool: "add_file", cmd: "add-file", kind: "write", op: "addFile", input: "bytes",
     description: "Keep a file with a trip (a ticket, a booking), up to " + M.MAX_FILE_MB + " MB. It syncs to the person's devices like one added in the app.",
     args: [tripArg, ...bytesArgs, ...fileFields, ["type", { type: "string", description: "Its MIME type; guessed from its name when left out." }]] },
-  { tool: "update_file", cmd: "edit-file", kind: "write", op: "updateFile", args: [tripArg, ["file", { type: "string", description: "The file's id or name." }, { req: true, pos: 1 }], ...fileFields],
-    description: "Rename a file, change its note, or the place it belongs to." },
+  { tool: "add_link", cmd: "add-link", kind: "write", op: "addLink",
+    description: "Keep a link in a trip's Files (an IC card guide, a pass calculator, a booking page). http and https only; a bare address gets https://. Its name is the site's when left out.",
+    args: [tripArg, ["url", { type: "string", description: "The web address." }, { req: true, pos: 1 }], ...fileFields] },
+  { tool: "add_note", cmd: "add-note", kind: "write", op: "addNote",
+    description: "Keep a note in a trip's Files: a title and plain text, up to " + M.MAX_NOTE + " characters (a phrasebook, directions, door codes).",
+    args: [tripArg, ["name", { type: "string", description: "The note's title." }], ["text", { type: "string", description: "The note itself; new lines are kept." }, { req: true }],
+      ["place", fileFields[1][1]]] },
+  { tool: "update_file", cmd: "edit-file", kind: "write", op: "updateFile", args: [tripArg, ["file", { type: "string", description: "The file's, link's or note's id or name." }, { req: true, pos: 1 }], ...fileFields,
+    ["url", { type: "string", description: "A link's new web address." }], ["text", { type: "string", description: "A note's new text (all of it)." }]],
+    description: "Rename a file, link or note, change its note, the place it belongs to, a link's address or a note's text." },
   { tool: "delete_file", cmd: "delete-file", kind: "write", op: "deleteFile", args: [tripArg, ["file", { type: "string" }, { req: true, pos: 1 }]],
-    description: "Delete a file from a trip, and its bytes from the sync repo (git history keeps them)." },
+    description: "Delete a file, link or note from a trip, and a file's bytes from the sync repo (git history keeps them)." },
 
   // ---------- People ----------
   { tool: "update_sharing", cmd: "share", kind: "write", op: "updateSharing",

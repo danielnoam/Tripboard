@@ -202,7 +202,7 @@ function tripView(doc, trip, cats) {
     expenses, totals: M.expenseTotals(expenses),
     byCategory: M.expensesByCategory(expenses).map(({ id, totals }) => ({ category: id, totals })),
     people: (trip.members || []).map((m) => { const a = M.access(trip, m.id); return { id: m.id, name: m.name, role: a.role, hidden: a.hide, own: a.own }; }),
-    files: (doc.files || []).filter((f) => f.trip === trip.id).map(({ id, name, type, size, place, note }) => ({ id, name, type, size, place, note })),
+    files: (doc.files || []).filter((f) => f.trip === trip.id).map(({ id, name, type, size, place, note, kind, url, text }) => ({ id, kind: kind || "file", name, type, size, place, note, url, text })),
   };
 }
 
@@ -411,10 +411,40 @@ const ops = {
     ctx.put("files/" + t.id + "/" + f.id, b);
     return f;
   },
+  // A link kept in the trip's Files (http or https only).
+  addLink(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const url = M.linkUrl(a.url);
+    if (!url) throw new Error("A link needs a web address starting with http:// or https://.");
+    const f = M.sanitizeFile({ id: M.newId(), trip: t.id, kind: "link", url, name: a.name, createdAt: now(),
+      place: a.place ? findPlace(doc, t, a.place).id : undefined, note: a.note });
+    doc.files = (doc.files || []).concat(f);
+    return f;
+  },
+  // A note kept in the trip's Files: a title and its text.
+  addNote(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (!String(a.text || "").trim()) throw new Error("A note needs its text.");
+    if (String(a.text).length > M.MAX_NOTE) throw new Error("A note can be up to " + M.MAX_NOTE + " characters.");
+    const f = M.sanitizeFile({ id: M.newId(), trip: t.id, kind: "note", text: a.text, name: a.name, createdAt: now(),
+      place: a.place ? findPlace(doc, t, a.place).id : undefined });
+    doc.files = (doc.files || []).concat(f);
+    return f;
+  },
   updateFile(doc, a) {
     const t = findTrip(doc, a.trip);
     const f = findIn((doc.files || []).filter((x) => x.trip === t.id), a.file, "file");
     if (a.place) a = { ...a, place: findPlace(doc, t, a.place).id };
+    if (a.url !== undefined) {
+      if (f.kind !== "link") throw new Error(f.name + " isn't a link, so it has no web address.");
+      if (!M.linkUrl(a.url)) throw new Error("A link needs a web address starting with http:// or https://.");
+      f.url = M.linkUrl(a.url);
+    }
+    if (a.text !== undefined) {
+      if (f.kind !== "note") throw new Error(f.name + " isn't a note. A file's contents change by adding it again.");
+      if (String(a.text).length > M.MAX_NOTE) throw new Error("A note can be up to " + M.MAX_NOTE + " characters.");
+      f.text = M.sanitizeFile({ kind: "note", text: a.text }).text;
+    }
     Object.assign(f, pick(a, FILE_FIELDS));
     clear(f, a, ["place", "note"]);
     return f;
@@ -588,6 +618,7 @@ const queries = {
   async getFile(st, a) {
     const t = findTrip(st.doc, a.trip);
     const f = findIn((st.doc.files || []).filter((x) => x.trip === t.id), a.file, "file");
+    if (!M.hasBytes(f)) return { file: f, bytes: null };
     const bytes = await st.raw("files/" + t.id + "/" + f.id);
     return { file: f, bytes };
   },
@@ -601,7 +632,7 @@ const queries = {
         const b = t.cover && (await st.raw("covers/" + t.id + ".jpg"));
         if (b) data.covers[t.id] = dataUrl(imageType(b) || "image/jpeg", b);
       }
-      for (const f of data.files) {
+      for (const f of data.files.filter(M.hasBytes)) {
         const b = await st.raw("files/" + f.trip + "/" + f.id);
         if (b) data.blobs[f.id] = dataUrl(f.type, b);
       }

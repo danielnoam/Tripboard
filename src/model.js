@@ -21,6 +21,9 @@
 // A file: id, trip, name, type (its MIME type), size in bytes, and
 // optionally place, note and local (true: kept on this device only, never
 // synced or shared). Its bytes are kept apart (store.js), never in the doc.
+// A link or a note lives in Files too, as a file with kind "link" (and
+// url, http or https only) or kind "note" (and text). They have no bytes
+// (hasBytes), so they travel in the trip's bundle like any other record.
 (function () {
   // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
   const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
@@ -89,8 +92,9 @@
     "IDR", "MYR", "PHP", "INR", "AED", "TRY", "EGP", "MAD", "ZAR", "MXN", "BRL", "ARS", "CLP", "PEN", "COP",
     "SEK", "NOK", "DKK", "ISK", "PLN", "CZK", "HUF", "RON", "GEL"];
   const KNOWN_EXPENSE = new Set(["id", "trip", "title", "amount", "currency", "category", "day", "place", "note", "paidBy", "by", "createdAt", "updatedAt"]);
-  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt"]);
+  const KNOWN_FILE = new Set(["id", "trip", "name", "type", "size", "place", "note", "local", "by", "createdAt", "updatedAt", "kind", "url", "text"]);
   const MAX_FILE_MB = 25;
+  const MAX_NOTE = 50000;
   const MAX_ORDER = 999;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
@@ -254,11 +258,27 @@
     return keepUnknown(e, out, KNOWN_EXPENSE);
   }
 
+  // A web address as typed: "example.com/x" gets https://; anything but
+  // http and https (javascript:, data:, file:) is refused, as "".
+  function linkUrl(v) {
+    let s = text(v);
+    if (!s) return "";
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s;
+    try {
+      const u = new URL(s);
+      return (u.protocol === "https:" || u.protocol === "http:") && u.hostname ? u.href.slice(0, 2000) : "";
+    } catch (e) { return ""; }
+  }
+  const linkHost = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; } };
+  const hasBytes = (f) => !!f && f.kind !== "link" && f.kind !== "note";
   function sanitizeFile(f) {
     f = f || {};
     const size = num(f.size);
+    const kind = f.kind === "link" || f.kind === "note" ? f.kind : "";
+    const url = kind === "link" ? linkUrl(f.url) : "";
     const out = {
-      id: text(f.id) || newId(), trip: text(f.trip), name: text(f.name).slice(0, 200) || "Untitled file",
+      id: text(f.id) || newId(), trip: text(f.trip),
+      name: text(f.name).slice(0, 200) || (kind === "link" ? linkHost(url) || "Link" : kind === "note" ? "Note" : "Untitled file"),
       type: /^[\w.+-]+\/[\w.+-]+$/.test(text(f.type)) ? text(f.type) : "application/octet-stream",
       size: size != null && size >= 0 ? Math.round(size) : 0,
       createdAt: f.createdAt || now(), updatedAt: f.updatedAt || f.createdAt || now(),
@@ -266,6 +286,13 @@
     for (const k of ["place", "note"]) { const v = text(f[k]); if (v) out[k] = v; }
     if (isPersonId(f.by)) out.by = f.by;
     if (f.local) out.local = true;
+    if (kind) {
+      out.kind = kind;
+      out.size = 0;
+      out.type = kind === "link" ? "text/uri-list" : "text/plain";
+      if (kind === "link") out.url = url;
+      else out.text = String(f.text == null ? "" : f.text).replace(/\r\n?/g, "\n").replace(/\s+$/, "").slice(0, MAX_NOTE);
+    }
     return keepUnknown(f, out, KNOWN_FILE);
   }
 
@@ -512,7 +539,7 @@
   }
 
   const api = {
-    sanitizeFile, MAX_FILE_MB, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
+    sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, distanceKm, board, backupOf, mergeBackup, staleGoogle, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,

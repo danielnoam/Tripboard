@@ -309,4 +309,16 @@ test("a swipe: sideways, far and quick enough; the other way in right to left", 
   assert.strictEqual(M.swipeStep(-80, 0, 900, false), 0, "too slow: a long press or a selection");
 });
 
+test("a link keeps http(s) only and is named after its site; a note keeps its lines; neither has bytes", () => {
+  const l = M.sanitizeFile({ trip: "t", kind: "link", url: "www.jreast.co.jp/en/" });
+  assert.deepStrictEqual([l.url, l.name, l.size, l.type, M.hasBytes(l)], ["https://www.jreast.co.jp/en/", "jreast.co.jp", 0, "text/uri-list", false]);
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd", ""]) assert.strictEqual(M.linkUrl(bad), "", bad);
+  assert.strictEqual(M.sanitizeFile({ kind: "link", url: "javascript:alert(1)" }).url, "");
+  const n = M.sanitizeFile({ trip: "t", kind: "note", name: "Phrasebook", text: "Sumimasen\r\nArigatou\n\n" });
+  assert.deepStrictEqual([n.text, n.name, M.hasBytes(n)], ["Sumimasen\nArigatou", "Phrasebook", false]);
+  assert.strictEqual(M.sanitizeFile({ kind: "note", text: "x".repeat(M.MAX_NOTE + 10) }).text.length, M.MAX_NOTE);
+  const f = M.sanitizeFile({ trip: "t", name: "a.pdf", type: "application/pdf", url: "https://x", text: "y" });
+  assert.deepStrictEqual([f.kind, f.url, f.text, M.hasBytes(f)], [undefined, undefined, undefined, true]);
+});
+
 console.log(passed + " passed");

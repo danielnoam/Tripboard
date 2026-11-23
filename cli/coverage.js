@@ -17,7 +17,7 @@ const PUBLISHED = ["list_trips", "get_trip", "create_trip", "update_trip", "dele
   "add_expense", "update_expense", "update_sharing", "delete_expense",
   "find_places", "get_board", "get_day", "list_categories", "get_file", "export_backup", "find_location", "set_trip_cover",
   "import_places", "add_file", "update_file", "delete_file", "remove_person", "add_category", "update_category", "delete_category",
-  "reset_categories", "import_backup", "get_weather", "order_day", "batch_update"];
+  "reset_categories", "import_backup", "get_weather", "order_day", "batch_update", "add_link", "add_note"];
 
 const made = "auto: made by core.js (ids, times, who changed it)";
 const fields = {
@@ -47,8 +47,9 @@ const fields = {
   },
   file: {
     id: made, trip: made, createdAt: made, updatedAt: made, by: made,
-    name: ["add_file", "update_file"], place: ["add_file", "update_file"], note: ["add_file", "update_file"],
-    type: ["add_file"], size: "auto: the bytes' length",
+    name: ["add_file", "add_link", "add_note", "update_file"], place: ["add_file", "add_link", "add_note", "update_file"], note: ["add_file", "add_link", "update_file"],
+    type: ["add_file"], size: "auto: the bytes' length (0 for a link or note)",
+    kind: ["add_link", "add_note"], url: ["add_link", "update_file"], text: ["add_note", "update_file"],
     local: "device: a file kept on one device only never reaches the sync repo, so no chat can see it",
   },
 };
@@ -66,6 +67,9 @@ const sheets = {
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
   fileSheet: ["update_file", "delete_file", "get_file"],
   addFilesSheet: ["add_file"],
+  addKindSheet: ["add_file", "add_link", "add_note"],
+  linkSheet: ["add_link", "update_file", "delete_file", "get_file"],
+  noteSheet: ["add_note", "update_file", "delete_file", "get_file"],
   viewSheet: "device: how this device's place cards show category and importance (icons, names or both), never in the sync repo",
   mapStyleSheet: "device: the map's look is this device's map provider and style (Settings › Services › Map), never in the sync repo",
   confirmSheet: ["delete_trip", "delete_place"],
@@ -116,7 +120,7 @@ const repo = {
 // model.js's API: "cli" when cli/ uses it, or why it doesn't.
 const ui = "device: the app's screens only";
 const model = {
-  sanitizeFile: "cli", MAX_FILE_MB: "cli", SECTIONS: "cli", access: "cli", can: "cli", ownTrip: "cli", EXPENSE_CATEGORIES: "cli", CATEGORY: "cli",
+  sanitizeFile: "cli", MAX_FILE_MB: "cli", MAX_NOTE: "cli", hasBytes: "cli", linkUrl: "cli", linkHost: "auto: sanitizeFile names a link after its site with it", SECTIONS: "cli", access: "cli", can: "cli", ownTrip: "cli", EXPENSE_CATEGORIES: "cli", CATEGORY: "cli",
   sanitizeExpense: "cli", expenseTotals: "cli", expensesByCategory: "cli", onDay: "cli", catList: "cli", catName: "cli", carryCats: "cli", isCatId: "cli",
   CATEGORIES: "cli", IMPORTANCE: "cli", newId: "cli", isDay: "cli", sanitizeTrip: "cli", sanitizePlace: "cli", sanitizeDoc: "cli", stamp: "cli",
   tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", distanceKm: "cli", board: "cli", backupOf: "cli",
