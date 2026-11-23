@@ -824,6 +824,9 @@ dialog[tabindex="-1"]:focus { outline: none; }
   background: var(--bg);
 }
 .page-bar .page-back { margin-inline-start: calc(-1 * var(--space-2)); }
+.page-back .icon-x { display: none; }
+/* The trip form's two halves: one column on a phone, side by side on a computer. */
+.trip-col { display: contents; }
 .sheet.page .page-bar h2 { flex: 1; font-size: var(--fs-big); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet.page .field input, .sheet.page .field select, .sheet.page .field textarea { background-color: var(--surface); }
 .sheet.page .sheet-actions {
@@ -831,6 +834,22 @@ dialog[tabindex="-1"]:focus { outline: none; }
   padding: var(--space-2) 0 calc(env(safe-area-inset-bottom) + var(--space-2));
   margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--space-3)));
   background: var(--bg);
+}
+
+/* On a computer a new or edited trip is a wide dialog over the page, its
+   details on the left and its cover, places to start with and file on the right. */
+@media (min-width: 1100px) {
+  #tripSheet.page { width: 960px; max-width: calc(100vw - 64px); height: fit-content; max-height: 88dvh; margin: auto; border-radius: 20px; }
+  #tripSheet::backdrop { background: rgba(0, 0, 0, 0.35); }
+  #tripForm { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; align-items: start; align-content: start; max-width: none; padding: 0 28px var(--space-3); }
+  #tripForm > .page-bar { grid-column: 1 / -1; padding-block-start: var(--space-3); }
+  /* A dialog closes with x at its end rather than a back arrow at its start. */
+  #tripForm .page-back { order: 1; margin-inline: 0 calc(-1 * var(--space-2)); }
+  #tripForm .page-back .icon-back { display: none; }
+  #tripForm .page-back .icon-x { display: block; }
+  #tripForm > .sheet-actions { grid-column: 1 / -1; }
+  #tripForm .trip-col { display: grid; gap: var(--space-3); min-width: 0; }
+  #tripForm .art-row { flex-wrap: wrap; overflow: visible; }
 }
 
 /* Adding a place: a sheet from below over the trip, its title and its

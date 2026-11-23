@@ -3984,7 +3984,7 @@
     doc = M.sanitizeDoc(doc);
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
-    for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"));
+    for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"), icon("x", "icon-x"));
     $("editTrip").append(icon("pencil"));
     $("shareTrip").append(icon("users"));
     $("viewTrip").append(icon("sliders"));
