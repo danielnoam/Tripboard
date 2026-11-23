@@ -171,7 +171,7 @@
     const one = added.length === 1 && !updated.length && !removed.length && view.trip !== added[0].id ? added[0] : null;
     const show = () => {
       if (Date.now() < undoUntil) { clearTimeout(arrivalTimer); arrivalTimer = setTimeout(show, undoUntil - Date.now() + 200); return; }
-      toast(parts.join(" "), null, one ? { label: i18n.t("Open"), run: () => { location.hash = "#/trip/" + one.id; } } : null);
+      toast(parts.join(" "), null, one ? { label: i18n.t("Open"), run: () => { go("#/trip/" + one.id); } } : null);
     };
     show();
   }
@@ -511,7 +511,7 @@
     if (side.dataset.trip !== trip.id + "|" + trip.name + "|" + (trip.coverAt || "") + (trip.art || "")) {
       side.dataset.trip = trip.id + "|" + trip.name + "|" + (trip.coverAt || "") + (trip.art || "");
       side.replaceChildren(
-        el("a.side-back", { href: "#/" }, icon("back", "icon-back"), el("span", { text: i18n.t("All trips") })),
+        el("a.side-back", { href: "#/", onclick: (e) => { e.preventDefault(); goUp("#/"); } }, icon("back", "icon-back"), el("span", { text: i18n.t("All trips") })),
         coverBox(trip, "side-cover"),
         el("h1.side-name", { text: trip.name }),
         el("p.side-when"),
@@ -952,7 +952,7 @@
           const k = destKey(trip, here);
           if (!view.destOpen.includes(k)) { view.destOpen = view.destOpen.concat(k).slice(-50); remember(); }
           view.focus = "any:" + here;
-          location.hash = "#/trip/" + trip.id;
+          go("#/trip/" + trip.id);
         } }) : null));
     }
 
@@ -1138,6 +1138,7 @@
 
   let editingLink = null, linkTrip = null, linkLocal = false;
   function openLink(f, trip, from) {
+    againOn($("linkSheet"), "files", f, trip, openLink);
     editingLink = f; linkTrip = trip;
     const form = $("linkForm");
     form.reset();
@@ -1169,6 +1170,7 @@
 
   let editingNote = null, noteTrip = null, noteLocal = false;
   function openNote(f, trip, from) {
+    againOn($("noteSheet"), "files", f, trip, openNote);
     editingNote = f; noteTrip = trip;
     const form = $("noteForm");
     form.reset();
@@ -1201,6 +1203,7 @@
     $("fileKeptHint").textContent = fileLocal ? i18n.t("Stays here. Other devices and other people don't see it.") : i18n.t("On all your devices, and with everyone the trip is shared with.");
   }
   async function openFile(f, trip, from) {
+    againOn($("fileSheet"), "files", f, trip, openFile);
     editingFile = f;
     const form = $("fileForm");
     form.reset();
@@ -1278,6 +1281,7 @@
   let editingExpense = null, expenseTrip = null;
   const lastCurrency = () => { try { return localStorage.getItem("tripboard.currency") || ""; } catch (e) { return ""; } };
   function openExpense(x, trip, from) {
+    againOn($("expenseSheet"), "expenses", x, trip, openExpense);
     editingExpense = x;
     expenseTrip = trip;
     const f = $("expenseForm");
@@ -1584,6 +1588,98 @@
       { maximumAge: 300000, timeout: 15000 });
   }
 
+  // ---------- Back and Forward ----------
+  // Each screen is a hash (#/trip/…) and each open sheet a step of its own
+  // on top of it, so Back (the browser's, a mouse's side button, a phone's)
+  // closes the sheet, then leaves the screen, and Forward opens them again.
+  // A sheet closed in the app takes its step back off; until the browser has
+  // done that, the next move waits, or it would land on the wrong step.
+  const steps = [];
+  const waiting = [];
+  let owed = 0, flying = false, flyTimer = null, reviving = null;
+  function settle(fn) { if (flying || owed) waiting.push(fn); else fn(); }
+  function fly() {
+    if (flying) return;
+    if (owed) {
+      const n = owed;
+      owed = 0;
+      flying = true;
+      flyTimer = setTimeout(landed, 800);
+      history.go(-n);
+      return;
+    }
+    while (waiting.length && !flying && !owed) waiting.shift()();
+  }
+  function landed() { flying = false; clearTimeout(flyTimer); fly(); }
+  function go(hash, replace) {
+    settle(() => {
+      if (!replace) { location.hash = hash; return; }
+      // A screen put in another's place keeps that one's trail.
+      const s = history.state || {};
+      location.replace(hash);
+      if (Array.isArray(s.trail)) history.replaceState({ at: hash, trail: s.trail }, "");
+    });
+  }
+  // Forward onto a sheet opens it on the same thing, if it's still there
+  // (list names the doc's records; x null is a new one).
+  function againOn(d, list, x, trip, open) {
+    d.again = () => {
+      const t = findTrip(trip.id), y = x && (doc[list] || []).find((z) => z.id === x.id);
+      if (!t || (x && !y)) return false;
+      open(y || null, t);
+    };
+  }
+  function stepIn(d) {
+    if (steps.includes(d)) return;
+    steps.push(d);
+    if (reviving === d.id) { reviving = null; d.stepped = true; return; }
+    d.stepped = false;
+    const ids = steps.map((x) => x.id);
+    d.stepPush = () => { d.stepped = true; history.pushState({ ...history.state, sheets: ids }, ""); };
+    settle(d.stepPush);
+  }
+  function stepOut(d) {
+    const i = steps.indexOf(d);
+    if (i < 0) return;
+    for (const x of steps.splice(i)) {
+      if (x.stepped) owed++;
+      else if (waiting.includes(x.stepPush)) waiting.splice(waiting.indexOf(x.stepPush), 1);
+    }
+    fly();
+  }
+  window.addEventListener("popstate", () => {
+    if (flying) { landed(); return; }
+    const want = (history.state && history.state.sheets) || [];
+    let n = 0;
+    while (n < steps.length && n < want.length && steps[n].id === want[n]) n++;
+    for (const d of steps.splice(n).reverse()) leaveSheet(d);
+    // Forward onto a sheet: it opens again where it can (again() says how);
+    // where it can't, the step is skipped back over.
+    for (const id of want.slice(n)) {
+      const d = $(id);
+      reviving = id;
+      if (!d || d.open || !d.again || d.again() === false) { reviving = null; owed++; fly(); return; }
+    }
+  });
+  // Each history step knows the screens before it (trail), so the app's own
+  // back arrow can go back to where you came from instead of adding a step:
+  // Back after it then goes further back, not into the screen you left.
+  let here = null;
+  function stamp() {
+    const h = location.hash || "#/", s = history.state || {};
+    if (s.at === h && Array.isArray(s.trail)) { here = s; return; }
+    here = { ...s, at: h, trail: here && here.at !== h ? here.trail.concat(here.at).slice(-40) : (here ? here.trail : []) };
+    history.replaceState(here, "");
+  }
+  function goUp(parent) {
+    const trail = (history.state && history.state.trail) || [], d = depthOf(parent);
+    for (let k = trail.length - 1; k >= 0; k--) {
+      if (trail[k] === parent) { history.go(k - trail.length); return; }
+      if (depthOf(trail[k]) <= d) break;
+    }
+    go(parent);
+  }
+
   // ---------- Sheets ----------
   const narrow = () => !window.matchMedia("(min-width: 720px)").matches;
   // A sheet opens with the sheet itself in focus, never a field, so a
@@ -1591,6 +1687,7 @@
   function openSheet(d, from) {
     d.classList.remove("leaving");
     d.showModal();
+    stepIn(d);
     d.tabIndex = -1;
     d.focus();
     if (narrow() && d.classList.contains("page")) slideSheet(d, true);
@@ -1601,6 +1698,7 @@
   async function closeSheet(d) {
     if (!d.open || d.classList.contains("leaving")) return;
     d.classList.add("leaving");
+    stepOut(d);
     await (narrow() && d.classList.contains("page") ? slideSheet(d, false)
       : narrow() ? sinkSheet(d) : fadeSheet(d));
     d.close();
@@ -1637,14 +1735,15 @@
   for (const d of document.querySelectorAll("dialog.sheet")) {
     d.addEventListener("cancel", (e) => { e.preventDefault(); leaveSheet(d); });
     d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-close]")) leaveSheet(d); });
+    d.addEventListener("close", () => stepOut(d));
   }
-  // The phone's Back button: leaves the open sheet first, then goes back a
-  // screen, and from the first screen puts the app away.
+  // The phone's Back button is the browser's Back (a sheet first, then the
+  // screen), and from the first screen puts the app away.
   const appPlugin = window.Keel.platform && window.Keel.platform.plugin("App");
   if (appPlugin) appPlugin.addListener("backButton", ({ canGoBack }) => {
     const d = [...document.querySelectorAll("dialog[open]")].pop();
-    if (d) { if (d.dispatchEvent(new Event("cancel", { cancelable: true }))) d.close(); return; }
-    if (canGoBack) history.back();
+    if (d && !steps.includes(d)) { if (d.dispatchEvent(new Event("cancel", { cancelable: true }))) d.close(); return; }
+    if (canGoBack || steps.length) history.back();
     else if (appPlugin.minimizeApp) appPlugin.minimizeApp();
     else appPlugin.exitApp();
   });
@@ -1685,6 +1784,7 @@
     for (const b of $("coverArt").querySelectorAll("[data-art]")) b.setAttribute("aria-pressed", String(!url && b.dataset.art === art));
   }
   async function openTrip(trip, from) {
+    $("tripSheet").again = () => { const t = trip && findTrip(trip.id); if (trip && !t) return false; openTrip(t || null); };
     editingTrip = trip;
     pendingCover = pendingArt = undefined;
     const f = $("tripForm");
@@ -1931,7 +2031,7 @@
     if (!editingTrip) doc.trips.push(trip);
     const closing = closeSheet($("tripSheet"));
     save();
-    if (!editingTrip) location.hash = "#/trip/" + trip.id;
+    if (!editingTrip) go("#/trip/" + trip.id);
     await closing;
     const list = !editingTrip && pendingList;
     pendingList = null;
@@ -1942,7 +2042,7 @@
     const blob = trip.cover ? await store.cover(trip.id) : null;
     if (blob) store.dropCover(trip.id);
     closeSheet($("tripSheet"));
-    location.hash = "#/";
+    go("#/");
     undoable(i18n.t("Deleted {name}.", { name: trip.name }), () => { doc.trips = doc.trips.filter((t) => t !== trip); },
       async () => { if (blob) await store.setCover(trip.id, blob); });
   }
@@ -2028,7 +2128,7 @@
     const p = await commitPlace();
     view.pick = p.id;
     view.sel = null;
-    location.hash = "#/trip/" + placeTrip.id + "/map";
+    go("#/trip/" + placeTrip.id + "/map");
     render();
   });
   function paintImportance() {
@@ -2070,6 +2170,7 @@
     $("arriveInput").value = keep > day ? keep : "";
   }
   function openPlace(place, trip, preset, from) {
+    againOn($("placeSheet"), "places", place, trip, (p, t) => openPlace(p, t, p ? null : preset));
     editingPlace = place;
     placeTrip = trip;
     const f = $("placeForm");
@@ -2197,6 +2298,8 @@
     }
     if (!$("destField").hidden) M.setDest(placeTrip, p, $("destSelect").value || null);
     const closing = closeSheet($("placeSheet"));
+    // Forward after Back opens the place just added, not a new empty one.
+    if (!editingPlace) againOn($("placeSheet"), "places", p, placeTrip, (x, t) => openPlace(x, t));
     if (!editingPlace) undoable(i18n.t("Added {name}.", { name: p.name }), () => doc.places.push(p));
     else if (!same(p, JSON.parse(raw))) save();
     // Opened and left without a change: nothing to sync.
@@ -2381,7 +2484,7 @@
   // host: the server the link names, when it isn't Tripboard's.
   function renderJoin(main, tripId, code, host) {
     $("title").textContent = i18n.t("Join a trip");
-    if (findTrip(tripId) && SHARE.shared(tripId)) { location.replace("#/trip/" + tripId); return; }
+    if (findTrip(tripId) && SHARE.shared(tripId)) { go("#/trip/" + tripId, true); return; }
     if (!SHARE.enabled()) { main.append(el("div.empty", {}, el("p", { text: i18n.t("Sharing isn't set up in this copy of the app.") }))); return; }
     const other = host ? SHARE.origin(host) : null;
     if (host && !other) { main.append(el("div.empty", {}, el("p", { text: i18n.t("This invite link is broken.") }))); return; }
@@ -2395,7 +2498,7 @@
           await SHARE.allowJoin(other);
           location.reload();
         } }), " ",
-        el("button.btn.quiet", { type: "button", text: i18n.t("Cancel"), onclick: async () => { await SHARE.allowJoin(null); location.replace("#/"); } })));
+        el("button.btn.quiet", { type: "button", text: i18n.t("Cancel"), onclick: async () => { await SHARE.allowJoin(null); go("#/", true); } })));
       return;
     }
     const me = SET.get().me;
@@ -2403,7 +2506,7 @@
     const go = el("button.btn.primary", { type: "button", text: i18n.t("Join"), onclick: async () => {
       go.disabled = true;
       if (name.value.trim() !== me.name) SET.setMe({ name: name.value });
-      try { await SHARE.join(tripId, code, host); location.replace("#/trip/" + tripId); }
+      try { await SHARE.join(tripId, code, host); go("#/trip/" + tripId, true); }
       catch (e) { go.disabled = false; toast(e.message); }
     } });
     main.append(el("section.panel", {},
@@ -2648,7 +2751,7 @@
       const locked = !at;
       return el("button.mstyle" + (locked ? ".locked" : ""), { type: "button", "aria-pressed": String(on),
         onclick: () => {
-          if (locked) { closeSheet($("mapStyleSheet")); location.hash = "#/settings/p/" + st.at[0][0]; return; }
+          if (locked) { closeSheet($("mapStyleSheet")); go("#/settings/p/" + st.at[0][0]); return; }
           const [id, k, v] = at;
           SET.setProvider(id, { [k]: v });
           if (main !== id) SET.setService("map", { main: id, fallback: id === "openfreemap" ? (cur.map.fallback === "openfreemap" ? "" : cur.map.fallback) : "openfreemap" });
@@ -2665,7 +2768,7 @@
       el("p.mstyle-group", { text: i18n.t("Free") }), el("div.mstyle-grid", {}, free.map(tile)),
       el("p.mstyle-group", { text: anyKey ? i18n.t("With your key") : i18n.t("With your own key") }), el("div.mstyle-grid", {}, keyed.map(tile)),
       anyKey ? null : el("p.mstyle-hint", {}, i18n.t("A free MapTiler key gives satellite and outdoor maps:") + " ",
-        el("a", { href: "#/settings/p/maptiler", text: i18n.t("set it up"), onclick: () => closeSheet($("mapStyleSheet")) })));
+        el("a", { href: "#/settings/p/maptiler", text: i18n.t("set it up"), onclick: (e) => { e.preventDefault(); closeSheet($("mapStyleSheet")); go("#/settings/p/maptiler"); } })));
   }
   function mapButtons() {
     $("mapZoomIn").append(icon("plus"));
@@ -2677,6 +2780,7 @@
     $("mapZoomIn").addEventListener("click", () => TM.zoom(1));
     $("mapZoomOut").addEventListener("click", () => TM.zoom(-1));
     $("mapStyleBtn").addEventListener("click", (e) => { paintMapStyles(); openSheet($("mapStyleSheet"), e.currentTarget); });
+    $("mapStyleSheet").again = () => { if (!mapOn()) return false; $("mapStyleBtn").click(); };
     $("mapFit").addEventListener("click", () => {
       const trip = findTrip(view.trip);
       if (!trip) return;
@@ -3511,6 +3615,7 @@
 
   // ---------- Routing ----------
   function render() {
+    stamp();
     const before = tabBefore();
     paint();
     paintPicking();
@@ -3523,9 +3628,9 @@
     const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today))?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     $("settingsBtn").hidden = settings || !!m;
-    if (m && !trip) { location.replace("#/"); return; }
-    if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { location.replace("#/trip/" + trip.id); return; }
-    if (trip && m[2] === "today" && !underWay(trip)) { location.replace("#/trip/" + trip.id); return; }
+    if (m && !trip) { go("#/", true); return; }
+    if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { go("#/trip/" + trip.id, true); return; }
+    if (trip && m[2] === "today" && !underWay(trip)) { go("#/trip/" + trip.id, true); return; }
     if ((trip && trip.id) !== view.trip) { picked = null; view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
@@ -3612,7 +3717,7 @@
       const next = i < 0 ? null : tabs[i + step];
       if (!next) return;
       view.pick = null;
-      location.hash = "#/trip/" + trip.id + next[3];
+      go("#/trip/" + trip.id + next[3]);
     }, { passive: true });
   }
 
@@ -3836,7 +3941,7 @@
   // What the + (or the side bar's Add) adds on the tab you're on.
   function addHere(from) {
     const trip = findTrip(view.trip), mode = view.mode;
-    if (mode === "files") openSheet($("addKindSheet"), from);
+    if (mode === "files") { $("addKindSheet").again = () => (view.mode === "files" ? addHere() : false); openSheet($("addKindSheet"), from); }
     else if (mode === "expenses") openExpense(null, trip, from);
     else openPlace(null, trip, mode === "today" ? { day: today() } : null, from);
   }
@@ -3854,6 +3959,7 @@
     $("editTrip").append(icon("pencil"));
     $("shareTrip").append(icon("users"));
     $("viewTrip").append(icon("sliders"));
+    $("viewSheet").again = () => { if ($("viewTrip").hidden) return false; $("viewTrip").click(); };
     $("viewTrip").addEventListener("click", (e) => {
       const v = SET.get().view;
       $("viewCat").value = v.cat; $("viewImp").value = v.imp; $("viewLabels").value = v.labels;
@@ -3866,7 +3972,7 @@
     $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
     $("viewLabels").addEventListener("change", (e) => { SET.setView({ labels: e.target.value }); paintView(); });
     $("ratingClear").addEventListener("click", () => { rating = 0; paintRating(); });
-    $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
+    $("shareTrip").addEventListener("click", () => { view.sharePerson = null; go("#/trip/" + view.trip + "/share"); });
     $("fab").append(icon("plus"));
     for (const [id, name] of [["addKindFile", "file"], ["addKindLink", "link"], ["addKindNote", "note"]]) $(id).querySelector(".xrow-ic").append(icon(name));
     $("linkOpen").prepend(icon("external"));
@@ -3876,10 +3982,10 @@
     $("offlineBadge").prepend(icon("check"));
     $("newTrip").append(icon("plus"));
     $("newTrip").addEventListener("click", (e) => openTrip(null, e.currentTarget));
-    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; location.hash = "#/settings"; });
+    $("settingsBtn").addEventListener("click", () => { view.settingsQ = ""; go("#/settings"); });
     $("back").addEventListener("click", () => { const sp = /^#\/settings\/(.+)$/.exec(location.hash);
-      if (view.mode === "share" && view.trip) { location.hash = "#/trip/" + view.trip; return; }
-      location.hash = sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"; });
+      if (view.mode === "share" && view.trip) { goUp("#/trip/" + view.trip); return; }
+      goUp(sp ? "#/settings" + (settingsParent(sp[1]) ? "/" + settingsParent(sp[1]) : "") : "#/"); });
     $("editTrip").addEventListener("click", (e) => openTrip(findTrip(view.trip), e.currentTarget));
     // The + itself stays put; its icon swells and flashes green, like a tab's.
     $("fab").addEventListener("click", (e) => {
@@ -3914,7 +4020,7 @@
       // A browser that had to leave for Google's page comes back here.
       if (DRIVE.resume === "connect") setTimeout(connectDrive, 1500);
       else if (DRIVE.resume === "backup") setTimeout(() => backupToDrive(false), 3000);
-      else if (DRIVE.resume === "list") { location.hash = "#/settings/drive"; setTimeout(() => loadDriveList(false), 1000); }
+      else if (DRIVE.resume === "list") { go("#/settings/drive"); setTimeout(() => loadDriveList(false), 1000); }
       setTimeout(maybeDriveBackup, 20000);
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(maybeDriveBackup, 5000); });
     }
