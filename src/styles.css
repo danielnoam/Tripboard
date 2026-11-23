@@ -342,7 +342,9 @@ body.picking .bottombar { display: none; }
 .fab[hidden] { display: none; }
 body.with-tabbar main { padding-bottom: calc(env(safe-area-inset-bottom) + 120px); }
 body.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); }
-body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); right: var(--space-3); }
+body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); inset-inline-end: var(--space-3); }
+/* The no-location list keeps clear of the map's buttons, which stay put. */
+body.with-tabbar .map-panel.nowhere { inset-inline-end: calc(var(--space-3) + 72px); }
 
 
 /* Sheets: from the bottom on a phone, a dialog on a wide screen */
@@ -430,7 +432,7 @@ body.on-map .bar { width: 100%; max-width: none; }
 .map-view[hidden] { display: none; }
 .map-view .map { position: absolute; inset: 0; background: var(--surface-2); }
 .map-panel {
-  position: absolute; left: var(--space-3); right: calc(var(--space-3) + 72px); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+  position: absolute; inset-inline: var(--space-3) calc(var(--space-3) + 72px); bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
   display: grid; gap: var(--space-2); max-height: 45%; overflow-y: auto;
   padding: var(--space-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
 }
@@ -540,7 +542,7 @@ body.on-map .toast { bottom: auto; top: 108px; }
 }
 .map-tools[hidden] { display: none; }
 body.with-tabbar .map-tools { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3) + var(--space-2)); }
-.map-panel:not([hidden]) ~ .map-tools { transform: translateY(calc(-1 * var(--panel-h, 0px))); }
+.map-panel:not([hidden]):not(.nowhere) ~ .map-tools { transform: translateY(calc(-1 * var(--panel-h, 0px))); }
 .map-tool, .map-zoom {
   border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
 }
@@ -664,7 +666,9 @@ p[data-tone="warn"] { color: var(--danger); }
   .sheet { width: 520px; margin: auto; border-radius: 20px; }
   .sheet-body { padding: var(--space-4); }
   .trips { grid-template-columns: repeat(2, 1fr); }
-  .map-panel { right: auto; width: 380px; }
+  /* Beside the buttons, never under them, so they don't move. */
+  .map-panel, body.with-tabbar .map-panel, body.with-tabbar .map-panel.nowhere { inset-inline-end: auto; width: min(380px, 100% - 2 * var(--space-3) - 72px); }
+  .map-panel:not([hidden]):not(.nowhere) ~ .map-tools { transform: none; }
 }
 /* On a wide screen the board is a board: its groups side by side, in as
    many rows as it takes, so the whole trip is there by scrolling down. One
@@ -1046,7 +1050,14 @@ body.desk .group-dest { display: block; margin: 0 0 2px; font-size: 11px; font-w
 /* The map: beside the page, or alone. */
 body.desk .map-view:not([hidden]) { position: fixed; z-index: 3; inset-block: 0; inset-inline-end: 0; inset-inline-start: var(--side); }
 body.desk.side-map .map-view:not([hidden]) { inset-inline-start: calc(var(--side) + var(--panel)); border-inline-start: 1px solid var(--edge); }
-body.desk.with-tabbar .map-panel { bottom: var(--space-3); }
+/* The credit at the bottom start corner, under the place's card. */
+body.desk .map-top { bottom: var(--space-3); display: flex; flex-direction: column; align-items: flex-start; }
+body.desk .map-days, body.desk .map-note { align-self: stretch; }
+body.desk .map-credits { order: 1; margin: auto 0 0; }
+body.desk .map-credit { order: 2; min-height: 28px; margin: auto 0 0; }
+body.desk .map-top:has(.map-credits:not([hidden])) .map-credit { margin-top: 0; }
+body.desk.with-tabbar .map-panel { bottom: calc(var(--space-3) + 28px + var(--space-2)); }
+body.desk.with-tabbar .map-view:has(.map-credit[hidden]) .map-panel { bottom: var(--space-3); }
 body.desk.with-tabbar .map-tools { bottom: var(--space-3); }
 .pin.hot { scale: 1.3; z-index: 3; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
 /* The line between the page and the map: drag it (or arrow keys on it) to share the width. */
