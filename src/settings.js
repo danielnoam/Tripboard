@@ -4,6 +4,8 @@
 //   appearance  the theme: system, light or dark
 //   display     the clock ("" this device's, "12" or "24") and, in English,
 //               the date order ("" the language's, "md" Nov 21, "dm" 21 Nov)
+//   view        how place cards show their category ("icon", "both" or
+//               "label") and importance ("color", "both" or "label")
 //   sync        GitHub sync's token and repo
 //   me          who you are on shared trips: an id (made once, or taken from
 //               the sync repo so all your devices share it), and your name
@@ -40,6 +42,7 @@
     search: { main: "osm", fallback: "" },
     appearance: { theme: "system" },
     display: { clock: "", dates: "" },
+    view: { cat: "both", imp: "both" },
     // GitHub sync: a fine-grained token for one private repo of yours.
     sync: { token: "", owner: "", repo: "tripboard-data", branch: "" },
     me: { id: "", name: "" },
@@ -71,6 +74,9 @@
     const dp = saved.display || {};
     if (["12", "24"].includes(dp.clock)) out.display.clock = dp.clock;
     if (["md", "dm"].includes(dp.dates)) out.display.dates = dp.dates;
+    const vw = saved.view || {};
+    if (["icon", "both", "label"].includes(vw.cat)) out.view.cat = vw.cat;
+    if (["color", "both", "label"].includes(vw.imp)) out.view.imp = vw.imp;
     const th = saved.appearance && saved.appearance.theme;
     if (["system", "light", "dark"].includes(th)) out.appearance.theme = th;
     for (const k of Object.keys(out.sync)) if (saved.sync && typeof saved.sync[k] === "string") out.sync[k] = saved.sync[k];
@@ -94,6 +100,7 @@
     setProvider(id, patch) { cur.providers[id] = { ...cur.providers[id], ...patch }; S.save(); },
     setWeather(patch) { cur.weather = { ...cur.weather, ...patch }; S.save(); },
     setDisplay(patch) { cur.display = { ...cur.display, ...patch }; S.save(); },
+    setView(patch) { cur.view = { ...cur.view, ...patch }; S.save(); },
     setTheme(theme) { cur.appearance = { theme }; S.save(); },
     setMe(patch) { cur.me = { ...cur.me, ...patch, id: cur.me.id }; cur.me.name = String(cur.me.name || "").trim().slice(0, 60); S.save(); },
     // Takes the id your other devices use (sync's me.json), remembering the
