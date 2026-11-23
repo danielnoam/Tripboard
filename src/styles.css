@@ -418,6 +418,11 @@ body.with-tabbar .map-panel { bottom: calc(env(safe-area-inset-bottom) + 58px + 
 .grow { flex: 1; }
 
 /* The map */
+/* A desktop's scrollbar keeps its room on every screen, so a short one
+   (Home, Settings) and a long one (the Plan) line up and nothing shifts
+   sideways when it comes or goes. Not on the Map, which fills the window. */
+:root { scrollbar-gutter: stable; }
+:root:has(> body.on-map) { scrollbar-gutter: auto; }
 body.on-map { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 body.on-map .bar { width: 100%; max-width: none; }
 .map-view { position: relative; flex: 1; min-height: 0; }
@@ -664,7 +669,7 @@ p[data-tone="warn"] { color: var(--danger); }
 /* The screen that leaves while the next one moves in (views.js, tabAfter):
    on top when it goes Back, under the new one on a push. */
 .tab-leaving { position: fixed; z-index: 4; pointer-events: none; }
-main.tab-leaving { left: 0; right: 0; margin-inline: auto; }
+main.tab-leaving { margin: 0; }
 /* Solid, so the screen coming in under it on Back doesn't show through. */
 main.tab-leaving:not(.tab-under) { background: var(--bg); min-height: 100dvh; }
 .tab-leaving.tab-under { z-index: 0; }
