@@ -686,7 +686,7 @@
           list.append(el("li.leg", { "aria-hidden": l ? null : "true" }, l ? legLabel(l) : ""));
         }
         const isNext = p === next;
-        const meta = [M.catName(cats(), trip, p.category)];
+        const meta = catWords() ? [M.catName(cats(), trip, p.category)] : [];
         if (p.endDay) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) + 1 }));
         if (p.time) meta.push(timeLabel(p));
         const toHere = isNext && i ? M.leg(plan[i - 1], p) : null;
@@ -696,7 +696,7 @@
               onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
             el("button.card-body", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
               el("span.card-name", {}, icon(catIcon(p.category), "cat"), p.name),
-              el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), " · " + meta.join(" · ")),
+              el("span.card-meta", {}, ...metaParts(p, meta)),
               p.note ? el("span.card-note", { text: p.note }) : null)),
           isNext ? el("div.next-row", {},
             el("span.next-label", { text: i18n.t("Next") }),
@@ -1084,9 +1084,22 @@
   const boardDist = (km) => (km < 1
     ? new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "meter", maximumFractionDigits: 0 }).format(Math.round(km * 1000))
     : new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "kilometer", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(km));
+  // Settings' View sheet: a card's category as an icon, its name or both;
+  // its importance as the colour on its edge, its name or both.
+  const catWords = () => SET.get().view.cat !== "icon";
+  function metaParts(p, meta) {
+    const parts = SET.get().view.imp === "color" ? [] : [el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) })];
+    if (meta.length) parts.push((parts.length ? " · " : "") + meta.join(" · "));
+    return parts;
+  }
+  function paintView() {
+    const v = SET.get().view;
+    document.documentElement.dataset.cat = v.cat;
+    document.documentElement.dataset.imp = v.imp;
+  }
   function cards(trip, list, g) {
     return el("ul.cards", {}, list.map((p) => {
-      const meta = view.sort === "category" ? [] : [M.catName(cats(), trip, p.category)];
+      const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
       if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
       else if (p.endDay && g.day) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       if (p.time) meta.push(timeLabel(p));
@@ -1099,7 +1112,7 @@
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
           el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), p.name),
-          el("span.card-meta", {}, el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }), meta.length ? " · " + meta.join(" · ") : "",
+          el("span.card-meta", {}, ...metaParts(p, meta),
             nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 file", "{n} files"), "aria-label": i18n.tn(nFiles, "1 file", "{n} files") }, icon("paperclip"), String(nFiles)) : null),
           p.note ? el("span.card-note", { text: p.note }) : null));
     }));
@@ -2774,6 +2787,8 @@
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
     $("shareTrip").hidden = !trip || view.mode === "share";
+    $("viewTrip").hidden = !trip || view.mode === "share" || view.mode === "map";
+    paintView();
     $("app").hidden = onMap;
     document.body.classList.toggle("on-map", onMap);
     if (onMap) {
@@ -3059,6 +3074,14 @@
     for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"));
     $("editTrip").append(icon("pencil"));
     $("shareTrip").append(icon("users"));
+    $("viewTrip").append(icon("sliders"));
+    $("viewTrip").addEventListener("click", (e) => {
+      const v = SET.get().view;
+      $("viewCat").value = v.cat; $("viewImp").value = v.imp;
+      openSheet($("viewSheet"), e.currentTarget);
+    });
+    $("viewCat").addEventListener("change", (e) => { SET.setView({ cat: e.target.value }); render(); });
+    $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; location.hash = "#/trip/" + view.trip + "/share"; });
     $("fab").append(icon("plus"));
     $("settingsBtn").append(icon("gear"));

@@ -24,6 +24,7 @@
     <a class="sync-badge" id="syncBadge" href="#/settings/data" hidden><span class="sync-badge-text" id="syncBadgeText"></span></a>
     <span class="offline-badge" id="offlineBadge" hidden title="Ready offline" data-t-attr="title"><span class="offline-badge-text" data-t>Ready offline</span></span>
     <button class="icon-btn" id="newTrip" type="button" aria-label="New trip" title="New trip" hidden data-t-attr="aria-label,title"></button>
+    <button class="icon-btn" id="viewTrip" type="button" aria-label="View" title="View" hidden data-t-attr="aria-label,title"></button>
     <button class="icon-btn" id="shareTrip" type="button" aria-label="Sharing" title="Sharing" hidden data-t-attr="aria-label,title"></button>
     <button class="icon-btn" id="editTrip" type="button" aria-label="Edit trip" hidden data-t-attr="aria-label"></button>
     <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-t-attr="aria-label"></button>
@@ -120,6 +121,29 @@
     </form>
   </dialog>
 
+  <dialog class="sheet" id="viewSheet" aria-labelledby="viewTitle">
+    <div class="sheet-body">
+      <h2 id="viewTitle" data-t>View</h2>
+      <label class="field"><span data-t>Categories</span>
+        <select id="viewCat">
+          <option value="icon" data-t>Icon only</option>
+          <option value="both" data-t>Icon and name</option>
+          <option value="label" data-t>Name only</option>
+        </select>
+      </label>
+      <label class="field"><span data-t>Importance</span>
+        <select id="viewImp">
+          <option value="color" data-t>Colour only</option>
+          <option value="both" data-t>Colour and name</option>
+          <option value="label" data-t>Name only</option>
+        </select>
+      </label>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Close</button>
+      </div>
+    </div>
+  </dialog>
   <dialog class="sheet" id="mapStyleSheet" aria-labelledby="mapStyleTitle">
     <div class="sheet-body">
       <h2 id="mapStyleTitle" data-t>Map style</h2>
