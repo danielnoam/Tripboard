@@ -436,9 +436,9 @@
   // The Plan's Cards | List switch, on a wide screen with a mouse: List
   // is a line a place, like a spreadsheet.
   const FINE = window.matchMedia("(pointer: fine)");
-  // On a PC the Plan is a list: one line a place, or Expanded with its
-  // details and note under it (View sheet). Phones keep the cards.
-  const listLook = () => desk() && FINE.matches;
+  // The Plan is a list: one line a place, or Expanded with its details and
+  // note under it (View sheet), on a phone too.
+  const listLook = () => true;
   const expandedLook = () => listLook() && view.look === "expanded";
   // On a computer a trip's page scrolls by itself, beside the side bar and the map.
   const scrollTop = () => (document.body.classList.contains("desk") ? $("app").scrollTop : window.scrollY);
