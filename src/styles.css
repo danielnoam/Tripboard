@@ -200,6 +200,11 @@ body.on-map .update { bottom: auto; top: 108px; }
   border: 0; border-radius: 999px; background: transparent; color: var(--text-dim); font-weight: 600;
 }
 .seg button[aria-selected="true"], .seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+/* The sort switch's pill is one element that slides (slideSeg). */
+.seg.sorts { position: relative; }
+.seg.sorts button { position: relative; z-index: 1; transition: color 0.2s; }
+.seg.sorts button[aria-selected="true"] { background: transparent; box-shadow: none; }
+.seg-bubble { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); }
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .filters .pick { gap: 4px; }
 .filters .pick::before { content: none; }
