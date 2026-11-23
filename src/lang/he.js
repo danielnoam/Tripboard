@@ -707,7 +707,6 @@ Keel.i18n.strings("he", {
   "Drag to share the width between the plan and the map": "גרירה לחלוקת הרוחב בין התוכנית למפה",
   "Show the map": "הצגת המפה",
   "Look": "מראה",
-  "Cards": "כרטיסים",
   "List": "רשימה",
   "Expanded": "מורחבת",
 });
