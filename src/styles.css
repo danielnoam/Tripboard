@@ -1116,7 +1116,7 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
 :root[data-look="list"] body.desk .card-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; unicode-bidi: plaintext; }
 :root[data-look="list"] body.desk .card-name .icon.cat { width: 15px; height: 15px; color: var(--text-dim); }
 :root[data-look="list"] body.desk .card-name .rating { position: relative; order: -1; width: 14px; margin: 0; flex: none; text-align: end; color: var(--text-dim); font-size: 12.5px; font-weight: 600; }
-:root[data-look="list"] body.desk .card-name .rating .star { position: absolute; inset-inline-end: 4px; bottom: -4px; margin: 0; font-size: 0; color: inherit; pointer-events: none; }
+:root[data-look="list"] body.desk .card-name .rating .star { position: absolute; inset-inline-end: 4px; bottom: -7px; margin: 0; font-size: 0; color: inherit; pointer-events: none; }
 :root[data-look="list"] body.desk .card-name .rating .star::before { content: "\2606"; font-size: 9px; font-weight: 400; }
 /* Centre the digits, not their line boxes, so the rating and time sit level with the tick and icon */
 :root[data-look="list"] body.desk :is(.card-name .rating, .card-time) { text-box: trim-both cap alphabetic; }
