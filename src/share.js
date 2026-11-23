@@ -290,6 +290,8 @@
     if (running) { again = true; return running; }
     running = (async () => {
       await load();
+      S.busy = true;
+      if (S.onStatus) S.onStatus();
       try {
         for (const id of Object.keys(state)) {
           // A trip on a server this page can't reach until it's opened again.
@@ -303,6 +305,8 @@
         if (window.Keel && Keel.errlog) Keel.errlog.note("share", String(e.message || e));
       } finally {
         running = null;
+        S.busy = false;
+        if (S.onStatus) S.onStatus();
         changed();
         if (again) { again = false; S.soon(); }
       }

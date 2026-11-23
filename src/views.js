@@ -85,9 +85,9 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], from: null, mode: "board", pick: null, sel: null };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, from: null, mode: "board", pick: null, sel: null };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -122,15 +122,41 @@
   }
 
   // A short note at the bottom, with Undo when the change can be taken back.
-  let toastTimer = null;
-  function toast(text, undo) {
+  let toastTimer = null, undoUntil = 0;
+  function toast(text, undo, act) {
     let box = $("toast");
     if (!box) { box = el("div.toast", { role: "status" }); box.id = "toast"; document.body.append(box); }
     clearTimeout(toastTimer);
-    box.replaceChildren(el("span", { text }), ...(undo ? [el("button.btn.quiet", { type: "button", text: i18n.t("Undo"),
-      onclick: () => { box.hidden = true; undo(); } })] : []));
+    const tap = undo || (act && act.run);
+    box.replaceChildren(el("span", { text }), ...(tap ? [el("button.btn.quiet", { type: "button", text: undo ? i18n.t("Undo") : act.label,
+      onclick: () => { box.hidden = true; undoUntil = 0; tap(); } })] : []));
     box.hidden = false;
-    toastTimer = setTimeout(() => { box.hidden = true; }, undo ? 8000 : 3000);
+    const ms = undo ? 8000 : act ? 6000 : 3000;
+    undoUntil = undo ? Date.now() + ms : 0;
+    toastTimer = setTimeout(() => { box.hidden = true; undoUntil = 0; }, ms);
+  }
+  // What a sync brought from your other devices, the AI connector or a
+  // shared trip's people, as one note. It waits for an Undo note to go, so
+  // a sync never takes your Undo away.
+  let arrivalTimer = null;
+  function tellArrivals(came) {
+    const { added, updated, removed } = came;
+    if (!added.length && !updated.length && !removed.length) return;
+    const parts = [];
+    if (added.length === 1) parts.push(i18n.t("New trip: {name}.", { name: added[0].name }));
+    else if (added.length && added.length <= 3) parts.push(i18n.t("New trips: {join}.", { join: i18n.join(added.map((t) => t.name)) }));
+    else if (added.length) parts.push(i18n.tn(added.length, "1 new trip.", "{n} new trips."));
+    if (updated.length === 1) parts.push(i18n.t("{name} was updated.", { name: updated[0].name }));
+    else if (updated.length && updated.length <= 3) parts.push(i18n.t("Updated: {join}.", { join: i18n.join(updated.map((t) => t.name)) }));
+    else if (updated.length) parts.push(i18n.tn(updated.length, "1 trip was updated.", "{n} trips were updated."));
+    if (removed.length === 1) parts.push(i18n.t("{name} was deleted on another device.", { name: removed[0].name }));
+    else if (removed.length) parts.push(i18n.tn(removed.length, "1 trip was deleted on another device.", "{n} trips were deleted on another device."));
+    const one = added.length === 1 && !updated.length && !removed.length && view.trip !== added[0].id ? added[0] : null;
+    const show = () => {
+      if (Date.now() < undoUntil) { clearTimeout(arrivalTimer); arrivalTimer = setTimeout(show, undoUntil - Date.now() + 200); return; }
+      toast(parts.join(" "), null, one ? { label: i18n.t("Open"), run: () => { location.hash = "#/trip/" + one.id; } } : null);
+    };
+    show();
   }
   // Makes a change that Undo can take back: the whole doc as it was before.
   function undoable(text, change, after) {
@@ -1697,11 +1723,58 @@
   const SET = window.Tripboard.settings;
   const PL = window.Tripboard.places;
   let mapFailed = null;
-  // The map's places: the importance filter, and the day picked on the map.
+  // The map's places: the day picked on the map, the importance filter
+  // (the board's too) and the map's categories (all when none picked).
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
     if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay));
+    if (view.mapCats.length) all = all.filter((p) => view.mapCats.includes(p.category));
     return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
+  }
+  // The trip's categories, in the app's order, each with how many places.
+  function tripCats(trip) {
+    const n = new Map();
+    for (const p of placesOf(trip.id)) n.set(p.category, (n.get(p.category) || 0) + 1);
+    return cats().filter(([id]) => n.has(id)).map(([id, name]) => ({ id, name, n: n.get(id) }));
+  }
+  // The map's two filters, each a chip that opens the same sheet with its
+  // choices: categories (this trip's) and importance (the board's too).
+  function mapFacets(trip) {
+    const n = (key) => placesOf(trip.id).reduce((m, p) => m.set(p[key], (m.get(p[key]) || 0) + 1), new Map());
+    const imp = n("importance");
+    return {
+      cat: { title: i18n.t("Categories"), key: "mapCats", many: (k) => i18n.tn(k, "1 category", "{n} categories"),
+        items: tripCats(trip).map((c) => ({ ...c, mark: () => icon(catIcon(c.id)) })) },
+      imp: { title: i18n.t("Importance"), key: "only", many: (k) => i18n.tn(k, "1 level", "{n} levels"),
+        items: M.IMPORTANCE.map(([id, name]) => ({ id, name, n: imp.get(id) || 0, mark: () => el("span.dot.imp-" + id) })) },
+    };
+  }
+  function paintFilters(trip) {
+    const bar = $("mapFilters");
+    const facets = mapFacets(trip);
+    view.mapCats = view.mapCats.filter((id) => facets.cat.items.some((c) => c.id === id));
+    bar.hidden = !placesOf(trip.id).length;
+    const chip = (which) => {
+      const f = facets[which];
+      const picked = f.items.filter((c) => view[f.key].includes(c.id));
+      return el("button.chip.pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "dialog",
+        onclick: (e) => { view.mapSheet = which; paintMapFilter(trip); openSheet($("mapFilterSheet"), e.currentTarget); } },
+        picked.length === 1 ? picked[0].mark() : null, !picked.length ? f.title : picked.length === 1 ? picked[0].name : f.many(picked.length), icon("chevron"));
+    };
+    bar.replaceChildren(...[facets.cat.items.length > 1 ? chip("cat") : null, chip("imp")].filter(Boolean));
+  }
+  function paintMapFilter(trip) {
+    const f = mapFacets(trip)[view.mapSheet];
+    if (!f) return;
+    const on = (id) => !view[f.key].length || view[f.key].includes(id);
+    $("mapFilterTitle").textContent = f.title;
+    $("mapFilterChoices").replaceChildren(...f.items.map((c) => el("button.chip", { type: "button", "aria-pressed": String(on(c.id)),
+      onclick: () => {
+        let next = f.items.map((x) => x.id).filter(on);
+        next = next.includes(c.id) ? next.filter((x) => x !== c.id) : next.concat(c.id);
+        view[f.key] = !next.length || next.length === f.items.length ? [] : next;
+        remember(); paintMapFilter(trip); render();
+      } }, c.mark(), c.name + " · " + c.n)));
   }
   function paintDays(trip) {
     const days = M.tripDays(trip, placesOf(trip.id));
@@ -1735,6 +1808,7 @@
     if (got && got.skipped.length) note.textContent = i18n.t("Showing {name}: {join}", { name: SET.PROVIDERS[got.by].name, join: got.skipped.map((x) => x.reason).join(" ") });
     if (view.mode !== "map" || view.trip !== trip.id) return;
     paintDays(trip);
+    paintFilters(trip);
     const list = shownPlaces(trip);
     const route = view.mapDay ? M.dayRoute(list, view.mapDay) : [];
     TM.places(list, view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
@@ -1789,10 +1863,15 @@
     }
     const nowhere = shownPlaces(trip).filter((p) => p.lat == null);
     if (!nowhere.length || !mayEdit(trip)) { panel.replaceChildren(); return; }
-    panel.replaceChildren(
-      el("p.dim", { text: i18n.tn(nowhere.length, "1 place has no location yet. Pick one, then tap the map.", "{n} places have no location yet. Pick one, then tap the map.") }),
-      el("ul.unplaced", {}, nowhere.map((p) => el("li", {}, el("button.chip.imp-" + p.importance, { type: "button", "aria-pressed": "true", text: p.name,
-        onclick: () => { view.pick = p.id; render(); } })))));
+    // Folded to one line by default, so the map stays in view.
+    const open = view.unplacedOpen;
+    panel.replaceChildren(...[
+      el("button.unplaced-head", { type: "button", "aria-expanded": String(open),
+        onclick: () => { view.unplacedOpen = !open; remember(); render(); } },
+        icon("pin"), el("span", { text: i18n.tn(nowhere.length, "1 place has no location yet", "{n} places have no location yet") }), icon("chevron", "fold")),
+      open ? el("p.dim", { text: i18n.t("Pick one, then tap the map.") }) : null,
+      open ? el("ul.unplaced", {}, nowhere.map((p) => el("li", {}, el("button.chip.imp-" + p.importance, { type: "button", "aria-pressed": "true", text: p.name,
+        onclick: () => { view.pick = p.id; render(); } })))) : null].filter(Boolean));
   }
 
   // The map's style: the free maps (OpenFreeMap's), then the ones that need
@@ -1848,6 +1927,11 @@
     $("mapCreditIc").append(icon("info"));
     $("mapZoomIn").addEventListener("click", () => TM.zoom(1));
     $("mapZoomOut").addEventListener("click", () => TM.zoom(-1));
+    $("mapFilterAll").addEventListener("click", () => {
+      const t = findTrip(view.trip);
+      if (!t || !mapFacets(t)[view.mapSheet]) return;
+      view[mapFacets(t)[view.mapSheet].key] = []; remember(); paintMapFilter(t); render();
+    });
     $("mapStyleBtn").addEventListener("click", (e) => { paintMapStyles(); openSheet($("mapStyleSheet"), e.currentTarget); });
     $("mapFit").addEventListener("click", () => {
       const trip = findTrip(view.trip);
@@ -3033,8 +3117,10 @@
     sweepFiles();
     if (doc.trips.length) OFF.sweep(doc.trips.map((t) => t.id));
     const T = window.Tripboard;
+    $("syncBadge").prepend(icon("refresh"));
+    SHARE.onStatus = paintSyncBadge;
     if (T.sync) {
-      T.sync.onStatus = () => { if (syncPaint) syncPaint(); };
+      T.sync.onStatus = () => { if (syncPaint) syncPaint(); paintSyncBadge(); };
       T.sync.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles });
     }
     SHARE.onChange = () => { if (view.mode === "share") render(); };
@@ -3049,15 +3135,42 @@
     SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, unshared });
   }
 
+  // The bar's sync badge. Turning arrows show only for a sync that takes a
+  // moment, and stay long enough to be seen, so a quick one doesn't flash.
+  let badgeShow = null, badgeHide = null, badgeSince = 0;
+  function paintSyncBadge() {
+    const b = $("syncBadge"), st = SYNC && SYNC.connected() ? SYNC.status : { state: "off" };
+    const busy = st.state === "syncing" || !!SHARE.busy;
+    const set = (state, ico, text) => {
+      b.dataset.state = state;
+      b.firstChild.replaceWith(icon(ico));
+      $("syncBadgeText").textContent = text;
+      b.title = text;
+      b.hidden = false;
+    };
+    if (busy) {
+      clearTimeout(badgeHide); badgeHide = null;
+      if (!b.hidden && b.dataset.state === "syncing") return;
+      if (!badgeShow) badgeShow = setTimeout(() => { badgeShow = null; badgeSince = Date.now(); set("syncing", "refresh", i18n.t("Syncing…")); }, 300);
+      return;
+    }
+    clearTimeout(badgeShow); badgeShow = null;
+    if (st.state === "error") { const off = st.error && st.error.kind === "offline"; set(off ? "offline" : "error", "cloudOff", off ? i18n.t("Offline") : i18n.t("Not synced")); return; }
+    if (b.hidden || badgeHide) return;
+    badgeHide = setTimeout(() => { badgeHide = null; b.hidden = true; }, Math.max(0, 900 - (Date.now() - badgeSince)));
+  }
+
   // Sync's side: a doc it merged comes in as it is (already stamped by
   // whichever device made each change), and a cover it fetched is redrawn.
   function adopt(next) {
     next = M.sanitizeDoc(next);
     if (JSON.stringify(next) === JSON.stringify(doc)) return;
+    const came = window.Tripboard.merge.arrivals(doc, next);
     doc = next;
     lastSaved = JSON.stringify(doc);
     saveDoc(doc);
     render();
+    tellArrivals(came);
   }
   // A shared trip that stopped being shared with you stays here, as your
   // own: you own this copy, and nobody else is on it.

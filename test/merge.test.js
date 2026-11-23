@@ -171,4 +171,34 @@ test("deleting a local file leaves no tombstone to travel", () => {
   assert.strictEqual(next.deleted.l, undefined);
 });
 
+test("arrivals: a trip that came, one that changed, one that went, by name", () => {
+  const before = M.sanitizeDoc({ trips: [{ id: "t", name: "Kyoto", updatedAt: at(0) }, { id: "r", name: "Rome", updatedAt: at(0) }, { id: "q", name: "Quiet", updatedAt: at(0) }],
+    places: [{ id: "a", trip: "t", name: "Fushimi", updatedAt: at(0) }] });
+  const after = clone(before);
+  after.trips = after.trips.filter((t) => t.id !== "r").concat({ id: "j", name: "Japan 2023", updatedAt: at(1) });
+  after.places[0].note = "Early";
+  const got = G.arrivals(before, M.sanitizeDoc(after));
+  assert.deepStrictEqual([got.added.map((t) => t.name), got.updated.map((t) => t.name), got.removed.map((t) => t.name)], [["Japan 2023"], ["Kyoto"], ["Rome"]]);
+});
+
+test("arrivals: a merge that only reorders records and keys, or stamps coverAt, brings nothing", () => {
+  const before = M.sanitizeDoc({ trips: [{ id: "t", name: "Kyoto", cover: true, updatedAt: at(0) }],
+    places: [{ id: "a", trip: "t", name: "A", updatedAt: at(0) }, { id: "b", trip: "t", name: "B", updatedAt: at(0) }] });
+  const after = G.applyBundle(before, G.bundleOf(before, "t"));
+  after.places.reverse();
+  after.trips[0] = { coverAt: at(3), ...after.trips[0] };
+  const p = after.places[0];
+  after.places[0] = Object.fromEntries(Object.entries(p).reverse());
+  assert.deepStrictEqual(G.arrivals(before, after), { added: [], updated: [], removed: [] });
+});
+
+test("arrivals: a sync that pulls another device's edit to a shared place counts it", () => {
+  const base = G.bundleOf(start, "t");
+  const theirs = clone(base);
+  theirs.places = theirs.places.filter((p) => p.id !== "b");
+  theirs.deleted = { b: { at: at(4), trip: "t" } };
+  const next = G.applyBundle(start, G.mergeBundles(base, base, theirs));
+  assert.deepStrictEqual(G.arrivals(start, next).updated.map((t) => t.id), ["t"]);
+});
+
 console.log(passed + " passed");

@@ -404,6 +404,16 @@ body.on-map .bar { width: 100%; max-width: none; }
 .map-panel .sel { display: grid; }
 .map-panel .addr { font-size: 14px; }
 .unplaced { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; }
+/* No-location places: a one-line header that folds the list away. */
+.unplaced-head {
+  display: flex; align-items: center; gap: var(--space-2); min-height: 32px; margin: -4px; padding: 4px;
+  border: 0; border-radius: var(--radius); background: none; color: var(--text-dim); font: inherit; text-align: start; cursor: pointer;
+}
+.unplaced-head span { flex: 1; min-width: 0; }
+.unplaced-head .icon { flex: none; width: 18px; height: 18px; }
+.unplaced-head .fold { transition: transform 0.2s; }
+.unplaced-head[aria-expanded="true"] .fold { transform: rotate(180deg); }
+.unplaced-head:focus-visible { outline: 2px solid var(--accent); }
 .pin {
   width: 28px; height: 28px; padding: 0; border: 2px solid var(--surface); border-radius: 50%;
   background: var(--want); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); cursor: pointer;
@@ -439,6 +449,15 @@ body.on-map .bar { width: 100%; max-width: none; }
 .toast .btn { color: var(--bg); font-weight: 700; }
 body.on-map .toast { bottom: auto; top: 108px; }
 .map-days .chip::before { display: none; }
+/* The map's filters: importance chips as on the board, then categories. */
+/* The map's filters: a chip each, green while it hides something. */
+.map-filters .chip[aria-pressed="false"] { color: var(--text); }
+.map-filters .pick { gap: 4px; }
+.map-filters .pick .icon { width: 16px; height: 16px; }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--surface); }
+.dot.imp-must { background: var(--must); }
+.dot.imp-want { background: var(--want); }
+.dot.imp-maybe { background: var(--maybe); }
 .map-note {
   justify-self: stretch; margin: 0;
   padding: var(--space-2) 12px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); font-size: 14px;
@@ -746,6 +765,23 @@ dialog[tabindex="-1"]:focus { outline: none; }
   padding: var(--space-2) 0 calc(env(safe-area-inset-bottom) + var(--space-2));
   margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--space-3)));
   background: var(--surface);
+}
+
+/* Sync in the bar: turning arrows while trips sync, a crossed cloud when
+   the last sync didn't finish (tapped, Settings › Data says why). Hidden
+   the rest of the time. */
+.sync-badge {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px var(--space-2); border-radius: 999px;
+  color: var(--text-dim); font-size: var(--fs-small); font-weight: 600; white-space: nowrap; text-decoration: none;
+}
+.sync-badge[hidden] { display: none; }
+.sync-badge svg { width: 16px; height: 16px; }
+.sync-badge[data-state="syncing"] svg { animation: sync-turn 1s linear infinite; }
+.sync-badge[data-state="error"] { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+@keyframes sync-turn { to { rotate: 360deg; } }
+@media (max-width: 420px) {
+  .sync-badge { padding: 4px; }
+  .sync-badge-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* Offline: the trip's badge in the bar, and its card in Edit trip */

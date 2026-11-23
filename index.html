@@ -21,6 +21,7 @@
   <header class="bar">
     <button class="icon-btn" id="back" type="button" aria-label="All trips" hidden data-t-attr="aria-label"></button>
     <h1 class="bar-title" id="title">Tripboard</h1>
+    <a class="sync-badge" id="syncBadge" href="#/settings/data" hidden><span class="sync-badge-text" id="syncBadgeText"></span></a>
     <span class="offline-badge" id="offlineBadge" hidden title="Ready offline" data-t-attr="title"><span class="offline-badge-text" data-t>Ready offline</span></span>
     <button class="icon-btn" id="newTrip" type="button" aria-label="New trip" title="New trip" hidden data-t-attr="aria-label,title"></button>
     <button class="icon-btn" id="viewTrip" type="button" aria-label="View" title="View" hidden data-t-attr="aria-label,title"></button>
@@ -38,6 +39,7 @@
     <div class="map" id="map"></div>
     <div class="map-top">
       <div class="map-days" id="mapDays" role="group" aria-label="Show a day" hidden data-t-attr="aria-label"></div>
+      <div class="map-days map-filters" id="mapFilters" role="group" aria-label="Show on the map" hidden data-t-attr="aria-label"></div>
       <p class="map-note" id="mapNote" role="status" hidden></p>
       <button class="map-credit" id="mapCredit" type="button" aria-expanded="false" aria-controls="mapCredits" title="Map credits" hidden data-t-attr="title"><span class="map-credit-chip"><span class="map-credit-text"></span><span class="map-credit-ic" id="mapCreditIc"></span></span></button>
       <p class="map-credits" id="mapCredits" hidden></p>
@@ -158,6 +160,17 @@
     <button class="btn" id="selectMove" type="button" data-t>Move</button>
     <button class="btn danger" id="selectDelete" type="button" data-t>Delete</button>
   </div>
+  <dialog class="sheet" id="mapFilterSheet" aria-labelledby="mapFilterTitle">
+    <div class="sheet-body">
+      <h2 id="mapFilterTitle"></h2>
+      <div class="chips-row" id="mapFilterChoices"></div>
+      <div class="sheet-actions">
+        <button class="btn quiet" type="button" id="mapFilterAll" data-t>Show all</button>
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Close</button>
+      </div>
+    </div>
+  </dialog>
   <dialog class="sheet" id="moveSheet" aria-labelledby="moveTitle">
     <div class="sheet-body">
       <h2 id="moveTitle"></h2>
