@@ -1076,7 +1076,7 @@
         el("span.xrow-text", {}, el("span.xrow-title", { text: f.name }), el("span.xrow-meta", { text: meta.filter(Boolean).join(" · ") })), local(f));
     };
     const byAdded = (a, b) => String(a.createdAt).localeCompare(String(b.createdAt));
-    const wrap = el("div.groups");
+    const wrap = el("div.groups.files-groups");
     for (const [kind, title, items] of [["note", i18n.t("Notes"), list.filter((f) => f.kind === "note").sort(byAdded)],
       ["link", i18n.t("Links"), list.filter((f) => f.kind === "link").sort(byAdded)], ["file", i18n.t("Files"), list.filter(M.hasBytes)]]) {
       if (items.length) wrap.append(el("section.group.files-" + kind, {}, el("div.group-head", {}, el("h2", { text: title }), el("span.count", { text: String(items.length) })),
