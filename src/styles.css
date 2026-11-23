@@ -121,6 +121,10 @@ body.on-board main { max-width: 1200px; }
 .update .update-btn { flex: 0 0 auto; min-height: 32px; min-width: 4.5em; padding: 0 var(--space-3); font-size: 14px; font-variant-numeric: tabular-nums; }
 .update .update-close { flex: 0 0 auto; min-width: 32px; min-height: 32px; }
 .update-close .icon { width: 18px; height: 18px; }
+/* Settings › About's Check for updates. */
+.update-check { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
+.update-status { flex: 1 1 12em; margin: 0; color: var(--text-dim); }
+.update-status:empty { display: none; }
 body.with-tabbar .update { bottom: calc(env(safe-area-inset-bottom) + 58px + 2 * var(--space-3)); }
 body.on-map .update { bottom: auto; top: 108px; }
 
