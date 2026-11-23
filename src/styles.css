@@ -897,3 +897,40 @@ body.on-board main.today-page { max-width: 640px; }
 /* The View sheet: category icons off, or the importance colour off. */
 [data-cat="label"] .card-name .icon.cat, [data-cat="label"] .group-head h2 .icon.cat { display: none; }
 [data-imp="label"] .card { border-inline-start-color: transparent; }
+
+/* Destinations with dates. On the Plan, each run of a destination's days
+   starts with its name, then its places that have no day yet, folded. */
+.dest-band { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--space-2); margin-top: var(--space-3); padding: var(--space-2) var(--space-1) 0; border-top: 2px solid var(--accent); }
+.groups > .dest-band:first-child { margin-top: 0; }
+.dest-band .icon { width: 20px; height: 20px; color: var(--accent); align-self: center; flex: none; }
+.dest-band h2 { margin: 0; font-size: 22px; }
+.dest-band .dim { font-size: 14px; }
+.group.dest-any { background: var(--accent-soft); box-shadow: none; }
+.dest-any .group-head h2 { font-size: 16px; }
+.dest-any .fold-title { flex: 1; min-width: 0; }
+.dest-any .fold .count { font-weight: 400; }
+.dest-any .fold { display: flex; width: 100%; align-items: center; gap: var(--space-2); min-width: 0; min-height: 44px; margin: -6px 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.dest-any .fold .icon { width: 20px; height: 20px; flex: none; color: var(--text-dim); }
+.dest-any.open .fold .icon { transform: rotate(180deg); }
+.dest-any .fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.dest-any .peek { margin: var(--space-1) 0 0; font-size: 14px; }
+.dest-any .cards { margin-top: var(--space-2); }
+.also-head { display: flex; align-items: baseline; gap: var(--space-2); }
+.also-head h2 { flex: 1; }
+.also .cards { margin: 0; }
+.also .btn { justify-self: start; }
+
+/* Edit trip: a row per destination, its dates under it when opened. */
+.dest-rows { list-style: none; display: grid; gap: 6px; margin: 0; padding: 0; }
+.dest-row { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.dest-line { display: flex; align-items: center; gap: var(--space-1); min-height: 48px; padding-inline: 4px; }
+.field .dest-name { flex: 1; min-width: 0; border: 0; background: transparent; font-weight: 600; }
+/* 44 px to tap, a 36 px pill to see. */
+.dest-when { flex: none; min-height: 44px; padding: 0 12px; border: 4px solid transparent; border-radius: 999px; background: var(--accent-soft); background-clip: padding-box; color: var(--accent); font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.dest-when.none { background: transparent; color: var(--text-dim); outline: 1px dashed var(--text-dim); outline-offset: -5px; }
+.dest-when:focus-visible { outline: 2px solid var(--accent); }
+.dest-dates { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2); padding: 0 var(--space-2) var(--space-2); }
+.dest-dates[hidden] { display: none; }
+.dest-dates .field { flex: 1 1 130px; }
+.dest-acts { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 2px; }
+.dest-acts .btn[hidden] { display: none; }

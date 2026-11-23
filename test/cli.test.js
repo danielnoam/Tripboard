@@ -587,6 +587,35 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(g.read(path).places.find((p) => p.name === "Lugano").visited, true);
   });
 
+  await test("destinations with dates: set them, put a place in one, read the plan by destination", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const lines = [];
+    const out = (s) => lines.push(s);
+    await cli.main(["new-trip", "--name", "Japan", "--start", "2026-02-01", "--end", "2026-02-06", "--destinations", "Osaka,Kyoto"], env, out);
+    await cli.main(["add-place", "japan", "--name", "Hotel", "--category", "stay", "--day", "2026-02-01", "--end-day", "2026-02-03", "--lat", "34.67", "--lng", "135.5"], env, out);
+    await cli.main(["add-place", "japan", "--name", "Gion", "--lat", "35.003", "--lng", "135.775"], env, out);
+    await cli.main(["add-place", "japan", "--name", "Picked", "--dest", "Kyoto"], env, out);
+    await cli.main(["edit-trip", "japan", "--dest-info", JSON.stringify([{ name: "Osaka", lat: 34.69, lng: 135.5 }, { name: "Kyoto", start: "2026-02-03", end: "2026-02-06", lat: 35.01, lng: 135.77 }, { name: "Nara" }])], env, out);
+    await cli.main(["edit-trip", "japan", "--dates-from-stays", "true"], env, out);
+    const t = g.read(Object.keys(Object.fromEntries(g.files())).find((p) => p.startsWith("trips/")));
+    assert.deepStrictEqual(t.trip.destinations, ["Osaka", "Kyoto", "Nara"]);
+    assert.deepStrictEqual(t.trip.destInfo.Osaka, { start: "2026-02-01", end: "2026-02-03", lat: 34.69, lng: 135.5 });
+    assert.strictEqual(t.places.find((p) => p.name === "Picked").dest, "Kyoto");
+    lines.length = 0;
+    await cli.main(["board", "japan"], env, out);
+    assert.match(lines[0], /== Osaka {2}2026-02-01 to 2026-02-03/);
+    assert.match(lines[0], /Any day in Kyoto\n {2}no date {2}Gion[^\n]*\n {2}no date {2}Picked/);
+    lines.length = 0;
+    await cli.main(["day", "japan", "2026-02-04"], env, out);
+    assert.match(lines[0], /in Kyoto/);
+    await assert.rejects(cli.main(["edit-place", "japan", "Gion", "--dest", "Tokyo"], env, out), /no destination "Tokyo"/);
+    await cli.main(["edit-trip", "japan", "--destinations", "Osaka,Nara"], env, out);
+    const u = g.read(Object.keys(Object.fromEntries(g.files())).find((p) => p.startsWith("trips/")));
+    assert.strictEqual(u.trip.destInfo.Kyoto, undefined);
+    assert.strictEqual(u.places.find((p) => p.name === "Picked").dest, undefined, "a dropped destination lets go of its places");
+  });
+
   await test("MCP tools say which only read and which delete", async () => {
     const s = mcp.server({ env, write: () => {} });
     const by = Object.fromEntries(s.TOOLS.map((t) => [t.name, t.annotations]));

@@ -334,4 +334,70 @@ test("a link keeps http(s) only and is named after its site; a note keeps its li
   assert.deepStrictEqual([f.kind, f.url, f.text, M.hasBytes(f)], [undefined, undefined, undefined, true]);
 });
 
+// Destinations with dates: Osaka, then Kyoto, with Nara a day trip and a
+// stay in Uji (inside Kyoto's dates) that wins its night.
+const J = M.sanitizeTrip({ id: "j", name: "Japan", start: "2026-02-01", end: "2026-02-08", destinations: ["Osaka", "Kyoto", "Uji", "Nara"],
+  destInfo: { Osaka: { start: "2026-02-01", end: "2026-02-04", lat: 34.69, lng: 135.50 }, Kyoto: { start: "2026-02-04", end: "2026-02-08", lat: 35.01, lng: 135.77 },
+    Uji: { start: "2026-02-06", end: "2026-02-06", lat: 34.88, lng: 135.80 }, Nara: { lat: 34.68, lng: 135.80 }, Gone: { start: "2026-02-01" } } });
+const JP = (o) => M.sanitizePlace({ trip: "j", ...o });
+
+test("destinations: dates and a location beside the list of names; only listed names, end after start", () => {
+  assert.deepStrictEqual(J.destinations, ["Osaka", "Kyoto", "Uji", "Nara"]);
+  assert.deepStrictEqual(Object.keys(J.destInfo), ["Osaka", "Kyoto", "Uji", "Nara"]);
+  const t = M.sanitizeTrip({ destinations: ["A", "B"], destInfo: { A: { start: "2026-03-05", end: "2026-03-01" }, B: { start: "2026-03-02" }, C: { lat: 1, lng: 1 } } });
+  assert.deepStrictEqual(t.destInfo, { A: { start: "2026-03-01", end: "2026-03-05" }, B: { start: "2026-03-02", end: "2026-03-02" } });
+  assert.strictEqual(M.sanitizeTrip({ destinations: ["A"], destInfo: { A: { start: "nope" } } }).destInfo, undefined);
+  assert.strictEqual(JP({ name: "x", dest: " Kyoto " }).dest, "Kyoto");
+});
+
+test("a place goes with the destination picked for it, or the nearest within reach", () => {
+  assert.strictEqual(M.destOf(J, JP({ name: "Dotonbori", lat: 34.668, lng: 135.501 })), "Osaka");
+  assert.strictEqual(M.destOf(J, JP({ name: "Todai-ji", lat: 34.689, lng: 135.84 })), "Nara");
+  assert.strictEqual(M.destOf(J, JP({ name: "Nagoya Castle", lat: 35.185, lng: 136.899 })), null);
+  assert.strictEqual(M.destOf(J, JP({ name: "Unlocated" })), null);
+  assert.strictEqual(M.destOf(J, JP({ name: "Picked", dest: "Kyoto", lat: 34.668, lng: 135.501 })), "Kyoto");
+  assert.strictEqual(M.destOf(J, JP({ name: "Stale pick", dest: "Tokyo", lat: 34.668, lng: 135.501 })), "Osaka");
+  const p = JP({ name: "Dotonbori", lat: 34.668, lng: 135.501 });
+  M.setDest(J, p, "Osaka");
+  assert.strictEqual(p.dest, undefined, "the nearest already: nothing to keep");
+  M.setDest(J, p, "Kyoto");
+  assert.strictEqual(p.dest, "Kyoto");
+  M.setDest(J, p, null);
+  assert.strictEqual(p.dest, undefined);
+});
+
+test("a day goes with the dated destination covering it that starts last", () => {
+  assert.deepStrictEqual(["2026-02-01", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-07", "2026-01-31"].map((d) => M.dayDest(J, d)),
+    ["Osaka", "Kyoto", "Kyoto", "Uji", "Kyoto", null]);
+});
+
+test("the plan by time: a heading per run of a destination's days, its places with no day, and No date by destination", () => {
+  const places = [
+    JP({ name: "Dotonbori", lat: 34.668, lng: 135.501, importance: "maybe" }), JP({ name: "Osaka Castle", lat: 34.687, lng: 135.526, importance: "must" }),
+    JP({ name: "Gion", lat: 35.003, lng: 135.775 }), JP({ name: "Todai-ji", lat: 34.689, lng: 135.84 }), JP({ name: "Nowhere" }),
+    JP({ name: "Ryokan", category: "stay", day: "2026-02-04", endDay: "2026-02-08", lat: 35.0, lng: 135.76 }),
+  ];
+  const g = M.board(J, places, "time");
+  const heads = g.filter((x) => x.kind).map((x) => x.kind + ":" + x.dest + (x.again ? " again" : "") + (x.kind === "any" ? " " + x.places.map((p) => p.name).join("+") : ""));
+  assert.deepStrictEqual(heads, ["dest:Osaka", "any:Osaka Osaka Castle+Dotonbori", "dest:Kyoto", "any:Kyoto Gion", "dest:Uji", "any:Uji ", "dest:Kyoto again"]);
+  assert.strictEqual(g.find((x) => x.day === "2026-02-06").dest, "Uji");
+  const nd = g[g.length - 1];
+  assert.deepStrictEqual(nd.parts.map((x) => [x.dest, x.places.map((p) => p.name)]), [["Nara", ["Todai-ji"]], [null, ["Nowhere"]]]);
+  // Without dates the plan is as it always was.
+  const plain = M.board({ ...J, destInfo: { Osaka: { lat: 34.69, lng: 135.5 } } }, places, "time");
+  assert.ok(!plain.some((x) => x.kind) && !plain[plain.length - 1].parts);
+  assert.strictEqual(plain[plain.length - 1].places.length, 5);
+});
+
+test("dates from stays: each destination from its first stay's day to the last one's end", () => {
+  const t = M.sanitizeTrip({ ...J, destInfo: { Osaka: { lat: 34.69, lng: 135.5 }, Kyoto: { lat: 35.01, lng: 135.77 } } });
+  const got = M.datesFromStays(t, [
+    JP({ name: "Hotel A", category: "stay", day: "2026-02-01", endDay: "2026-02-03", lat: 34.67, lng: 135.5 }),
+    JP({ name: "Hotel B", category: "stay", day: "2026-02-03", endDay: "2026-02-04", lat: 34.70, lng: 135.49 }),
+    JP({ name: "Ryokan", category: "stay", day: "2026-02-04", endDay: "2026-02-08", lat: 35.0, lng: 135.76 }),
+    JP({ name: "Gion", day: "2026-02-05", lat: 35.003, lng: 135.775 }), JP({ name: "Undated stay", category: "stay", lat: 35.0, lng: 135.76 }),
+  ]);
+  assert.deepStrictEqual(got, { Osaka: { start: "2026-02-01", end: "2026-02-04" }, Kyoto: { start: "2026-02-04", end: "2026-02-08" } });
+});
+
 console.log(passed + " passed");

@@ -39,6 +39,7 @@ const placeFields = [
   ["placeId", { type: "string", description: "Google's place id, if it came from Google." }],
   ["visited", { type: "boolean", description: "Been there (the Today view's tick)." }],
   ["rating", { type: "number", description: "Your own rating, 1 to 5 whole stars." + clears }],
+  ["dest", { type: "string", description: "The trip destination it belongs to, picked by hand; without one it goes with the nearest destination that has a location." + clears }],
   ["order", { type: "number", description: "Its place in its day's plan, from 1. Places with a time go by time first; order sorts those at the same time and those without one. Moving it to another day clears it unless given again. order_day sets a whole day at once." + clears }],
 ];
 const expenseFields = [
@@ -48,7 +49,9 @@ const expenseFields = [
   ["day", day], ["place", { type: "string", description: "A place's id or name in this trip." }], ["note", { type: "string" }],
   ["paidBy", { type: "string", description: "Who paid: a person's id on a shared trip." }],
 ];
-const tripFields = [["name", { type: "string" }], ["start", day], ["end", day], ["destinations", { type: "array", items: { type: "string" }, description: "Place names; the CLI takes them comma-separated." }]];
+const tripFields = [["name", { type: "string" }], ["start", day], ["end", day], ["destinations", { type: "array", items: { type: "string" }, description: "Place names; the CLI takes them comma-separated." }],
+  ["destInfo", { type: "array", items: { type: "object", properties: { name: { type: "string" }, start: day, end: day, lat: { type: "number" }, lng: { type: "number" } }, required: ["name"] },
+    description: "Dates and a location for destinations, merged into what they have (a new name joins destinations). With dates, the plan goes by destination: each day with the dated destination covering it (the one starting last), and an \"Any day in …\" list of its places that have no day. A place goes with the destination picked for it (add_place/update_place dest), or else the nearest one with lat and lng within " + M.REACH_KM + " km: find_location finds them. start \"\" clears the dates. The CLI takes JSON." }]];
 const fileFields = [["name", { type: "string" }], ["place", { type: "string", description: "A place's id or name in this trip it belongs to." + clears }], ["note", { type: "string" }]];
 const bytesArgs = [
   ["path", { type: "string", description: "A file on this computer." }, { mcp: false }],
@@ -79,7 +82,7 @@ const placeLine = (p) => [p.day || "no date", p.time || "", p.name, "[" + p.impo
 function printTrip(v) {
   const t = v.trip;
   const lines = [t.name + (t.start ? "  " + t.start + (t.end && t.end !== t.start ? " to " + t.end : "") : "") + "  (" + t.id + ")"];
-  if (t.destinations.length) lines.push("  " + t.destinations.join(", "));
+  if (t.destinations.length) lines.push("  " + t.destinations.map((d) => { const i = (t.destInfo || {})[d]; return i && i.start ? d + " " + i.start + (i.end !== i.start ? " to " + i.end : "") : d; }).join(", "));
   if (v.server) lines.push("  Shared through " + v.server);
   lines.push("", "Places (" + v.places.length + ")");
   for (const p of v.places) lines.push("  " + placeLine(p));
@@ -125,15 +128,18 @@ const TOOLS = [
       ["limit", { type: "number" }]],
     print: (l) => l.map(placeLine).join("\n") || "No places match." },
   { tool: "get_board", cmd: "board", kind: "read", query: "getBoard",
-    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date), category, importance, rating (5 stars down to 1, then Not rated), or distance (from near).",
+    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date; once a destination has dates, each run of its days starts with a destination heading and, the first time, an anyDay group of its places with no day, and No date has parts by destination), category, importance, rating (5 stars down to 1, then Not rated), or distance (from near).",
     args: [tripArg, ["sort", { type: "string", enum: ["time", "category", "importance", "rating", "distance"] }],
       ["only", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) }, description: "The importance levels shown; all when empty." }],
       ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
-    print: (gs) => gs.map((g) => g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n") : g.places.map((p) => "  " + placeLine(p)).join("\n"))).join("\n\n") },
+    print: (gs) => gs.map((g) => g.kind === "destination" ? "== " + g.title + (g.again ? " (again)" : "") + "  " + g.start + (g.end !== g.start ? " to " + g.end : "")
+      : g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n")
+        : g.parts ? g.parts.map((x) => "  " + (x.destination || "No destination") + "\n" + x.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n")
+        : g.places.map((p) => "  " + placeLine(p)).join("\n"))).join("\n\n") },
   { tool: "get_day", cmd: "day", kind: "read", query: "getDay",
     description: "One day as the Today view shows it: the plan in order, a guessed time from the place before (straight line, not a route), the next place not yet visited, and that day's expenses. The day defaults to today. status is the trip's against today (now, upcoming, past, undated); when is the day's (past, today, upcoming).",
     args: [tripArg, ["day", day, { pos: 1 }]],
-    print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : ""), ...d.plan.map((p) => (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
+    print: (d) => [d.trip + "  " + d.day + (d.dayNumber ? "  day " + d.dayNumber : "") + (d.destination ? "  in " + d.destination : ""), ...d.plan.map((p) => (p.fromPrevious ? "    ~" + p.fromPrevious.min + " min " + p.fromPrevious.mode + "\n" : "") + "  " + (d.next && d.next.id === p.id ? "> " : "  ") + placeLine(p)), d.plan.length ? "" : "  Nothing planned.",
       ...(d.totals.length ? ["Spent: " + d.totals.map((x) => money(x.total, x.currency)).join(" + ")] : [])].filter((x) => x !== "").join("\n") },
   { tool: "get_weather", cmd: "weather", kind: "read",
     description: "The weather forecast for a trip's days, as the app shows it on Today and the Plan, from Open-Meteo: per day the kind (clear, partly, cloudy, fog, drizzle, rain, snow, storm), high and low in °C, chance of rain in %, sunrise and sunset (local time). Only today to 15 days ahead has a forecast; other days are listed under noForecast. Sends each day's rough location (2 decimals, about 1 km) and the dates to Open-Meteo.",
@@ -202,8 +208,9 @@ const TOOLS = [
   // ---------- Trips ----------
   { tool: "create_trip", cmd: "new-trip", kind: "write", op: "createTrip", args: tripFields.map((f, i) => (i ? f : [f[0], f[1], { req: true }])),
     description: "Make a trip. You're its owner." },
-  { tool: "update_trip", cmd: "edit-trip", kind: "write", op: "updateTrip", args: [tripArg, ...tripFields],
-    description: "Change a trip's name, dates or destinations; an empty date clears it." },
+  { tool: "update_trip", cmd: "edit-trip", kind: "write", op: "updateTrip", args: [tripArg, ...tripFields,
+    ["datesFromStays", { type: "boolean", description: "Give each destination the dates of the stays near it (first stay's day to the last one's end), as the app's Dates from your stays. Destinations need lat and lng." }]],
+    description: "Change a trip's name, dates or destinations, and each destination's own dates and location (destInfo, or datesFromStays); an empty date clears it." },
   { tool: "delete_trip", cmd: "delete-trip", kind: "write", op: "deleteTrip", args: [tripArg],
     description: "Delete a trip with its places, expenses, files and cover. Ask the person first." },
   { tool: "set_trip_cover", cmd: "cover", kind: "write", op: "setCover", input: "bytes",

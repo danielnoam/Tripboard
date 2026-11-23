@@ -41,11 +41,11 @@ they always match.
 | Change | CLI | MCP tool |
 |---|---|---|
 | Make a trip | `new-trip` | `create_trip` |
-| Change a trip's name, dates or destinations | `edit-trip` | `update_trip` |
+| Change a trip's name, dates or destinations (and each destination's dates and location, or dates from its stays) | `edit-trip` | `update_trip` |
 | Delete a trip with its places, expenses, files and cover | `delete-trip` | `delete_trip` |
 | Set or remove a trip's cover photo | `cover` | `set_trip_cover` |
 | Add a place | `add-place` | `add_place` |
-| Change a place (day, time, location, visited…) | `edit-place` | `update_place` |
+| Change a place (day, time, location, destination, visited…) | `edit-place` | `update_place` |
 | Put a day's places in order (the Today plan and the map's route follow it) | `order-day` | `order_day` |
 | Delete a place | `delete-place` | `delete_place` |
 | Import a Google Maps list (its shared link or a file) into a trip, or into a new one | `import` (`--link` or `--path`) | `import_places` |
