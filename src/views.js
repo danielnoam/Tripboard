@@ -357,10 +357,7 @@
       el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, SORTS.map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
           onclick: () => { view.sort = id; remember(); render(); } }))),
-      el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, M.IMPORTANCE.map(([id, label]) => {
-        const on = !view.only.length || view.only.includes(id);
-        return el("button.chip.imp-" + id, { type: "button", "aria-pressed": String(on), text: label, onclick: () => toggleOnly(id) });
-      })));
+      places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
     main.append(controls);
     const ask = wxAsk(trip);
     if (ask) main.append(ask);
@@ -375,7 +372,8 @@
           : i18n.t("No place has a location yet. Give one with Find by name or Pin on map in its sheet, or on the Map.") }),
         el("button.btn", { type: "button", onclick: locate }, icon("locate"), i18n.t("Use my location"))));
     }
-    const groups = M.board(trip, places, view.sort, { only: view.only, from: view.from, cats: cats() });
+    const kept = view.mapCats.length ? places.filter((p) => view.mapCats.includes(p.category)) : places;
+    const groups = M.board(trip, kept, view.sort, { only: view.only, from: view.from, cats: cats() });
     // Groups with nothing in them yet, to drop into while dragging.
     const all = view.sort === "category" ? cats() : view.sort === "importance" ? M.IMPORTANCE : [];
     for (const [id, title] of all) {
@@ -1118,15 +1116,6 @@
     }));
   }
 
-  function toggleOnly(id) {
-    const all = M.IMPORTANCE.map(([i]) => i);
-    let on = view.only.length ? view.only.slice() : all.slice();
-    on = on.includes(id) ? on.filter((x) => x !== id) : on.concat(id);
-    view.only = !on.length || on.length === all.length ? [] : all.filter((x) => on.includes(x));
-    remember();
-    render();
-  }
-
   function locate() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -1723,8 +1712,8 @@
   const SET = window.Tripboard.settings;
   const PL = window.Tripboard.places;
   let mapFailed = null;
-  // The map's places: the day picked on the map, the importance filter
-  // (the board's too) and the map's categories (all when none picked).
+  // The map's places: the day picked on the map, and the importance and
+  // category filters (the Plan's too; all when none picked).
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
     if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay));
@@ -1737,8 +1726,8 @@
     for (const p of placesOf(trip.id)) n.set(p.category, (n.get(p.category) || 0) + 1);
     return cats().filter(([id]) => n.has(id)).map(([id, name]) => ({ id, name, n: n.get(id) }));
   }
-  // The map's two filters, each a chip that opens the same sheet with its
-  // choices: categories (this trip's) and importance (the board's too).
+  // The two filters the Plan and the map share, each a chip that opens the
+  // same sheet with its choices: categories (this trip's) and importance.
   function mapFacets(trip) {
     const n = (key) => placesOf(trip.id).reduce((m, p) => m.set(p[key], (m.get(p[key]) || 0) + 1), new Map());
     const imp = n("importance");
@@ -1751,31 +1740,80 @@
   }
   function paintFilters(trip) {
     const bar = $("mapFilters");
+    bar.hidden = !placesOf(trip.id).length;
+    bar.replaceChildren(...filterChips(trip));
+  }
+  function filterChips(trip) {
     const facets = mapFacets(trip);
     view.mapCats = view.mapCats.filter((id) => facets.cat.items.some((c) => c.id === id));
-    bar.hidden = !placesOf(trip.id).length;
     const chip = (which) => {
       const f = facets[which];
       const picked = f.items.filter((c) => view[f.key].includes(c.id));
-      return el("button.chip.pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "dialog",
-        onclick: (e) => { view.mapSheet = which; paintMapFilter(trip); openSheet($("mapFilterSheet"), e.currentTarget); } },
+      return el("button.chip.pick.filter-pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "menu", "data-which": which,
+        "aria-expanded": String(filterMenu.open === which), onclick: (e) => filterMenu(trip, which, e.currentTarget) },
         picked.length === 1 ? picked[0].mark() : null, !picked.length ? f.title : picked.length === 1 ? picked[0].name : f.many(picked.length), icon("chevron"));
     };
-    bar.replaceChildren(...[facets.cat.items.length > 1 ? chip("cat") : null, chip("imp")].filter(Boolean));
+    return [facets.cat.items.length > 1 ? chip("cat") : null, chip("imp")].filter(Boolean);
   }
-  function paintMapFilter(trip) {
-    const f = mapFacets(trip)[view.mapSheet];
-    if (!f) return;
-    const on = (id) => !view[f.key].length || view[f.key].includes(id);
-    $("mapFilterTitle").textContent = f.title;
-    $("mapFilterChoices").replaceChildren(...f.items.map((c) => el("button.chip", { type: "button", "aria-pressed": String(on(c.id)),
-      onclick: () => {
-        let next = f.items.map((x) => x.id).filter(on);
-        next = next.includes(c.id) ? next.filter((x) => x !== c.id) : next.concat(c.id);
-        view[f.key] = !next.length || next.length === f.items.length ? [] : next;
-        remember(); paintMapFilter(trip); render();
-      } }, c.mark(), c.name + " · " + c.n)));
+  // A filter's drop-down, under its chip: All, then a box for each choice.
+  // It stays open while boxes are ticked; the last ticked box can't be
+  // unticked, since none would show nothing.
+  let filterBox = null;
+  function closeFilterMenu(refocus) {
+    if (!filterBox) return;
+    const which = filterMenu.open;
+    filterBox.remove(); filterBox = null; filterMenu.open = null;
+    const chip = document.querySelector('.filter-pick[aria-expanded="true"]');
+    if (chip) chip.setAttribute("aria-expanded", "false");
+    if (refocus) { const again = [...document.querySelectorAll(".filter-pick")].find((b) => !b.hidden && b.offsetParent && b.dataset.which === which); if (again) again.focus(); }
   }
+  function filterMenu(trip, which, from) {
+    const same = filterMenu.open === which;
+    closeFilterMenu();
+    if (same) return;
+    filterMenu.open = which;
+    from.setAttribute("aria-expanded", "true");
+    const box = el("div.quick-menu.filter-menu", { role: "menu", "aria-label": mapFacets(trip)[which].title });
+    const paint = () => {
+      const f = mapFacets(trip)[which];
+      const ids = f.items.map((x) => x.id);
+      const on = (id) => !view[f.key].length || view[f.key].includes(id);
+      const set = (next) => { view[f.key] = next.length === ids.length ? [] : next; remember(); paint(); render(); };
+      const row = (checked, mark, label, n, onclick) => el("button", { type: "button", role: "menuitemcheckbox", "aria-checked": String(checked), onclick },
+        el("span.box", {}, checked === "mixed" ? icon("minus") : checked ? icon("check") : null), mark, el("span.grow", { text: label }), n == null ? null : el("span.dim", { text: String(n) }));
+      const all = !view[f.key].length ? true : "mixed";
+      box.replaceChildren(row(all, null, i18n.t("All"), null, () => { if (all !== true) set(ids); }),
+        el("hr"),
+        ...f.items.map((c) => row(on(c.id), c.mark(), c.name, c.n, () => {
+          const next = on(c.id) ? ids.filter((x) => x !== c.id && on(x)) : ids.filter((x) => x === c.id || on(x));
+          if (next.length) set(next);
+        })));
+    };
+    paint();
+    document.body.append(box);
+    filterBox = box;
+    const c = from.getBoundingClientRect(), r = box.getBoundingClientRect(), M8 = 8;
+    const left = i18n.dir === "rtl" ? c.right - r.width : c.left;
+    box.style.left = Math.max(M8, Math.min(innerWidth - r.width - M8, left)) + "px";
+    box.style.top = Math.min(c.bottom + 4, innerHeight - r.height - M8) + "px";
+    box.dataset.y = String(window.scrollY);
+    if (!lessMotion() && box.animate) box.animate([{ opacity: 0, transform: "translateY(-4px)" }, { opacity: 1, transform: "none" }], { duration: 120, easing: "ease-out" });
+    box.querySelector("button").focus({ preventScroll: true });
+  }
+  document.addEventListener("pointerdown", (e) => { if (filterBox && !filterBox.contains(e.target) && !e.target.closest(".filter-pick")) closeFilterMenu(); }, true);
+  document.addEventListener("keydown", (e) => {
+    if (!filterBox) return;
+    if (e.key === "Escape") { e.preventDefault(); closeFilterMenu(true); return; }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const items = [...filterBox.querySelectorAll("button")];
+    const i = items.indexOf(document.activeElement);
+    items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+  });
+  window.addEventListener("hashchange", () => closeFilterMenu());
+  window.addEventListener("resize", () => closeFilterMenu());
+  // A render can nudge the page a pixel or two; only a real scroll closes it.
+  document.addEventListener("scroll", () => { if (filterBox && Math.abs(window.scrollY - Number(filterBox.dataset.y)) > 24) closeFilterMenu(); }, true);
   function paintDays(trip) {
     const days = M.tripDays(trip, placesOf(trip.id));
     if (view.mapDay && !days.includes(view.mapDay)) view.mapDay = null;
@@ -1927,11 +1965,6 @@
     $("mapCreditIc").append(icon("info"));
     $("mapZoomIn").addEventListener("click", () => TM.zoom(1));
     $("mapZoomOut").addEventListener("click", () => TM.zoom(-1));
-    $("mapFilterAll").addEventListener("click", () => {
-      const t = findTrip(view.trip);
-      if (!t || !mapFacets(t)[view.mapSheet]) return;
-      view[mapFacets(t)[view.mapSheet].key] = []; remember(); paintMapFilter(t); render();
-    });
     $("mapStyleBtn").addEventListener("click", (e) => { paintMapStyles(); openSheet($("mapStyleSheet"), e.currentTarget); });
     $("mapFit").addEventListener("click", () => {
       const trip = findTrip(view.trip);
