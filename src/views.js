@@ -1399,17 +1399,29 @@
   // phone doesn't throw up its keyboard before you tap where to type.
   function openSheet(d, from) {
     opener = from || null;
+    d.classList.remove("leaving");
     d.showModal();
     d.tabIndex = -1;
     d.focus();
     if (narrow() && d.classList.contains("page")) slideSheet(d, true);
     else (narrow() ? motion.rise(d) : motion.dialogIn(d, from && from.getBoundingClientRect()));
   }
+  // The dimming behind fades out with the sheet (styles.css, .leaving),
+  // and the sheet lets go of the page the moment it's out of sight.
   async function closeSheet(d) {
-    if (!d.open) return;
+    if (!d.open || d.classList.contains("leaving")) return;
+    d.classList.add("leaving");
     await (narrow() && d.classList.contains("page") ? slideSheet(d, false)
-      : narrow() ? motion.sink(d) : motion.dialogOut(d, opener && opener.getBoundingClientRect()));
+      : narrow() ? sinkSheet(d) : motion.dialogOut(d, opener && opener.getBoundingClientRect()));
     d.close();
+    d.classList.remove("leaving");
+  }
+  // Down and out on a plain ease-in: keel's sink rides the spring's settling
+  // tail long after the sheet has left the screen, holding the page.
+  function sinkSheet(d) {
+    if (!d.animate || lessMotion()) return motion.sink(d);
+    const a = d.animate([{ transform: "none" }, { transform: "translateY(100%)" }], { duration: 220, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+    return a.finished.then(() => a.cancel(), () => {});
   }
   // A full-screen editor on a phone is a screen like the others: in from
   // the end edge with the small bounce, out the same way without it.
