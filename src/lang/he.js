@@ -750,7 +750,10 @@ Keel.i18n.strings("he", {
   "On its own": "בנפרד",
   "Inside {name}": "בתוך {name}",
   "In Plan › Destination": "בתוכנית › יעד",
-  "Set the day for all": "קביעת יום לכולם",
+  "Set the days for all": "קביעת ימים לכולם",
   "Give it a block of its own": "בלוק נפרד",
-  "Set the day for all in {name}": "קביעת יום לכל מה שב-{name}",
+  "{name} has new dates.": "ל-{name} יש תאריכים חדשים.",
+  "Set the days for {name}": "קביעת הימים של {name}",
+  "Tap a day, then the last day for more than one. Tap it again for just that day.": "יש להקיש על יום, ואז על היום האחרון אם יש יותר מאחד. הקשה נוספת על אותו יום משאירה רק אותו.",
+  "Now the last day, or the same day again for just that one.": "עכשיו היום האחרון, או שוב אותו יום אם זה רק יום אחד.",
 });

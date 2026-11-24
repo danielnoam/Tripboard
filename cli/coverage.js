@@ -109,6 +109,7 @@ const actions = {
   "Moved {name} to {to}.": ["update_place"],
   "{name} is inside {to} now.": ["update_trip"],
   "{name} has a block of its own now.": ["update_trip"],
+  "{name} has new dates.": ["update_trip"],
   "Moved 1 place.": ["batch_update", "update_place"],
   "Deleted 1 place.": ["delete_place"],
   "Restored 1 trip ({replaced} replaced).": ["import_backup"],
