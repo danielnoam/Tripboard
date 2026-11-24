@@ -11,6 +11,8 @@ Keel.i18n.strings("he", {
   "Japan in autumn": "יפן בסתיו",
   "From": "מתאריך",
   "To": "עד תאריך",
+  "time|From": "משעה",
+  "time|To": "עד שעה",
   "Destinations": "יעדים",
   "Cover": "תמונת שער",
   "Choose a photo": "בחירת תמונה",
