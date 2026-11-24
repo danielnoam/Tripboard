@@ -2146,6 +2146,14 @@
     $("placeFindLabel").textContent = has ? i18n.t("Change") : i18n.t("Find by name");
     $("placePinLabel").textContent = has ? i18n.t("On map") : i18n.t("Pin on map");
   }
+  // The Open menu opens toward whichever side has room for it.
+  $("placeOpenIn").addEventListener("toggle", (e) => {
+    const menu = e.currentTarget;
+    if (!menu.open) return;
+    const r = menu.getBoundingClientRect(), list = menu.querySelector(".open-menu-list");
+    const room = i18n.dir === "rtl" ? r.right : innerWidth - r.left;
+    menu.classList.toggle("to-end", !!list && room < list.offsetWidth + 16);
+  });
   // The Open menu closes when anything else is clicked.
   document.addEventListener("click", (e) => {
     const menu = $("placeOpenIn");
@@ -2248,6 +2256,8 @@
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
     const p = await commitPlace();
     view.pick = p.id;
+    view.pickFly = true;
+    view.pickFrom = "sheet";
     view.sel = null;
     go("#/trip/" + placeTrip.id + "/map");
     render();
@@ -2790,11 +2800,24 @@
     const list = shownPlaces(trip);
     const route = view.mapDay ? M.dayRoute(list, view.mapDay) : [];
     // A journey is a line on the map, not a pin.
-    TM.places(list.filter((p) => !M.isJourney(p)), view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
+    // Moving a place: its pin is shown even if filtered out, picked, and draggable.
+    const moving = view.pick && placesOf(trip.id).find((p) => p.id === view.pick);
+    const pins = list.filter((p) => !M.isJourney(p));
+    if (moving && !pins.includes(moving)) pins.push(moving);
+    TM.places(pins, moving ? moving.id : view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
+    TM.drag(moving && moving.lat != null ? moving.id : null, (at) => {
+      const p = doc.places.find((x) => x.id === view.pick);
+      if (p) movePlace(p, at);
+    });
     TM.route(route);
     TM.journeys(list.filter(M.isJourney));
     const ends = (l) => l.flatMap((p) => (M.isJourney(p) ? [p, M.endOf(p)].filter(Boolean) : [p]));
-    if (first || view.fitDay || $("map").dataset.trip !== trip.id) { TM.fit(ends(list.length ? list : placesOf(trip.id))); $("map").dataset.trip = trip.id; view.fitDay = false; }
+    // A place being moved is centred instead of framing them all.
+    if (moving && moving.lat != null) {
+      if (first || view.pickFly || $("map").dataset.trip !== trip.id) TM.flyTo(moving);
+      $("map").dataset.trip = trip.id;
+      view.pickFly = false;
+    } else if (first || view.fitDay || $("map").dataset.trip !== trip.id) { TM.fit(ends(list.length ? list : placesOf(trip.id))); $("map").dataset.trip = trip.id; view.fitDay = false; }
     paintPanel(trip);
     panel.hidden = !panel.childNodes.length;
   }
@@ -2811,21 +2834,34 @@
   TM.onTap = ({ lat, lng }) => {
     if (view.pick) {
       const p = doc.places.find((x) => x.id === view.pick);
-      view.pick = null;
-      if (p) { Object.assign(p, { lat, lng, updatedAt: new Date().toISOString() }); delete p.address; view.sel = p.id; }
-      save();
+      if (p) movePlace(p, { lat, lng });
+      else { view.pick = null; render(); }
       return;
     }
     if (view.sel) { view.sel = null; render(); }
   };
+  // A place moved on the map, by a tap or by dragging its pin. It stays
+  // movable until Done, which opens the place again.
+  function movePlace(p, { lat, lng }) {
+    for (const k of ["address", "placeId", "geoAt"]) delete p[k];
+    Object.assign(p, { lat, lng, updatedAt: new Date().toISOString() });
+    save();
+  }
   function paintPanel(trip) {
     const panel = $("mapPanel");
     panel.classList.remove("nowhere");
     const all = placesOf(trip.id);
     if (view.pick) {
       const p = all.find((x) => x.id === view.pick);
-      panel.replaceChildren(el("p.pick", { text: p ? i18n.t("Tap the map where {name} is.", { name: p.name }) : i18n.t("Tap the map where it is.") }),
-        el("button.btn", { type: "button", text: i18n.t("Cancel"), onclick: () => { view.pick = null; render(); } }));
+      const placed = p && p.lat != null;
+      panel.replaceChildren(el("p.pick", { text: !p ? i18n.t("Tap the map where it is.") : placed ? i18n.t("Drag {name}'s pin, or tap the map where it is.", { name: p.name }) : i18n.t("Tap the map where {name} is.", { name: p.name }) }),
+        el("button.btn" + (placed ? ".primary" : ""), { type: "button", text: placed ? i18n.t("Done") : i18n.t("Cancel"), onclick: (e) => {
+          view.pick = null;
+          render();
+          const back = view.pickFrom === "sheet";
+          view.pickFrom = null;
+          if (placed) { view.sel = p.id; if (back) openPlace(p, trip, null, e.currentTarget); }
+        } }));
       return;
     }
     const sel = view.sel && all.find((x) => x.id === view.sel);

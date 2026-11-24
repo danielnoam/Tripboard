@@ -501,6 +501,8 @@ body.on-map .bar { width: 100%; max-width: none; }
 .pin.imp-maybe { background: var(--maybe); }
 .pin.visited { opacity: 0.55; }
 .pin.selected { outline: 3px solid var(--text); outline-offset: 2px; z-index: 2; }
+.pin.draggable { cursor: grab; touch-action: none; }
+.pin.draggable:active { cursor: grabbing; }
 /* A pin's name under it: when pointed at or selected, or always (View sheet). */
 .pin-label {
   display: none; position: absolute; top: calc(100% + 3px); left: 50%; translate: -50% 0; padding: 1px 6px; border-radius: 6px;
@@ -1324,7 +1326,7 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
 #placeForm .modes button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 #placeForm .modes .icon { width: 16px; height: 16px; }
 
-.pcard { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; border-radius: var(--radius-lg); background: var(--surface); overflow: clip; }
+.pcard { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; border-radius: var(--radius-lg); background: var(--surface); }
 .pcard[hidden] { display: none; }
 .pcard-head {
   display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: 12px var(--space-3) 4px;
@@ -1364,6 +1366,7 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
   position: absolute; z-index: 3; inset-block-start: calc(100% + 4px); inset-inline-start: 0; min-width: 180px;
   display: grid; padding: 4px; border: 1px solid var(--surface-2); border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
+.open-menu.to-end .open-menu-list { inset-inline: auto 0; }
 .open-menu-list a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 8px; color: var(--text); font-weight: 600; text-decoration: none; }
 .open-menu-list a:hover, .open-menu-list a:focus-visible { background: var(--surface-2); }
 .pcard .results button { background: var(--bg); }
