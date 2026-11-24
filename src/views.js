@@ -4222,8 +4222,14 @@
     return true;
   }
   function quickMenus() {
-    // A tap beside the open menu only closes it.
-    document.addEventListener("pointerdown", (e) => { if (qBox && !qBox.contains(e.target)) { closeQuick(); qHeld.forEach((h) => h.swallow()); } }, true);
+    // A tap beside the open menu only closes it. A right-click beside it
+    // opens the next one at once (a right-click has no click to swallow, so
+    // swallowing it would eat the next right-click instead).
+    document.addEventListener("pointerdown", (e) => {
+      if (!qBox || qBox.contains(e.target)) return;
+      closeQuick();
+      if (e.button === 0) qHeld.forEach((h) => h.swallow());
+    }, true);
     document.addEventListener("keydown", (e) => {
       if (!qBox) return;
       if (e.key === "Escape") { e.preventDefault(); closeQuick(true); return; }
