@@ -1,2 +1,0 @@
-### Added
-- Plan › Destination: put a destination inside another, dates or not (Nara as a day trip from Tokyo). On a computer, drag a block's name onto another block, or a column's name onto "Drop here to give it a block of its own" to take it out again; a place dragged onto a block goes with that destination. On a phone: Edit trip › a destination's dates › In Plan › Destination. AI tools: update_trip destInfo "in".

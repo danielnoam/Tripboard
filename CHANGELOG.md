@@ -4,6 +4,31 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.7.0] - 2026-11-24
+
+### Added
+- Plan › Destination: right-click (or long-press on a phone) a destination's name for Set the days for all (one day moves everything in it to that day; a range becomes the destination's dates, and what isn't on one of them goes to its Any day), Remove from Tokyo (its parent's name, when it's inside one), and Add a place.
+- Plan › Destination: put a destination inside another, dates or not (Nara as a day trip from Tokyo). On a computer, drag a block's name onto another block, or a column's name onto any empty space in the board to take it out again; a place dragged onto a block goes with that destination. On a phone: Edit trip › a destination's dates › In Plan › Destination. AI tools: update_trip destInfo "in".
+- Plan › Destination: right-click (or long-press) No destination for "Set the days for all" and "Set the destination for all". A destination with dates grows to take in the days of the places moved into it.
+- Right-click a place in the Plan (or the menu key) for "Show on map" when it has a location: with the map beside the Plan it's centred and opened there, otherwise the Map tab opens on it.
+- Double-click (or double-tap) a pin on the map to zoom in on it.
+
+### Changed
+- A place's Attachments show a link's address in grey after its name, as much as fits.
+- A journey's type (Flight, Train…) under it in the Expanded Plan follows View › Categories: with "Icon only" it shows just the icon.
+- The Open menu offers what fits the device: Apple Maps only on iPhone, iPad and Mac, Waze only on phones, and on Android an "Other apps…" item that opens the phone's own list of map apps it has.
+- Plan › Destination on a computer: blocks no longer fold; every one stays open. They still fold on a phone.
+- Plan › Destination: a destination's only stay, over the destination's own dates, shows just its check-in and check-out under its name, not the dates again.
+- Shared files from keel 0.17.0: the app now knows which kind of device it's on, for offering the right map apps.
+- On map, for a place that already has a location, centres the map on its pin and lets you drag it, or tap where it should go, as many times as you like; Done takes you back to the place.
+
+### Fixed
+- Picking places in Plan › Destination and pressing Move now offers days, not importance.
+- On a computer, dragging the line between the Plan and the map no longer makes the map flash.
+- On a computer, the handle that folds the map away no longer covers the plan's scroll bar, open or folded, and the map slides away and back quickly instead of jumping.
+- On a computer, pointing at a place in the Plan made its pin on the map jump away from where it is; it now grows in place.
+- The place panel's Open menu (Google Maps, Apple Maps, Waze, Street View) was cut off by its card; it now opens in full, toward whichever side has room.
+
 ## [0.6.0] - 2026-11-24
 
 ### Added
