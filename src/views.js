@@ -408,7 +408,7 @@
       if (canDrag() && blocks.some((g) => g.dest)) {
         wireAreaDrag(wrap, trip);
       }
-      for (const g of blocks) wrap.append(area(trip, g));
+      for (const g of blocks) wrap.append(area(trip, g, blocks.length === 1));
       main.append(wrap);
       return;
     }
@@ -1396,10 +1396,11 @@
   // A destination's block, as in a sheet with a block for each city: its
   // stays, its days, then what has no day yet; trips out of it (a day in
   // Hiroshima from Osaka) sit beside it on a wide screen, under it on a phone.
-  function area(trip, g) {
+  function area(trip, g, lone) {
     const k = destKey(trip, "area:" + (g.dest || g.id));
-    // A computer has the room to show every block, so they don't fold there.
-    const folds = !desk();
+    // A computer has the room to show every block, so they don't fold there,
+    // and a block alone on the board has nothing to fold away for.
+    const folds = !desk() && !lone;
     const open = !folds || !view.destShut.includes(k);
     const flip = () => {
       view.destShut = open ? view.destShut.concat(k).slice(-50) : view.destShut.filter((x) => x !== k);
