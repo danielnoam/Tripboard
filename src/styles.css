@@ -329,6 +329,8 @@ body.picking .bottombar { display: none; }
   border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer;
 }
 .move-to:hover, .move-to:focus-visible { background: var(--surface-2); }
+.move-to.on { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); font-weight: 600; }
+.move-hint { margin: 0 0 var(--space-2); padding-inline: var(--space-3); font-size: 14px; }
 
 /* A trip's bar at the bottom: a floating pill with the tabs (Plan, Map,
    Today, Expenses, Files, as icons) and, beside it at its inline end, the
@@ -1431,7 +1433,8 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
   #placeForm.is-journey #dayRow select, #arriveRow select { flex: 0 1 auto; padding-inline-start: 0; text-align: start; text-align-last: start; }
 }
 .dest-dates .dest-part { flex-basis: 100%; }
-.area-out { display: none; margin: 0; padding: 14px; border: 2px dashed var(--line); border-radius: 14px; text-align: center; color: var(--text-dim); font-size: 14px; flex-basis: 100%; }
+/* Kept at the top of the view while a destination is dragged, wherever the board is scrolled to. */
+.area-out { display: none; position: sticky; top: 0; z-index: 4; margin: 0; padding: 14px; background: var(--bg); border: 2px dashed var(--line); border-radius: 14px; text-align: center; color: var(--text-dim); font-size: 14px; flex-basis: 100%; }
 body.dragging-dest .area-out { display: block; }
 .area-out.drop-over { border-color: var(--accent); color: var(--text); outline: none; }
 .area.drop-over, .area-col.drop-over { outline: 2px dashed var(--accent); outline-offset: -2px; }

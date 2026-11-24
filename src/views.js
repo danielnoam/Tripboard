@@ -1404,7 +1404,8 @@
   // onto a block or column goes with that destination.
   function wireAreaDrag(wrap, trip) {
     let what = null;
-    const into = (e) => e.target.closest && e.target.closest("[data-into]");
+    // Empty space between the blocks counts as the strip: a block of its own.
+    const into = (e) => (e.target.closest && e.target.closest("[data-into]")) || (what && what.dest && e.target === wrap ? wrap.querySelector(".area-out") : null);
     const clear = () => wrap.querySelectorAll(".drop-over").forEach((n) => n.classList.remove("drop-over"));
     wrap.addEventListener("dragstart", (e) => {
       const head = e.target.closest && e.target.closest("[data-dest][draggable=true]");
@@ -4184,7 +4185,7 @@
       if (!trip || !mayEdit(trip) || !trip.destinations.includes(name)) return false;
       const inside = !!head.closest(".trip-out");
       return openQuick(head, name, [
-        ["calendar", i18n.t("Set the day for all"), () => openDestDay(head, trip, name)],
+        ["calendar", i18n.t("Set the days for all"), () => openDestDay(head, trip, name)],
         inside ? ["arrowUp", i18n.t("Give it a block of its own"), () => setDestIn(trip, name, "")] : null,
         ["plus", i18n.t("Add a place"), () => openPlace(null, trip, { dest: name }, head)],
       ].filter(Boolean), x, y, keyboard);
@@ -4265,29 +4266,49 @@
     const g = find(M.board(trip, placesOf(trip.id), "area"));
     return g ? g.places.filter((p) => !M.isJourney(p) && !M.isStay(p)) : [];
   }
+  // Set the days for everything in a destination: one day moves it all to
+  // that day; a range makes those the destination's dates and leaves what's
+  // already on one of them there, the rest with no day (its Any day).
   function openDestDay(from, trip, name) {
     const list = destPlaces(trip, name);
-    $("moveTitle").textContent = i18n.t("Set the day for all in {name}", { name });
-    const row = (label, go) => el("button.move-to", { type: "button", onclick: go }, el("span", { text: label }));
+    $("moveTitle").textContent = i18n.t("Set the days for {name}", { name });
     const box = $("moveList");
     box.replaceChildren();
-    if (!list.length) box.append(el("p.dim", { text: i18n.t("Nothing here yet.") }));
-    const go = (day) => {
+    document.querySelectorAll(".move-hint").forEach((n) => n.remove());
+    if (!list.length) { box.append(el("p.dim", { text: i18n.t("Nothing here yet.") })); openSheet($("moveSheet"), from); return; }
+    const hint = el("p.dim.move-hint", { text: i18n.t("Tap a day, then the last day for more than one. Tap it again for just that day.") });
+    let first = null;
+    const go = (a, b) => {
       closeSheet($("moveSheet"));
-      if (!list.length) return;
-      undoable(i18n.tn(list.length, "Moved 1 place.", "Moved {n} places."), () => {
-        list.forEach((p) => shift(p, day, "", "time"));
+      if (a !== "nodate" && b < a) [a, b] = [b, a];
+      const one = a === "nodate" || a === b;
+      const moving = one ? list : list.filter((p) => !(M.isDay(p.day) && p.day >= a && p.day <= b));
+      undoable(moving.length ? i18n.tn(moving.length, "Moved 1 place.", "Moved {n} places.") : i18n.t("{name} has new dates.", { name }), () => {
+        moving.forEach((p) => shift(p, one ? a : "nodate", "", "time"));
+        if (a === "nodate") return;
         const t = findTrip(trip.id), info = (t.destInfo || {})[name] || {};
-        if (day !== "nodate" && !info.start) {
-          t.destInfo = { ...(t.destInfo || {}), [name]: { ...info, start: day, end: day } };
-          t.updatedAt = new Date().toISOString();
-        }
+        t.destInfo = { ...(t.destInfo || {}), [name]: { ...info, start: a, end: b } };
+        t.updatedAt = new Date().toISOString();
       });
     };
+    const pick = (day, row) => {
+      if (!first) {
+        first = day;
+        row.classList.add("on");
+        row.setAttribute("aria-pressed", "true");
+        hint.textContent = i18n.t("Now the last day, or the same day again for just that one.");
+        return;
+      }
+      go(first, day);
+    };
+    box.before(hint);
     for (const day of M.tripDays(trip, placesOf(trip.id))) {
-      box.append(row(trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, day), date: dayLabel(day) }) : dayLabel(day), () => go(day)));
+      const row = el("button.move-to", { type: "button", "aria-pressed": "false" },
+        el("span", { text: trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, day), date: dayLabel(day) }) : dayLabel(day) }));
+      row.addEventListener("click", () => pick(day, row));
+      box.append(row);
     }
-    box.append(row(i18n.t("No date"), () => go("nodate")));
+    box.append(el("button.move-to", { type: "button", onclick: () => go("nodate", "nodate") }, el("span", { text: i18n.t("No date") })));
     openSheet($("moveSheet"), from);
   }
   function setDestIn(trip, name, to) {
@@ -4304,6 +4325,7 @@
     if (!trip || !n) return;
     const sort = view.sort === "distance" || view.sort === "area" ? "time" : view.sort;
     $("moveTitle").textContent = i18n.tn(n, "Move 1 place", "Move {n} places");
+    document.querySelectorAll(".move-hint").forEach((n) => n.remove());
     const row = (label, ico, go) => el("button.move-to", { type: "button", onclick: go }, ico ? icon(ico, "cat") : null, el("span", { text: label }));
     const box = $("moveList");
     box.replaceChildren();
