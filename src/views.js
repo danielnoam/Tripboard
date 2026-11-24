@@ -4037,6 +4037,7 @@
     paintSide(deskTrip() ? trip : null);
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
+    paintSyncBadge();
     $("shareTrip").hidden = !trip || view.mode === "share";
     $("viewTrip").hidden = !trip || ["share", "expenses", "files"].includes(view.mode);
     paintView();
@@ -4580,6 +4581,15 @@
     }
     clearTimeout(badgeShow); badgeShow = null;
     if (st.state === "error") { const off = st.error && st.error.kind === "offline"; set(off ? "offline" : "error", "cloudOff", off ? i18n.t("Offline") : i18n.t("Not synced")); return; }
+    // On a computer the side bar has the room to say it's synced all the
+    // time; a phone's bar shows only syncing and trouble.
+    if (deskTrip() && st.state !== "off") {
+      if (badgeHide) return;
+      const synced = () => set("synced", "cloudCheck", i18n.t("Synced"));
+      if (!b.hidden && b.dataset.state === "syncing") badgeHide = setTimeout(() => { badgeHide = null; synced(); }, Math.max(0, 900 - (Date.now() - badgeSince)));
+      else synced();
+      return;
+    }
     if (b.hidden || badgeHide) return;
     badgeHide = setTimeout(() => { badgeHide = null; b.hidden = true; }, Math.max(0, 900 - (Date.now() - badgeSince)));
   }
