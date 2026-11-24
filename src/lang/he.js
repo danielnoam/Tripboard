@@ -753,4 +753,5 @@ Keel.i18n.strings("he", {
   "Set the day for all": "קביעת יום לכולם",
   "Give it a block of its own": "בלוק נפרד",
   "Set the day for all in {name}": "קביעת יום לכל מה שב-{name}",
+  "Show on map": "הצגה במפה",
 });

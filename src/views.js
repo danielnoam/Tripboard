@@ -2918,6 +2918,9 @@
     const moving = view.pick && placesOf(trip.id).find((p) => p.id === view.pick);
     const pins = list.filter((p) => !M.isJourney(p));
     if (moving && !pins.includes(moving)) pins.push(moving);
+    // Show on map: its pin even if filtered out, picked and centred.
+    const shown = !moving && view.flyTo && placesOf(trip.id).find((p) => p.id === view.flyTo && p.lat != null);
+    if (shown && !pins.includes(shown)) pins.push(shown);
     TM.places(pins, moving ? moving.id : view.sel, new Map(route.map((p, i) => [p.id, i + 1])));
     TM.drag(moving && moving.lat != null ? moving.id : null, (at) => {
       const p = doc.places.find((x) => x.id === view.pick);
@@ -2931,6 +2934,10 @@
       if (first || view.pickFly || $("map").dataset.trip !== trip.id) TM.flyTo(moving);
       $("map").dataset.trip = trip.id;
       view.pickFly = false;
+    } else if (shown) {
+      TM.flyTo(shown);
+      $("map").dataset.trip = trip.id;
+      view.flyTo = null; view.fitDay = false;
     } else if (first || view.fitDay || $("map").dataset.trip !== trip.id) { TM.fit(ends(list.length ? list : placesOf(trip.id))); $("map").dataset.trip = trip.id; view.fitDay = false; }
     paintPanel(trip);
     panel.hidden = !panel.childNodes.length;
@@ -4265,10 +4272,14 @@
     // drops it.
     qHeld.push(onHold(".groups .card[data-id]", (card, x, y, keyboard, touch) => {
       const trip = findTrip(view.trip), p = doc.places.find((q) => q.id === card.dataset.id);
-      if (!trip || !p || !mayEdit(trip)) return false;
-      if (touch || picked) { pick(p.id); return true; }
+      if (!trip || !p) return false;
+      const edit = mayEdit(trip);
+      if (edit && (touch || picked)) { pick(p.id); return true; }
+      const onMap = p.lat != null ? [["pin", i18n.t("Show on map"), () => showOnMap(trip, p)]] : [];
+      if (!edit) return onMap.length ? openQuick(card, p.name, onMap, x, y, keyboard) : false;
       return openQuick(card, p.name, [
         ["check", i18n.t("Select"), () => pick(p.id)],
+        ...onMap,
         ["pencil", i18n.t("Edit"), () => openPlace(p, trip, null, card.querySelector(".card-body"))],
         ["trash", i18n.t("Delete"), async () => {
           if (await confirmDelete(i18n.t("Delete {name}?", { name: p.name }), card))
@@ -4286,6 +4297,15 @@
       undoable(i18n.tn(list.length, "Deleted 1 place.", "Deleted {n} places."), () => { doc.places = doc.places.filter((x) => !ids.has(x.id)); });
     });
     document.addEventListener("keydown", (e) => { if (picked && e.key === "Escape" && !document.querySelector("dialog[open]")) stopPicking(); });
+  }
+  // On a computer with the map beside the Plan it's shown there; otherwise
+  // the Map tab opens on it.
+  function showOnMap(trip, p) {
+    view.flyTo = p.id;
+    view.sel = p.id;
+    if (view.mapDay && !M.onDay(p, view.mapDay)) view.mapDay = null;
+    if (sideMap()) render();
+    else go("#/trip/" + trip.id + "/map");
   }
   function moveMany(groupId, slot, sort) {
     const list = pickedPlaces();
