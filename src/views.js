@@ -4177,6 +4177,18 @@
     });
     for (const t of ["hashchange", "resize", "blur"]) window.addEventListener(t, () => closeQuick());
     document.addEventListener("scroll", () => closeQuick(), true);
+    // Plan › Destination: a destination's name gets Set the day for all,
+    // Take out (when it's inside another) and Add a place.
+    qHeld.push(onHold(".area-head[data-dest], .area-col-head[data-dest]", (head, x, y, keyboard) => {
+      const trip = findTrip(view.trip), name = head.dataset.dest;
+      if (!trip || !mayEdit(trip) || !trip.destinations.includes(name)) return false;
+      const inside = !!head.closest(".trip-out");
+      return openQuick(head, name, [
+        ["calendar", i18n.t("Set the day for all"), () => openDestDay(head, trip, name)],
+        inside ? ["arrowUp", i18n.t("Give it a block of its own"), () => setDestIn(trip, name, "")] : null,
+        ["plus", i18n.t("Add a place"), () => openPlace(null, trip, { dest: name }, head)],
+      ].filter(Boolean), x, y, keyboard);
+    }));
     qHeld.push(onHold(".trip-card[data-trip]", (card, x, y, keyboard) => {
       const trip = findTrip(card.dataset.trip);
       if (!trip || !mayEdit(trip)) return false;
@@ -4244,12 +4256,53 @@
     if (!list.length) return render();
     undoable(i18n.tn(list.length, "Moved 1 place.", "Moved {n} places."), () => list.forEach((p) => shift(p, groupId, slot, sort)));
   }
+  // Every place in a destination (Plan › Destination's grouping, its
+  // stays and journeys left as they are) onto one day, or off any day. A
+  // destination with no dates of its own gets that day, so it shows as a
+  // day trip on it.
+  function destPlaces(trip, name) {
+    const find = (list) => { for (const g of list) { if (g.dest === name) return g; const s = find(g.side || []); if (s) return s; } return null; };
+    const g = find(M.board(trip, placesOf(trip.id), "area"));
+    return g ? g.places.filter((p) => !M.isJourney(p) && !M.isStay(p)) : [];
+  }
+  function openDestDay(from, trip, name) {
+    const list = destPlaces(trip, name);
+    $("moveTitle").textContent = i18n.t("Set the day for all in {name}", { name });
+    const row = (label, go) => el("button.move-to", { type: "button", onclick: go }, el("span", { text: label }));
+    const box = $("moveList");
+    box.replaceChildren();
+    if (!list.length) box.append(el("p.dim", { text: i18n.t("Nothing here yet.") }));
+    const go = (day) => {
+      closeSheet($("moveSheet"));
+      if (!list.length) return;
+      undoable(i18n.tn(list.length, "Moved 1 place.", "Moved {n} places."), () => {
+        list.forEach((p) => shift(p, day, "", "time"));
+        const t = findTrip(trip.id), info = (t.destInfo || {})[name] || {};
+        if (day !== "nodate" && !info.start) {
+          t.destInfo = { ...(t.destInfo || {}), [name]: { ...info, start: day, end: day } };
+          t.updatedAt = new Date().toISOString();
+        }
+      });
+    };
+    for (const day of M.tripDays(trip, placesOf(trip.id))) {
+      box.append(row(trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, day), date: dayLabel(day) }) : dayLabel(day), () => go(day)));
+    }
+    box.append(row(i18n.t("No date"), () => go("nodate")));
+    openSheet($("moveSheet"), from);
+  }
+  function setDestIn(trip, name, to) {
+    undoable(to ? i18n.t("{name} is inside {to} now.", { name, to }) : i18n.t("{name} has a block of its own now.", { name }), () => {
+      const t = findTrip(trip.id);
+      t.destInfo = { ...(t.destInfo || {}), [name]: { ...((t.destInfo || {})[name] || {}), in: to } };
+      t.updatedAt = new Date().toISOString();
+    });
+  }
   // Where the picked places can go: the trip's days (with a time of day),
   // its categories, or the importances. Sorted by distance, it's the days.
   function openMove(from) {
     const trip = findTrip(view.trip), n = picked ? picked.size : 0;
     if (!trip || !n) return;
-    const sort = view.sort === "distance" ? "time" : view.sort;
+    const sort = view.sort === "distance" || view.sort === "area" ? "time" : view.sort;
     $("moveTitle").textContent = i18n.tn(n, "Move 1 place", "Move {n} places");
     const row = (label, ico, go) => el("button.move-to", { type: "button", onclick: go }, ico ? icon(ico, "cat") : null, el("span", { text: label }));
     const box = $("moveList");
