@@ -402,7 +402,6 @@
       const wrap = el("div.groups.areas");
       const blocks = M.board(trip, kept, "area", { only: view.only });
       if (canDrag() && blocks.some((g) => g.dest)) {
-        wrap.append(el("p.area-out", { "data-into": "", text: i18n.t("Drop here to give it a block of its own") }));
         wireAreaDrag(wrap, trip);
       }
       for (const g of blocks) wrap.append(area(trip, g));
@@ -1444,9 +1443,9 @@
   // onto a block or column goes with that destination.
   function wireAreaDrag(wrap, trip) {
     let what = null;
-    // Empty space between the blocks counts as the strip: a block of its own.
-    const into = (e) => (e.target.closest && e.target.closest("[data-into]")) || (what && what.dest && e.target === wrap ? wrap.querySelector(".area-out") : null);
-    const clear = () => wrap.querySelectorAll(".drop-over").forEach((n) => n.classList.remove("drop-over"));
+    // A destination dropped on empty space between the blocks gets a block of its own.
+    const into = (e) => (e.target.closest && e.target.closest("[data-into]")) || (what && what.dest && e.target === wrap ? wrap : null);
+    const clear = () => { wrap.classList.remove("drop-over"); wrap.querySelectorAll(".drop-over").forEach((n) => n.classList.remove("drop-over")); };
     wrap.addEventListener("dragstart", (e) => {
       const head = e.target.closest && e.target.closest("[data-dest][draggable=true]");
       const card = !head && e.target.closest && e.target.closest(".card[draggable=true]");
@@ -1459,7 +1458,7 @@
     wrap.addEventListener("dragend", () => { what = null; clear(); document.body.classList.remove("dragging-dest", "dragging"); });
     const fits = (t) => {
       if (!t || !what) return false;
-      const name = t.dataset.into;
+      const name = t.dataset.into || "";
       if (what.place) return !!name;
       return name !== what.dest;
     };
@@ -1475,7 +1474,7 @@
       const t = into(e);
       if (!fits(t)) return;
       e.preventDefault();
-      const name = t.dataset.into, w = what;
+      const name = t.dataset.into || "", w = what;
       const stamp = new Date().toISOString();
       if (w.place) {
         const p = doc.places.find((x) => x.id === w.place);
@@ -4349,7 +4348,7 @@
   }
   // Set the days for everything in a destination: one day moves it all to
   // that day; a range makes those the destination's dates and leaves what's
-  // already on one of them there, the rest with no day (its Any day).
+  // already on one of them there, the rest on its first day.
   function openDestDay(from, trip, name) {
     const list = destPlaces(trip, name);
     $("moveTitle").textContent = i18n.t("Set the days for {name}", { name: name || i18n.t("No destination") });
@@ -4366,7 +4365,7 @@
       const moving = one ? list : list.filter((p) => !(M.isDay(p.day) && p.day >= a && p.day <= b));
       if (!name && !moving.length) return;
       undoable(moving.length ? i18n.tn(moving.length, "Moved 1 place.", "Moved {n} places.") : i18n.t("{name} has new dates.", { name }), () => {
-        moving.forEach((p) => shift(p, one ? a : "nodate", "", "time"));
+        moving.forEach((p) => shift(p, a, "", "time"));
         if (a === "nodate" || !name) return;
         const t = findTrip(trip.id), info = (t.destInfo || {})[name] || {};
         t.destInfo = { ...(t.destInfo || {}), [name]: { ...info, start: a, end: b } };

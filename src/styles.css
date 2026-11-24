@@ -1442,9 +1442,8 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
 }
 .dest-dates .dest-part { flex-basis: 100%; }
 /* Kept at the top of the view while a destination is dragged, wherever the board is scrolled to. */
-.area-out { display: none; position: sticky; top: 0; z-index: 4; margin: 0; padding: 14px; background: var(--bg); border: 2px dashed var(--line); border-radius: 14px; text-align: center; color: var(--text-dim); font-size: 14px; flex-basis: 100%; }
-body.dragging-dest .area-out { display: block; }
-.area-out.drop-over { border-color: var(--accent); color: var(--text); outline: none; }
+/* Empty space between the blocks, under a dragged destination: a block of its own. */
+.groups.areas.drop-over { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 14px; }
 .area.drop-over, .area-col.drop-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
 [data-dest][draggable="true"] { cursor: grab; }
 div.fold { cursor: inherit; }
