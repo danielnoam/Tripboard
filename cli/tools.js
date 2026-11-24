@@ -138,10 +138,11 @@ const TOOLS = [
       ["limit", { type: "number" }]],
     print: (l) => l.map(placeLine).join("\n") || "No places match." },
   { tool: "get_board", cmd: "board", kind: "read", query: "getBoard",
-    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date; once a destination has dates, each run of its days starts with a destination heading and, the first time, an anyDay group of its places with no day, and No date has parts by destination), category, importance, rating (5 stars down to 1, then Not rated), distance (from near), or area: one group a destination in date order (kind area: dest, start, end, stays, places, and side, the destinations whose dates sit inside it, like a day trip from a city), destinations without dates after, kind travel for journeys outside every destination's dates, then No destination.",
-    args: [tripArg, ["sort", { type: "string", enum: ["time", "area", "category", "importance", "rating", "distance"] }],
+    description: "The trip's Plan as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date; once a destination has dates, each run of its days starts with a destination heading and, the first time, an anyDay group of its places with no day, and No date has parts by destination) or area: one group a destination in date order (kind area: dest, start, end, stays, places, and side, the destinations whose dates sit inside it, like a day trip from a city), destinations without dates after, kind travel for journeys outside every destination's dates, then No destination. Filters as the Plan's: only (importance), categories, rating. To list places by category, importance, rating or distance, use find_places.",
+    args: [tripArg, ["sort", { type: "string", enum: ["time", "area"] }],
       ["only", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) }, description: "The importance levels shown; all when empty." }],
-      ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
+      ["categories", { type: "array", items: { type: "string" }, description: "The categories shown (names or ids); all when empty." }],
+      ["rating", { type: "string", enum: M.STAR_FILTERS, description: "5, 4 or 3: places with that many stars and up; none: not rated yet. Journeys always show." }]],
     print: (gs) => gs.map((g) => g.kind === "destination" ? "== " + g.title + (g.again ? " (again)" : "") + "  " + g.start + (g.end !== g.start ? " to " + g.end : "")
       : g.title + (g.dayNumber ? "  (day " + g.dayNumber + ")" : "") + "\n" + (g.slots ? g.slots.map((s) => "  " + s.title + "\n" + s.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n")
         : g.parts ? g.parts.map((x) => "  " + (x.destination || "No destination") + "\n" + x.places.map((p) => "    " + placeLine(p)).join("\n")).join("\n")

@@ -505,17 +505,14 @@
   }
 
   // The board's groups for one sort. Each group: { id, title, places, day?,
-  // slots? }. `only` is the importance levels shown (all when empty).
+  // slots? }. Filters, each showing all when left out: `only` the
+  // importance levels, `categories` the category ids, `stars` STAR_FILTERS.
   //   time        each day of the trip, its places in time slots, then "No date".
   //               Once a destination has dates, each run of its days is
   //               headed by { kind: "dest", dest, start, end, again } and,
   //               the first time, { kind: "any", dest, places }: its places
   //               with no day. No date then has parts: [{ dest, places }],
   //               a destination's (one without dates) and then none.
-  //   category    one group per category that has places
-  //   importance  Must see, Want to, Maybe
-  //   rating      five stars down to one, then "Not rated"
-  //   distance    one list, nearest to `from` first, then "No location"
   //   area        one group a destination, in date order, like a sheet with a
   //               block for each city: { kind: "area", dest, start, end,
   //               stays, places, side: [same, for each trip out of it] }.
@@ -630,41 +627,20 @@
     return out;
   }
 
-  function board(trip, places, sort, { only, from, cats } = {}) {
+  // The Plan's rating filter: "5", "4" or "3" (that many stars and up) or
+  // "none" (not rated yet). Journeys have no rating and always stay.
+  const STAR_FILTERS = ["5", "4", "3", "none"];
+  const rated = (p, stars) => isJourney(p) || (stars === "none" ? !p.rating : (p.rating || 0) >= +stars);
+  // The places the Plan's and the map's filters keep.
+  function filterPlaces(places, { only, categories, stars } = {}) {
     let shown = only && only.length ? places.filter((p) => only.includes(p.importance) || isJourney(p)) : places.slice();
+    if (categories && categories.length) shown = shown.filter((p) => categories.includes(p.category));
+    if (STAR_FILTERS.includes(String(stars))) shown = shown.filter((p) => rated(p, String(stars)));
+    return shown;
+  }
+  function board(trip, places, sort, filters) {
+    const shown = filterPlaces(places, filters);
     if (sort === "area") return areas(trip, shown);
-    if (sort === "category") {
-      const list = cats || CATEGORIES;
-      // A category that isn't in your list (someone else's, on a shared
-      // trip) gets its own group, under the name the trip carries.
-      const extra = [...new Set(shown.map((p) => p.category))].filter((id) => !list.some(([x]) => x === id))
-        .map((id) => [id, catName(list, trip, id)]);
-      return list.concat(extra).map(([id, title]) => ({ id, title, places: shown.filter((p) => p.category === id).sort(byImportance) }))
-        .filter((g) => g.places.length);
-    }
-    if (sort === "importance" || sort === "rating" || sort === "distance") {
-      // A journey has no importance, rating or one spot to measure from.
-      shown = shown.filter((p) => !isJourney(p));
-    }
-    if (sort === "importance") {
-      return IMPORTANCE.map(([id, title]) => ({ id, title, places: shown.filter((p) => p.importance === id).sort(byTime) }))
-        .filter((g) => g.places.length);
-    }
-    if (sort === "rating") {
-      return RATINGS.map(([id, title]) => ({ id, title, places: shown.filter((p) => String(p.rating) === id).sort(byImportance) }))
-        .concat([{ id: "none", title: i18n.t("Not rated"), places: shown.filter((p) => !p.rating).sort(byImportance) }])
-        .filter((g) => g.places.length);
-    }
-    if (sort === "distance") {
-      const located = shown.filter((p) => p.lat != null);
-      const rest = shown.filter((p) => p.lat == null).sort(byImportance);
-      const near = from ? located.map((p) => ({ p, km: distanceKm(from, p) })).sort((a, b) => a.km - b.km) : [];
-      const out = [];
-      if (from && near.length) out.push({ id: "near", title: i18n.t("Nearest first"), places: near.map((x) => x.p), km: new Map(near.map((x) => [x.p.id, x.km])) });
-      else if (located.length) out.push({ id: "located", title: i18n.t("Located"), places: located.sort(byImportance) });
-      if (rest.length) out.push({ id: "nowhere", title: i18n.t("No location"), places: rest });
-      return out;
-    }
     const groups = tripDays(trip, places).map((day) => {
       const list = shown.filter((p) => onDay(p, day));
       const slots = SLOTS.map(([id, title]) => ({ id, title, places: list.filter((p) => slotOf(p, day) === id).sort(inDay(day)) }))
@@ -796,7 +772,7 @@
 
   const api = {
     sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
-    placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, COVER_ART, SLOTS, newId, isDay, isTime,
+    placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, STAR_FILTERS, filterPlaces, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, isStay, timeOn, stayPart, distanceKm, board, areas, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.

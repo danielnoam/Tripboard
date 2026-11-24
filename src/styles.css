@@ -228,7 +228,10 @@ body.on-map .update { bottom: auto; top: 108px; }
 .seg.sorts button, .seg.looks button { position: relative; z-index: 1; transition: color 0.2s; }
 .seg.sorts button[aria-selected="true"], .seg.looks button[aria-selected="true"] { background: transparent; box-shadow: none; }
 .seg-bubble { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); }
-.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* One row: on a phone the chips scroll sideways rather than take a second line. */
+.filters { display: flex; flex-wrap: nowrap; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.filters .pick { flex: none; white-space: nowrap; }
 .filters .pick { gap: 4px; }
 .filters .pick::before { content: none; }
 .filters .pick[aria-pressed="false"] { color: var(--text); }
@@ -430,8 +433,6 @@ body.with-tabbar .map-panel.nowhere { inset-inline-end: calc(var(--space-3) + 72
 .stars-pick .star:disabled { cursor: default; }
 .card-name .rating { display: inline-block; margin-inline-start: 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-dim); white-space: nowrap; }
 .card-name .rating .star { color: var(--star); margin-inline-end: 2px; }
-.stars-head .stars span { color: var(--line); }
-.stars-head .stars span.on { color: var(--star); }
 /* The trip's cover: the box itself picks the photo; x takes it off. */
 .cover-pick { position: relative; }
 .cover-preview {
@@ -1014,6 +1015,8 @@ body.on-board main.today-page { max-width: 640px; }
 }
 .filter-menu [aria-checked="true"] .box, .filter-menu [aria-checked="mixed"] .box { background: var(--accent); border-color: var(--accent); }
 .filter-menu .box .icon { width: 14px; height: 14px; stroke-width: 3; }
+.filter-menu .box.radio { border-radius: 50%; }
+.filter-menu .star { width: 18px; text-align: center; color: var(--star); }
 .filter-menu button > .icon { width: 18px; height: 18px; }
 .filter-menu .dot { width: 12px; height: 12px; margin-inline: 3px; }
 .filter-menu .grow { flex: 1; }

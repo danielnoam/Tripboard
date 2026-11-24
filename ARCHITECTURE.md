@@ -12,7 +12,7 @@ icon.svg             the app icon
 assets/covers/       the ready-made covers, flat SVG drawings; a trip names its own as `art`, and a photo shows instead when it has one
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js), and the CSP's extra sharing servers
 src/app.js           the start: APP_VERSION, loads the data, saves (debounced)
-src/model.js         trips, places (a journey is one with kind "journey": its arrival, the change between legs), expenses and files' records: cleaning, days, time slots, the board's sorts and filter, destinations with dates (which destination a place and a day go with, the plan headed by destination), a day's order (time, then a place's `order`, then importance; a stay's time is check-in on its first day and check-out on its last) and the guessed time between places, what counts as a swipe (Node-tested)
+src/model.js         trips, places (a journey is one with kind "journey": its arrival, the change between legs), expenses and files' records: cleaning, days, time slots, the Plan's two groupings (time, destination) and its filters (importance, category, rating: filterPlaces), destinations with dates (which destination a place and a day go with, the plan headed by destination), a day's order (time, then a place's `order`, then importance; a stay's time is check-in on its first day and check-out on its last) and the guessed time between places, what counts as a swipe (Node-tested)
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
@@ -187,8 +187,6 @@ adds a line here.
   off there's nothing (no climate averages: they'd take a second service
   and years of history per point). get_weather (CLI `weather`) sends the
   same points, with a Tripboard-CLI user agent.
-- Distance sorting needs places with a location (Find by name, or a pin);
-  places without one sort under "No location".
 - The map is MapLibre, about 1.7 MB in src/vendor/, cached with the app.
   The policy's connect-src allows tiles.openfreemap.org (the map's tiles,
   style and fonts) and nominatim.openstreetmap.org (Find by name). Opening

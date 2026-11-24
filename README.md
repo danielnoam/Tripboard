@@ -1,7 +1,7 @@
 # Tripboard
 
-A travel planner: a trip is a board of places, seen by time, by category
-or on a map. What v1 holds is in [docs/SCOPE.md](docs/SCOPE.md); LifeLog's old
+A travel planner: a trip is a board of places, seen by time, by
+destination or on a map. What v1 holds is in [docs/SCOPE.md](docs/SCOPE.md); LifeLog's old
 Travel tab, kept as reference, is in [from-lifelog/](from-lifelog/README.md).
 "Tripboard" is a working name.
 

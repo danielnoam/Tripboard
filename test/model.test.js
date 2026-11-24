@@ -95,13 +95,6 @@ test("by area: destInfo's in puts a destination inside another, dates or not, or
   assert.deepStrictEqual(tr({ Nara: { in: "" } }).destInfo.Nara, { in: "" });
 });
 
-test("by category and by importance: only groups with places, most important first", () => {
-  assert.deepStrictEqual(M.board(trip, places, "category").map((g) => [g.id, g.places.map((p) => p.id)]),
-    [["sight", ["a"]], ["food", ["e", "b"]], ["nature", ["d"]], ["other", ["c"]]]);
-  assert.deepStrictEqual(M.board(trip, places, "importance").map((g) => [g.id, g.places.map((p) => p.id)]),
-    [["must", ["a", "e"]], ["want", ["b", "d"]], ["maybe", ["c"]]]);
-});
-
 test("a rating is a whole number of stars, 1 to 5; anything else is no rating", () => {
   assert.strictEqual(P({ rating: 4 }).rating, 4);
   assert.strictEqual(P({ rating: "3" }).rating, 3);
@@ -109,22 +102,18 @@ test("a rating is a whole number of stars, 1 to 5; anything else is no rating", 
   for (const r of [0, 6, -1, "", null, "great"]) assert.ok(!("rating" in P({ rating: r })), String(r));
 });
 
-test("by rating: five stars down to one, then Not rated; most important first in each", () => {
-  const trip = { id: "t", name: "T" };
-  const ps = [P({ id: "a", name: "A", rating: 3 }), P({ id: "b", name: "B", rating: 5, importance: "maybe" }), P({ id: "c", name: "C", rating: 5, importance: "must" }), P({ id: "d", name: "D" })];
-  assert.deepStrictEqual(M.board(trip, ps, "rating").map((g) => [g.id, g.places.map((p) => p.id)]), [["5", ["c", "b"]], ["3", ["a"]], ["none", ["d"]]]);
-});
-
-test("importance filters every sort", () => {
-  assert.deepStrictEqual(M.board(trip, places, "category", { only: ["must"] }).flatMap((g) => g.places.map((p) => p.id)), ["a", "e"]);
+test("the Plan's filters: importance (journeys stay), categories, and stars and up or not rated", () => {
   assert.deepStrictEqual(M.board(trip, places, "time", { only: ["maybe"] })[0].places.map((p) => p.id), ["c"]);
-});
-
-test("by distance: nearest to you first, then the places with no location", () => {
-  const g = M.board(trip, places, "distance", { from: { lat: 35.01, lng: 135.76 } });
-  assert.deepStrictEqual(g.map((x) => [x.id, x.places.map((p) => p.id)]), [["near", ["b", "a"]], ["nowhere", ["e", "d", "c"]]]);
-  assert.ok(g[0].km.get("b") < 1 && g[0].km.get("a") > 4);
-  assert.deepStrictEqual(M.board(trip, places, "distance").map((x) => x.id), ["located", "nowhere"]);
+  assert.deepStrictEqual(M.filterPlaces(places, { categories: ["food"] }).map((p) => p.id).sort(), ["b", "e"]);
+  const ps = [P({ id: "a", rating: 3 }), P({ id: "b", rating: 5 }), P({ id: "c", rating: 4 }), P({ id: "d" }), P({ id: "j", kind: "journey", mode: "train", day: "2026-11-17" })];
+  const ids = (stars) => M.filterPlaces(ps, { stars }).map((p) => p.id).sort();
+  assert.deepStrictEqual(ids("5"), ["b", "j"]);
+  assert.deepStrictEqual(ids("4"), ["b", "c", "j"]);
+  assert.deepStrictEqual(ids("3"), ["a", "b", "c", "j"]);
+  assert.deepStrictEqual(ids("none"), ["d", "j"]);
+  assert.deepStrictEqual(ids(""), ["a", "b", "c", "d", "j"]);
+  assert.deepStrictEqual(ids("2"), ["a", "b", "c", "d", "j"], "not a choice the app has: no filter");
+  assert.deepStrictEqual(M.board({ id: "t", name: "T" }, ps, "time", { stars: "4", only: ["must"] }).flatMap((g) => g.places.map((p) => p.id)).sort(), ["j"]);
 });
 
 test("Home's order: under way, upcoming soonest, undated, then past", () => {
@@ -367,9 +356,8 @@ test("your categories: defaults until changed, Other always there, unknown ones 
   const carried = M.carryCats(doc, mine);
   assert.deepStrictEqual(carried.trips[0].cats, { cMarkets: "Markets", food: "Eating" });
   assert.strictEqual(M.carryCats(carried, mine), carried);
-  // Someone else's category on a shared trip: its own group, by the name the trip carries.
-  const g = M.board(carried.trips[0], carried.places, "category", { cats: M.CATEGORIES });
-  assert.deepStrictEqual(g.map((x) => [x.id, x.title]), [["sight", "Sights"], ["food", "Food & drink"], ["cMarkets", "Markets"]]);
+  // Someone else's category on a shared trip goes by the name the trip carries.
+  assert.strictEqual(M.catName(M.CATEGORIES, carried.trips[0], "cMarkets"), "Markets");
 });
 
 test("a swipe: sideways, far and quick enough; the other way in right to left", () => {
@@ -479,7 +467,6 @@ test("a journey: its fields cleaned, its arrival, a change between legs, left ou
   assert.ok(M.leg(j3, hotel) === null, "j3 has no arrival location");
   assert.ok(M.leg(j2, hotel).km > 50, "measured from where j2 lands");
   const trip = { id: "t", start: "2023-02-05", end: "2023-02-06" };
-  assert.deepStrictEqual(M.board(trip, [j1, hotel], "importance").map((g) => g.places.map((p) => p.id)), [["h"]]);
   assert.deepStrictEqual(M.board(trip, [j1, hotel], "time", { only: ["must"] })[0].places.map((p) => p.id), ["j1"], "the importance filter keeps journeys");
   assert.deepStrictEqual(M.dayRoute([j3, hotel], "2023-02-06").map((p) => p.id), ["h"]);
 });
