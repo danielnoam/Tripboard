@@ -138,8 +138,8 @@ const TOOLS = [
       ["limit", { type: "number" }]],
     print: (l) => l.map(placeLine).join("\n") || "No places match." },
   { tool: "get_board", cmd: "board", kind: "read", query: "getBoard",
-    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date; once a destination has dates, each run of its days starts with a destination heading and, the first time, an anyDay group of its places with no day, and No date has parts by destination), category, importance, rating (5 stars down to 1, then Not rated), or distance (from near).",
-    args: [tripArg, ["sort", { type: "string", enum: ["time", "category", "importance", "rating", "distance"] }],
+    description: "The trip's board as the app groups it: sort time (each day by morning, afternoon, evening, any time, then No date; once a destination has dates, each run of its days starts with a destination heading and, the first time, an anyDay group of its places with no day, and No date has parts by destination), category, importance, rating (5 stars down to 1, then Not rated), distance (from near), or area: one group a destination in date order (kind area: dest, start, end, stays, places, and side, the destinations whose dates sit inside it, like a day trip from a city), destinations without dates after, kind travel for journeys outside every destination's dates, then No destination.",
+    args: [tripArg, ["sort", { type: "string", enum: ["time", "area", "category", "importance", "rating", "distance"] }],
       ["only", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) }, description: "The importance levels shown; all when empty." }],
       ["near", { type: "string", description: "For distance: \"lat,lng\", or a place's name or id." }]],
     print: (gs) => gs.map((g) => g.kind === "destination" ? "== " + g.title + (g.again ? " (again)" : "") + "  " + g.start + (g.end !== g.start ? " to " + g.end : "")

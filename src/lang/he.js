@@ -726,4 +726,11 @@ Keel.i18n.strings("he", {
   "Look": "מראה",
   "List": "רשימה",
   "Expanded": "מורחבת",
+  "On the way": "בדרך",
+  "{been} of {n} been": "{been} מתוך {n} בוקרו",
+  "Day trip": "טיול יום",
+  "Stay": "לינה",
+  "Any day": "בכל יום",
+  "Places": "מקומות",
+  "Including {names}": "כולל {names}",
 });
