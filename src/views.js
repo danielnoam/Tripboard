@@ -506,6 +506,44 @@
     });
     window.addEventListener("resize", () => { if (!split.hidden) applySplit(); });
   }
+  // The folded map's handle keeps clear of the page's scroll bar.
+  function fitFold() {
+    const main = $("app");
+    document.body.style.setProperty("--bar-w", Math.max(0, main.offsetWidth - main.clientWidth) + "px");
+  }
+  // Folding the map slides it out past the window's edge while the page
+  // widens into its room, and back. The fold happens at once; only the look follows.
+  const FOLD_MS = 220, FOLD_EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+  function foldMap() {
+    const main = $("app"), map = $("mapView"), fold = $("deskFold");
+    const opening = !view.deskMap, w0 = main.offsetWidth, f0 = fold.getBoundingClientRect(), m0 = map.getBoundingClientRect();
+    view.deskMap = !view.deskMap;
+    remember();
+    render();
+    fitFold();
+    if (lessMotion() || !main.animate) return;
+    const rtl = document.documentElement.dir === "rtl", out = rtl ? "-100%" : "100%";
+    const at = { duration: FOLD_MS, easing: FOLD_EASE };
+    const w1 = main.offsetWidth, f1 = fold.getBoundingClientRect();
+    if (w0 !== w1) main.animate([{ width: w0 + "px" }, { width: w1 + "px" }], at);
+    if (!fold.hidden) fold.animate([{ transform: `translate(${f0.left - f1.left}px, ${f0.top - f1.top}px)` }, { transform: "none" }], at);
+    if (opening) {
+      if (!map.hidden) map.animate([{ transform: `translateX(${out})` }, { transform: "none" }], at);
+      return;
+    }
+    if (!m0.width) return;
+    // The map is hidden by now; a moment more on screen lets it slide away.
+    map.hidden = false;
+    map.classList.add("map-leaving");
+    map.style.setProperty("inset-inline", "auto");
+    map.style.setProperty("left", m0.left + "px");
+    map.style.setProperty("width", m0.width + "px");
+    map.animate([{ transform: "none" }, { transform: `translateX(${out})` }], at).finished.catch(() => {}).then(() => {
+      map.classList.remove("map-leaving");
+      for (const k of ["inset-inline", "left", "width"]) map.style.removeProperty(k);
+      map.hidden = !mapOn();
+    });
+  }
   function paintSide(trip) {
     const side = $("side"), fold = $("deskFold"), split = $("deskSplit");
     side.hidden = !trip;
@@ -4394,7 +4432,8 @@
     // What the + opens comes up at once, with the swell under it.
     $("fab").addEventListener("click", (e) => addHere(e.currentTarget));
     $("deskFold").append(icon("chevron"));
-    $("deskFold").addEventListener("click", () => { view.deskMap = !view.deskMap; remember(); render(); });
+    $("deskFold").addEventListener("click", foldMap);
+    if (window.ResizeObserver) new ResizeObserver(fitFold).observe($("app"));
     $("deskSplit").setAttribute("aria-label", i18n.t("Drag to share the width between the plan and the map"));
     wireSplit();
     DESK.addEventListener("change", () => render());
