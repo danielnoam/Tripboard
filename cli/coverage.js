@@ -78,7 +78,7 @@ const sheets = {
   addKindSheet: ["add_file", "add_link", "add_note"],
   linkSheet: ["add_link", "update_file", "delete_file", "get_file"],
   noteSheet: ["add_note", "update_file", "delete_file", "get_file"],
-  viewSheet: "device: how this device's place cards show category and importance (icons, names or both), whether its cards show ratings, its Plan look (List or Expanded), and when its map names pins, never in the sync repo",
+  viewSheet: "device: how this device's place cards show category and importance (icons, names or both), whether its cards show ratings, and when its map names pins, never in the sync repo",
   mapStyleSheet: "device: the map's look is this device's map provider and style (Settings › Services › Map), never in the sync repo",
   confirmSheet: ["delete_trip", "delete_place"],
   moveSheet: ["batch_update", "update_place"],

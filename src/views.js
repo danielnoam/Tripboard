@@ -102,9 +102,9 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, look: "list", deskMap: true, split: 0 };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, deskMap: true, split: 0 };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destShut: view.destShut, look: view.look, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destShut: view.destShut, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -445,9 +445,6 @@
   const deskTrip = () => desk() && !!view.trip && view.mode !== "share";
   const sideMap = () => deskTrip() && view.deskMap && view.mode !== "map";
   const mapOn = () => view.mode === "map" || sideMap();
-  // The Plan is a list: one line a place, or Expanded with its details and
-  // note under it (View sheet).
-  const expandedLook = () => view.look === "expanded";
   // On a computer a trip's page scrolls by itself, beside the side bar and the map.
   const scrollTop = () => (document.body.classList.contains("desk") ? $("app").scrollTop : window.scrollY);
   // The line between the page and the map drags to share the width between
@@ -1507,7 +1504,7 @@
     const ctx = { area: true };
     // One stay over the destination's own dates: its dates would only repeat
     // the heading's, so under it go just its check-in and check-out.
-    const one = expandedLook() && g.stays && g.stays.length === 1 && g.stays[0].day === g.start && (g.stays[0].endDay || g.stays[0].day) === g.end;
+    const one = g.stays && g.stays.length === 1 && g.stays[0].day === g.start && (g.stays[0].endDay || g.stays[0].day) === g.end;
     if (g.stays && g.stays.length) col.append(el("h4.slot", { text: i18n.t("Stay") }), cards(trip, g.stays, one ? { area: true, sameDates: true } : ctx));
     const byDay = new Map();
     for (const p of g.places.filter((x) => x.day)) byDay.set(p.day, (byDay.get(p.day) || []).concat(p));
@@ -1676,15 +1673,6 @@
     if (meta.length) parts.push((parts.length ? " · " : "") + meta.join(" · "));
     return parts;
   }
-  // The List's one line has no room for the meta line, so the category and
-  // importance words the View sheet asks for follow the name.
-  function listTags(p, trip) {
-    if (expandedLook()) return null;
-    const cat = view.sort !== "category" && catWords() ? M.catName(cats(), trip, p.category) : "";
-    const imp = SET.get().view.imp !== "color" && view.sort !== "importance";
-    if (!cat && !imp) return null;
-    return el("span.card-tags", {}, imp ? el("span.imp", { text: M.IMPORTANCE_LABEL.get(p.importance) }) : null, cat && imp ? " · " : null, cat || null);
-  }
   function paintView() {
     const v = SET.get().view;
     document.documentElement.dataset.cat = v.cat;
@@ -1750,7 +1738,7 @@
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
           ...(journey ? journeyParts(p) : [
-            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p), listTags(p, trip)),
+            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p)),
             el("span.card-meta", {}, ...metaParts(p, meta),
               nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 attachment", "{n} attachments"), "aria-label": i18n.tn(nFiles, "1 attachment", "{n} attachments") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null,
@@ -4033,7 +4021,7 @@
     document.body.classList.toggle("desk", deskTrip());
     document.body.classList.toggle("side-map", sideMap());
     document.documentElement.dataset.look = "list";
-    document.documentElement.dataset.rows = expandedLook() ? "expanded" : "one";
+    document.documentElement.dataset.rows = "expanded";
     paintSide(deskTrip() ? trip : null);
     paintTripBar(view.mode === "share" ? null : trip);
     paintOfflineBadge();
@@ -4491,7 +4479,6 @@
     $("viewTrip").addEventListener("click", (e) => {
       const v = SET.get().view;
       $("viewCat").value = v.cat; $("viewImp").value = v.imp; $("viewLabels").value = v.labels; $("viewRatings").value = v.ratings;
-      $("viewLook").value = view.look === "expanded" ? "expanded" : "list";
       // The cards' part where there are cards, the map's where there's a map (both beside each other on a computer).
       $("viewCards").hidden = view.mode === "map";
       $("viewMapPart").hidden = !mapOn();
@@ -4501,7 +4488,6 @@
     $("viewImp").addEventListener("change", (e) => { SET.setView({ imp: e.target.value }); render(); });
     $("viewLabels").addEventListener("change", (e) => { SET.setView({ labels: e.target.value }); paintView(); });
     $("viewRatings").addEventListener("change", (e) => { SET.setView({ ratings: e.target.value }); paintView(); });
-    $("viewLook").addEventListener("change", (e) => { view.look = e.target.value; remember(); render(); });
     $("ratingClear").addEventListener("click", () => { rating = 0; paintRating(); });
     $("shareTrip").addEventListener("click", () => { view.sharePerson = null; go("#/trip/" + view.trip + "/share"); });
     $("fab").append(icon("plus"));
