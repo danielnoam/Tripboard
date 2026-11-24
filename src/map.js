@@ -9,6 +9,7 @@
 //   TripMap.journeys(list)             each journey as a line between its two ends (a flight as an arc)
 //   TripMap.zoom(±1), TripMap.locate()  the map's own buttons (views.js draws them)
 //   TripMap.hover(id, on)              a pin stands out while its card is pointed at
+//   TripMap.drag(id, onDrop)           that place's pin can be dragged; onDrop({ lat, lng }) when let go
 //   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …, TripMap.onLocateFail = () => …
 (function () {
   // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
@@ -332,7 +333,25 @@
       el.setAttribute("aria-label", p.name);
       m.setLngLat([p.lng, p.lat]);
     }
-    for (const [id, m] of pins) if (!keep.has(id)) { m.remove(); pins.delete(id); }
+    for (const [id, m] of pins) if (!keep.has(id)) { m.remove(); pins.delete(id); if (dragging === id) dragging = null; }
+  };
+
+  // One pin that can be dragged (moving a place): onDrop gets where it was let go.
+  // T.drag(null) makes every pin still again.
+  let dragging = null;
+  T.drag = function (id, onDrop) {
+    if (dragging && dragging !== id) {
+      const m = pins.get(dragging);
+      if (m) { m.setDraggable(false); m.off("dragend", m._tbDrop); m.getElement().classList.remove("draggable"); }
+    }
+    dragging = id && pins.has(id) ? id : null;
+    if (!dragging) return;
+    const m = pins.get(dragging);
+    if (m._tbDrop) m.off("dragend", m._tbDrop);
+    m._tbDrop = () => { const at = m.getLngLat(); onDrop({ lat: at.lat, lng: at.lng }); };
+    m.setDraggable(true);
+    m.on("dragend", m._tbDrop);
+    m.getElement().classList.add("draggable");
   };
 
   T.fit = function (list, animate) {
