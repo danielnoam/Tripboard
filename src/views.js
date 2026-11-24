@@ -4227,10 +4227,11 @@
     qHeld.push(onHold(".area-head[data-dest], .area-col-head[data-dest]", (head, x, y, keyboard) => {
       const trip = findTrip(view.trip), name = head.dataset.dest;
       if (!trip || !mayEdit(trip) || !trip.destinations.includes(name)) return false;
-      const inside = !!head.closest(".trip-out");
+      const out = head.closest(".trip-out"), parent = out && out.parentElement.closest("[data-into]");
+      const inside = !!(parent && parent.dataset.into);
       return openQuick(head, name, [
         ["calendar", i18n.t("Set the day for all"), () => openDestDay(head, trip, name)],
-        inside ? ["arrowUp", i18n.t("Give it a block of its own"), () => setDestIn(trip, name, "")] : null,
+        inside ? ["arrowUp", i18n.t("Remove from {name}", { name: inside && parent.dataset.into }), () => setDestIn(trip, name, "")] : null,
         ["plus", i18n.t("Add a place"), () => openPlace(null, trip, { dest: name }, head)],
       ].filter(Boolean), x, y, keyboard);
     }));

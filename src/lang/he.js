@@ -751,7 +751,7 @@ Keel.i18n.strings("he", {
   "Inside {name}": "בתוך {name}",
   "In Plan › Destination": "בתוכנית › יעד",
   "Set the day for all": "קביעת יום לכולם",
-  "Give it a block of its own": "בלוק נפרד",
+  "Remove from {name}": "הוצאה מ-{name}",
   "Set the day for all in {name}": "קביעת יום לכל מה שב-{name}",
   "Show on map": "הצגה במפה",
 });
