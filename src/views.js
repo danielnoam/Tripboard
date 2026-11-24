@@ -2140,7 +2140,7 @@
     menu.hidden = !(has || named);
     if (!menu.hidden) menu.replaceChildren(el("summary.btn", {}, icon("external"), el("span", { text: i18n.t("Open") }), icon("chevron", "chev")),
       el("div.open-menu-list", {}, ...openLinks({ name: named, ...(has ? p : {}) }).map(([label, href]) =>
-        el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label, onclick: () => { menu.open = false; } }))));
+        el("a", { href, target: href.startsWith("geo:") ? null : "_blank", rel: "noopener noreferrer", text: label, onclick: () => { menu.open = false; } }))));
     $("placeWhere").classList.toggle("dim", !has);
     $("placeClear").hidden = !has;
     $("placeFindLabel").textContent = has ? i18n.t("Change") : i18n.t("Find by name");
@@ -2970,16 +2970,22 @@
     const name = encodeURIComponent(p.name || "");
     const g = "https://www.google.com/maps/search/?api=1&query=" + (at && !p.placeId ? at : name) + (p.placeId ? "&query_place_id=" + encodeURIComponent(p.placeId) : "");
     const a = "https://maps.apple.com/?q=" + name + (at ? "&ll=" + at : "");
-    const links = [["Google Maps", g], ["Apple Maps", a]];
-    if (at) links.push(["Waze", "https://waze.com/ul?ll=" + at + "&navigate=yes"]);
+    // What's offered follows the device (keel's platform.js): Apple Maps on
+    // Apple's, Waze on phones, and on Android the phone's own list of the
+    // map apps it has (a geo: link).
+    const dev = window.Keel.platform.device, phone = window.Keel.platform.phone;
+    const links = [["Google Maps", g]];
+    if (dev === "ios" || dev === "mac") links.push(["Apple Maps", a]);
+    if (at && phone) links.push(["Waze", "https://waze.com/ul?ll=" + at + "&navigate=yes"]);
     // Street View is Google Maps' own; it opens there, at the place.
     if (at) links.push([i18n.t("Street View"), "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=" + at]);
+    if (at && dev === "android") links.push([i18n.t("Other apps…"), "geo:" + at + "?q=" + at + (p.name ? "(" + name + ")" : "")]);
     return links;
   }
   function openIn(p) {
     const links = openLinks(p);
     return el("p.open-in", {}, el("span.dim", { text: i18n.t("Open in ") }),
-      links.map(([label, href], i) => [i ? el("span.dim", { text: " · " }) : null, el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label })]));
+      links.map(([label, href], i) => [i ? el("span.dim", { text: " · " }) : null, el("a", { href, target: href.startsWith("geo:") ? null : "_blank", rel: "noopener noreferrer", text: label })]));
   }
 
   // ---------- Google's 30-day locations ----------
