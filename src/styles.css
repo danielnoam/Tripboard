@@ -1163,13 +1163,18 @@ body.desk .desk-split:focus-visible { outline: none; }
 body.splitting, body.splitting * { cursor: col-resize !important; user-select: none; }
 body.splitting .map-view { pointer-events: none; }
 /* The handle that folds the map away, on its edge, and brings it back from the window's. */
+/* It sits on the map's side of the line, never over the page's scroll bar. */
 body.desk .desk-fold:not([hidden]) {
-  position: fixed; z-index: 8; top: 50%; translate: 0 -50%; inset-inline-start: calc(var(--side) + var(--panel) - 14px);
-  display: grid; place-items: center; width: 28px; height: 56px; padding: 0;
-  border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); color: var(--text-dim); box-shadow: var(--shadow); cursor: pointer;
+  position: fixed; z-index: 8; top: 50%; translate: 0 -50%; inset-inline-start: calc(var(--side) + var(--panel) + 1px);
+  display: grid; place-items: center; width: 24px; height: 56px; padding: 0;
+  border: 1px solid var(--edge); border-inline-start: 0; border-radius: 0 10px 10px 0; background: var(--surface); color: var(--text-dim); box-shadow: var(--shadow); cursor: pointer;
 }
+[dir="rtl"] body.desk .desk-fold:not([hidden]) { border-radius: 10px 0 0 10px; }
 body.desk .desk-fold:hover { color: var(--text); }
-body.desk:not(.side-map) .desk-fold:not([hidden]) { inset-inline-start: auto; inset-inline-end: 0; width: 32px; height: 64px; border-start-end-radius: 0; border-end-end-radius: 0; border-inline-end: 0; }
+body.desk:not(.side-map) .desk-fold:not([hidden]) { inset-inline-start: auto; inset-inline-end: var(--bar-w, 0px); width: 32px; height: 64px; border-inline-start: 1px solid var(--edge); border-inline-end: 0; border-radius: 10px 0 0 10px; }
+[dir="rtl"] body.desk:not(.side-map) .desk-fold:not([hidden]) { border-radius: 0 10px 10px 0; }
+/* The map on its way out when folded: held where it was while it slides off. */
+body.desk .map-view.map-leaving { position: fixed; z-index: 3; inset-block: 0; pointer-events: none; }
 .desk-fold .icon { width: 18px; height: 18px; rotate: -90deg; }
 body.desk:not(.side-map) .desk-fold .icon { rotate: 90deg; }
 [dir="rtl"] .desk-fold .icon { scale: -1 1; }
