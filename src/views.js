@@ -1504,7 +1504,10 @@
         el("span.dim", { text: !g.start ? i18n.t("No dates yet") : destRange(g) + " · " + (nights ? i18n.tn(nights, "1 night", "{n} nights") : i18n.t("Day trip")) })));
     }
     const ctx = { area: true };
-    if (g.stays && g.stays.length) col.append(el("h4.slot", { text: i18n.t("Stay") }), cards(trip, g.stays, ctx));
+    // One stay over the destination's own dates: its dates would only repeat
+    // the heading's, so under it go just its check-in and check-out.
+    const one = expandedLook() && g.stays && g.stays.length === 1 && g.stays[0].day === g.start && (g.stays[0].endDay || g.stays[0].day) === g.end;
+    if (g.stays && g.stays.length) col.append(el("h4.slot", { text: i18n.t("Stay") }), cards(trip, g.stays, one ? { area: true, sameDates: true } : ctx));
     const byDay = new Map();
     for (const p of g.places.filter((x) => x.day)) byDay.set(p.day, (byDay.get(p.day) || []).concat(p));
     for (const [day, list] of byDay) col.append(el("h4.slot", { text: dayLabel(day) }), cards(trip, list, { area: true, day }));
@@ -1733,7 +1736,8 @@
       if (p.land) return [landRow(p.land, trip), changeRow(p.land, trip)].filter(Boolean);
       const journey = M.isJourney(p);
       const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
-      if (view.sort !== "time" && p.day && (!g.area || p.endDay)) meta.push(daysLabel(p));
+      if (g.sameDates) { if (timeLabel(p)) meta.push(timeLabel(p)); }
+      else if (view.sort !== "time" && p.day && (!g.area || p.endDay)) meta.push(daysLabel(p));
       else if (p.endDay && g.day && !["in", "out"].includes(M.stayPart(p, g.day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
@@ -1749,7 +1753,7 @@
             el("span.card-meta", {}, ...metaParts(p, meta),
               nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 attachment", "{n} attachments"), "aria-label": i18n.tn(nFiles, "1 attachment", "{n} attachments") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null,
-          (journey ? p.time : timeLabel(p, g.day)) ? el("span.card-time", { text: journey ? [p.time, p.arriveTime].filter(Boolean).map(hm).join("–") : timeLabel(p, g.day) }) : null));
+          !g.sameDates && (journey ? p.time : timeLabel(p, g.day)) ? el("span.card-time", { text: journey ? [p.time, p.arriveTime].filter(Boolean).map(hm).join("–") : timeLabel(p, g.day) }) : null));
       // A change to the next leg, when this one lands the same day.
       return journey && !p.arriveDay && view.sort === "time" ? [card, changeRow(p, trip)].filter(Boolean) : [card];
     }));
