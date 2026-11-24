@@ -1365,7 +1365,9 @@
   // Hiroshima from Osaka) sit beside it on a wide screen, under it on a phone.
   function area(trip, g) {
     const k = destKey(trip, "area:" + (g.dest || g.id));
-    const open = !view.destShut.includes(k);
+    // A computer has the room to show every block, so they don't fold there.
+    const folds = !desk();
+    const open = !folds || !view.destShut.includes(k);
     const flip = () => {
       view.destShut = open ? view.destShut.concat(k).slice(-50) : view.destShut.filter((x) => x !== k);
       remember();
@@ -1376,11 +1378,11 @@
     const counted = all.filter((p) => !M.isJourney(p) && !M.isStay(p)).length;
     const title = g.kind === "travel" ? i18n.t("On the way") : g.dest ? g.dest : i18n.t("No destination");
     const head = el("div.area-head", { draggable: canDrag() && g.dest ? "true" : null, "data-dest": g.dest || null },
-      el("button.fold", { type: "button", "aria-expanded": String(open), onclick: flip },
+      el(folds ? "button.fold" : "div.fold", folds ? { type: "button", "aria-expanded": String(open), onclick: flip } : {},
         icon(g.kind === "travel" ? "plane" : "pin"),
         el("span.area-name", {}, el("h2", { text: title }), el("span.dim", { text: areaWhen(g) })),
         counted ? el("span.area-count", { text: been ? i18n.t("{been} of {n} been", { been, n: counted }) : i18n.tn(counted, "1 place", "{n} places") }) : null,
-        icon("chevron")),
+        folds ? icon("chevron") : null),
       mayEdit(trip) && g.dest ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title }),
         onclick: (e) => openPlace(null, trip, { dest: g.dest }, e.currentTarget) }, icon("plus")) : null);
     const box = el("section.area" + (open ? ".open" : "") + (g.kind === "travel" ? ".travel" : ""), { "data-area": g.dest || g.id, "data-into": g.dest || null }, head);
