@@ -710,6 +710,7 @@ Keel.i18n.strings("he", {
   "Delete place": "מחיקת המקום",
   "Delete journey": "מחיקת הנסיעה",
   "Drag {name}'s pin, or tap the map where it is.": "אפשר לגרור את הסיכה של {name}, או להקיש במפה במקום שבו הוא נמצא.",
+  "Other apps…": "אפליקציות אחרות…",
   "Edit journey": "עריכת נסיעה",
   "Leaving from": "מאיפה",
   "Going to": "לאן",
