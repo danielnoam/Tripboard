@@ -230,7 +230,7 @@ const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time",
   "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "arriveDay", "arriveTime", "number"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
-// destInfo: [{ name, start, end, lat, lng }], each merged into the
+// destInfo: [{ name, start, end, lat, lng, in }], each merged into the
 // trip's destInfo (an empty start clears the dates); a name not among the
 // destinations joins them. Names dropped from destinations lose their info
 // (sanitizeTrip), and places put in them by hand go back to the nearest.
@@ -246,6 +246,12 @@ function setDestinations(doc, t, a) {
       Object.assign(r, { start: d.start, end: d.end || d.start });
     }
     if (d.lat !== undefined || d.lng !== undefined) Object.assign(r, { lat: d.lat, lng: d.lng });
+    if (d.in === null) delete r.in;
+    else if (d.in !== undefined) {
+      const up = String(d.in).trim();
+      if (up && (up === name || !t.destinations.includes(up))) throw new Error("\"in\" is another of the trip's destinations, \"\" for its own block, or null for by its dates.");
+      r.in = up;
+    }
     t.destInfo = { ...(t.destInfo || {}), [name]: r };
   }
   // As Edit trip's "Dates from your stays".

@@ -153,6 +153,9 @@
       if (r.start && dayNum(r.end) - dayNum(r.start) >= MAX_TRIP_DAYS) r.end = dayOf(dayNum(r.start) + MAX_TRIP_DAYS - 1);
       const lat = num(v.lat), lng = num(v.lng);
       if (lat != null && lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { r.lat = lat; r.lng = lng; }
+      // Where it sits in Plan › Destination: inside another ("in" its
+      // name), on its own (""), or, left out, by its dates.
+      if (typeof v.in === "string" && (v.in === "" || (v.in !== name && out.destinations.includes(v.in)))) r.in = v.in;
       if (Object.keys(r).length) info[name] = r;
     }
     if (Object.keys(info).length) out.destInfo = info;
@@ -517,7 +520,8 @@
   //               block for each city: { kind: "area", dest, start, end,
   //               stays, places, side: [same, for each trip out of it] }.
   //               A destination whose dates sit inside a longer one's is a
-  //               trip out of it (Hiroshima from Osaka). Destinations with
+  //               trip out of it (Hiroshima from Osaka), unless destInfo's
+  //               "in" puts it inside another or ("") on its own. Destinations with
   //               no dates follow, then { kind: "travel" } for journeys
   //               outside every destination's dates, and "No destination".
   function journeyFields(p, out) {
@@ -578,8 +582,18 @@
     const dests = destsOf(trip);
     const dated = dests.filter((d) => d.start && d.end);
     const span = (d) => dayNum(d.end) - dayNum(d.start);
-    const parentOf = (d) => dated.filter((o) => o !== d && o.start <= d.start && d.end <= o.end && span(o) > span(d))
-      .sort((a, b) => span(a) - span(b))[0] || null;
+    const byDate = (d) => (d.start && d.end ? dated.filter((o) => o !== d && o.start <= d.start && d.end <= o.end && span(o) > span(d))
+      .sort((a, b) => span(a) - span(b))[0] || null : null);
+    const named = (n) => dests.find((x) => x.name === n) || null;
+    const direct = (d) => (typeof d.in === "string" ? named(d.in) : byDate(d));
+    // One level deep: a destination inside one that is itself inside
+    // another goes in the outer one; a loop puts it on its own.
+    const parentOf = (d) => {
+      let up = direct(d);
+      const seen = new Set([d]);
+      while (up && direct(up)) { if (seen.has(up)) return null; seen.add(up); up = direct(up); }
+      return up === d ? null : up;
+    };
     const home = (p) => {
       if (isJourney(p)) return p.day ? dayDest(trip, p.day) : null;
       const near = destOf(trip, p);
@@ -598,13 +612,11 @@
       else g.places.push(p);
     }
     for (const g of of.values()) { g.stays.sort(byWhen); g.places.sort(byWhen); }
-    for (const d of dated) {
-      const up = parentOf(d);
-      if (up) of.get(up.name).side.push(of.get(d.name));
-    }
-    const top = dests.filter((d) => !(d.start && d.end && parentOf(d))).map((d) => of.get(d.name))
-      .filter((g) => g.start || g.places.length || g.stays.length);
-    for (const g of of.values()) g.side.sort((a, b) => a.start.localeCompare(b.start));
+    const ups = new Map(dests.map((d) => [d.name, parentOf(d)]));
+    for (const d of dests) if (ups.get(d.name)) of.get(ups.get(d.name).name).side.push(of.get(d.name));
+    const top = dests.filter((d) => !ups.get(d.name)).map((d) => of.get(d.name))
+      .filter((g) => g.start || g.places.length || g.stays.length || g.side.length);
+    for (const g of of.values()) g.side.sort((a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || "").localeCompare(b.start || ""));
     // Journeys outside every destination's dates, in runs of days in a row.
     travel.sort(byWhen);
     const runs = [];
