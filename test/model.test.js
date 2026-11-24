@@ -79,6 +79,22 @@ test("by area: a block a destination in date order, trips out of a longer one in
   assert.deepStrictEqual(M.board(tr, ps, "area")[2].places.map((p) => p.id), ["usj"]);
 });
 
+test("by area: destInfo's in puts a destination inside another, dates or not, or on its own", () => {
+  const tr = (info) => M.sanitizeTrip({ id: "j", name: "Japan", destinations: ["Tokyo", "Hakone", "Nara", "Kyoto"],
+    destInfo: { Tokyo: { start: "2023-02-17", end: "2023-03-01" }, Hakone: { start: "2023-02-20", end: "2023-02-21" }, ...info } });
+  const ps = ["Tokyo", "Hakone", "Nara", "Kyoto"].map((d) => P({ id: d, trip: "j", name: d, dest: d }));
+  const shape = (t) => M.board(t, ps, "area").filter((g) => g.dest).map((g) => [g.dest, g.side.map((x) => x.dest)]);
+  assert.deepStrictEqual(shape(tr({})), [["Tokyo", ["Hakone"]], ["Nara", []], ["Kyoto", []]]);
+  assert.deepStrictEqual(shape(tr({ Nara: { in: "Tokyo" }, Hakone: { start: "2023-02-20", end: "2023-02-21", in: "" } })), [["Tokyo", ["Nara"]], ["Hakone", []], ["Kyoto", []]]);
+  // One level deep, and a loop leaves both on their own.
+  assert.deepStrictEqual(shape(tr({ Nara: { in: "Kyoto" }, Kyoto: { in: "Tokyo" } })), [["Tokyo", ["Hakone", "Nara", "Kyoto"]]]);
+  assert.deepStrictEqual(shape(tr({ Nara: { in: "Kyoto" }, Kyoto: { in: "Nara" } })), [["Tokyo", ["Hakone"]], ["Nara", []], ["Kyoto", []]]);
+  // Kept only when it names another of the trip's destinations, or is "".
+  assert.strictEqual(tr({ Nara: { in: "Osaka" } }).destInfo.Nara, undefined);
+  assert.strictEqual(tr({ Nara: { in: "Nara" } }).destInfo.Nara, undefined);
+  assert.deepStrictEqual(tr({ Nara: { in: "" } }).destInfo.Nara, { in: "" });
+});
+
 test("by category and by importance: only groups with places, most important first", () => {
   assert.deepStrictEqual(M.board(trip, places, "category").map((g) => [g.id, g.places.map((p) => p.id)]),
     [["sight", ["a"]], ["food", ["e", "b"]], ["nature", ["d"]], ["other", ["c"]]]);

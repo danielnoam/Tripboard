@@ -400,7 +400,12 @@
     const kept = view.mapCats.length ? places.filter((p) => view.mapCats.includes(p.category)) : places;
     if (view.sort === "area") {
       const wrap = el("div.groups.areas");
-      for (const g of M.board(trip, kept, "area", { only: view.only })) wrap.append(area(trip, g));
+      const blocks = M.board(trip, kept, "area", { only: view.only });
+      if (canDrag() && blocks.some((g) => g.dest)) {
+        wrap.append(el("p.area-out", { "data-into": "", text: i18n.t("Drop here to give it a block of its own") }));
+        wireAreaDrag(wrap, trip);
+      }
+      for (const g of blocks) wrap.append(area(trip, g));
       main.append(wrap);
       return;
     }
@@ -1370,7 +1375,7 @@
     const been = all.filter((p) => p.visited && !M.isJourney(p) && !M.isStay(p)).length;
     const counted = all.filter((p) => !M.isJourney(p) && !M.isStay(p)).length;
     const title = g.kind === "travel" ? i18n.t("On the way") : g.dest ? g.dest : i18n.t("No destination");
-    const head = el("div.area-head", {},
+    const head = el("div.area-head", { draggable: canDrag() && g.dest ? "true" : null, "data-dest": g.dest || null },
       el("button.fold", { type: "button", "aria-expanded": String(open), onclick: flip },
         icon(g.kind === "travel" ? "plane" : "pin"),
         el("span.area-name", {}, el("h2", { text: title }), el("span.dim", { text: areaWhen(g) })),
@@ -1378,7 +1383,7 @@
         icon("chevron")),
       mayEdit(trip) && g.dest ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title }),
         onclick: (e) => openPlace(null, trip, { dest: g.dest }, e.currentTarget) }, icon("plus")) : null);
-    const box = el("section.area" + (open ? ".open" : "") + (g.kind === "travel" ? ".travel" : ""), { "data-area": g.dest || g.id }, head);
+    const box = el("section.area" + (open ? ".open" : "") + (g.kind === "travel" ? ".travel" : ""), { "data-area": g.dest || g.id, "data-into": g.dest || null }, head);
     if (!open) {
       if (g.side && g.side.length) box.append(el("p.dim.area-peek", { text: i18n.t("Including {names}", { names: g.side.map((x) => x.dest).join(" · ") }) }));
       return box;
@@ -1391,6 +1396,59 @@
     box.style.setProperty("--cols", String(n));
     return box;
   }
+  // With a mouse: a block's name dragged onto another block puts it inside
+  // that one (a day trip from it, dates or not); a column's name dragged
+  // onto the strip at the top gives it a block of its own. A place dragged
+  // onto a block or column goes with that destination.
+  function wireAreaDrag(wrap, trip) {
+    let what = null;
+    const into = (e) => e.target.closest && e.target.closest("[data-into]");
+    const clear = () => wrap.querySelectorAll(".drop-over").forEach((n) => n.classList.remove("drop-over"));
+    wrap.addEventListener("dragstart", (e) => {
+      const head = e.target.closest && e.target.closest("[data-dest][draggable=true]");
+      const card = !head && e.target.closest && e.target.closest(".card[draggable=true]");
+      if (!head && !card) return;
+      what = head ? { dest: head.dataset.dest } : { place: card.dataset.id };
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", head ? head.dataset.dest : card.querySelector(".card-name").textContent);
+      requestAnimationFrame(() => document.body.classList.add(head ? "dragging-dest" : "dragging"));
+    });
+    wrap.addEventListener("dragend", () => { what = null; clear(); document.body.classList.remove("dragging-dest", "dragging"); });
+    const fits = (t) => {
+      if (!t || !what) return false;
+      const name = t.dataset.into;
+      if (what.place) return !!name;
+      return name !== what.dest;
+    };
+    wrap.addEventListener("dragover", (e) => {
+      const t = into(e);
+      clear();
+      if (!fits(t)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      t.classList.add("drop-over");
+    });
+    wrap.addEventListener("drop", (e) => {
+      const t = into(e);
+      if (!fits(t)) return;
+      e.preventDefault();
+      const name = t.dataset.into, w = what;
+      const stamp = new Date().toISOString();
+      if (w.place) {
+        const p = doc.places.find((x) => x.id === w.place);
+        if (!p) return;
+        undoable(i18n.t("Moved {name} to {to}.", { name: p.name, to: name }), () => { M.setDest(trip, p, name); p.updatedAt = stamp; });
+        return;
+      }
+      undoable(name ? i18n.t("{name} is inside {to} now.", { name: w.dest, to: name }) : i18n.t("{name} has a block of its own now.", { name: w.dest }), () => {
+        const t2 = findTrip(trip.id);
+        t2.destInfo = { ...(t2.destInfo || {}), [w.dest]: { ...((t2.destInfo || {})[w.dest] || {}), in: name } };
+        // Whatever was inside the one moved in comes along.
+        if (name) for (const [k, v] of Object.entries(t2.destInfo)) if (v.in === w.dest) t2.destInfo[k] = { ...v, in: name };
+        t2.updatedAt = stamp;
+      });
+    });
+  }
   function areaWhen(g) {
     if (!g.start) return g.kind === "area" ? i18n.t("No dates yet") : "";
     const nights = M.daySpan({ day: g.start, endDay: g.end });
@@ -1398,11 +1456,11 @@
   }
   // One column: a trip out (with its own name and dates) or the destination's own.
   function areaCol(trip, g, side) {
-    const col = el("div.area-col" + (side ? ".trip-out" : ""));
+    const col = el("div.area-col" + (side ? ".trip-out" : ""), { "data-into": side ? g.dest : null });
     if (side) {
-      const nights = M.daySpan({ day: g.start, endDay: g.end });
-      col.append(el("div.area-col-head", {}, el("h3", { text: g.dest }),
-        el("span.dim", { text: destRange(g) + " · " + (nights ? i18n.tn(nights, "1 night", "{n} nights") : i18n.t("Day trip")) })));
+      const nights = g.start ? M.daySpan({ day: g.start, endDay: g.end }) : 0;
+      col.append(el("div.area-col-head", { draggable: canDrag() ? "true" : null, "data-dest": g.dest }, el("h3", { text: g.dest }),
+        el("span.dim", { text: !g.start ? i18n.t("No dates yet") : destRange(g) + " · " + (nights ? i18n.tn(nights, "1 night", "{n} nights") : i18n.t("Day trip")) })));
     }
     const ctx = { area: true };
     if (g.stays && g.stays.length) col.append(el("h4.slot", { text: i18n.t("Stay") }), cards(trip, g.stays, ctx));
@@ -1999,10 +2057,24 @@
         el("div.dest-dates", { hidden: !d.open },
           el("label.field", {}, el("span", { text: i18n.t("From") }), from),
           el("label.field", {}, el("span", { text: i18n.t("To") }), to),
-          d.start ? el("button.btn.quiet", { type: "button", text: i18n.t("No dates"), onclick: () => { d.start = d.end = undefined; d.open = false; paintDests(); } }) : null));
+          d.start ? el("button.btn.quiet", { type: "button", text: i18n.t("No dates"), onclick: () => { d.start = d.end = undefined; d.open = false; paintDests(); } }) : null,
+          destRows.length > 1 ? partOf(d) : null));
     }));
     const stays = editingTrip && placesOf(editingTrip.id).some((p) => p.category === "stay" && p.day);
     $("tripDestStays").hidden = !stays;
+  }
+  // Where it sits in Plan › Destination: by its dates, on its own, or
+  // inside another (a day trip from it). Rows are matched by the name they
+  // came with, so a rename keeps it.
+  const rowKey = (d) => d.orig || d.name.trim();
+  function partOf(d) {
+    const others = destRows.filter((o) => o !== d && o.name.trim());
+    const pick = el("select", { onchange: (e) => { d.in = e.target.value === "auto" ? undefined : e.target.value === "own" ? "" : e.target.value; } },
+      el("option", { value: "auto", text: i18n.t("By its dates") }),
+      el("option", { value: "own", text: i18n.t("On its own") }),
+      ...others.map((o) => el("option", { value: rowKey(o), text: i18n.t("Inside {name}", { name: o.name.trim() }) })));
+    pick.value = d.in === undefined ? "auto" : d.in === "" ? "own" : others.some((o) => rowKey(o) === d.in) ? d.in : "auto";
+    return el("label.field.dest-part", {}, el("span", { text: i18n.t("In Plan › Destination") }), pick);
   }
   $("tripDestAdd").prepend(icon("plus"));
   $("tripDestStays").prepend(icon("bed"));
@@ -2023,6 +2095,8 @@
       const r = {};
       if (d.start) Object.assign(r, { start: d.start, end: d.end || d.start });
       if (d.lat != null && name === d.at) Object.assign(r, { lat: d.lat, lng: d.lng });
+      if (d.in === "") r.in = "";
+      else if (d.in) { const up = destRows.find((o) => rowKey(o) === d.in); if (up && up.name.trim() && up !== d) r.in = up.name.trim(); }
       if (Object.keys(r).length) info[name] = r;
     }
     return { destinations: names, destInfo: info };
