@@ -750,4 +750,7 @@ Keel.i18n.strings("he", {
   "On its own": "בנפרד",
   "Inside {name}": "בתוך {name}",
   "In Plan › Destination": "בתוכנית › יעד",
+  "Set the day for all": "קביעת יום לכולם",
+  "Give it a block of its own": "בלוק נפרד",
+  "Set the day for all in {name}": "קביעת יום לכל מה שב-{name}",
 });
