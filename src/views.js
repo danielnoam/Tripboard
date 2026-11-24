@@ -2134,18 +2134,63 @@
     const has = p && p.lat != null;
     const expired = !has && loc === undefined && editingPlace && editingPlace.placeId;
     $("placeWhere").textContent = expired ? i18n.t("Google's location expired after 30 days. It comes back when Google answers again (Settings → Services).") : !has ? i18n.t("Not set") : p.address || (p.placeId || p.source === "google" ? i18n.t("On Google Maps") + " · " : "") + p.lat.toFixed(5) + ", " + p.lng.toFixed(5);
-    $("placeOpenIn").replaceChildren(...(has || (editingPlace && editingPlace.name) ? [openIn({ name: $("placeForm").name.value || (editingPlace && editingPlace.name), ...(has ? p : {}) })] : []));
+    const named = $("placeForm").name.value || (editingPlace && editingPlace.name);
+    const menu = $("placeOpenIn");
+    menu.open = false;
+    menu.hidden = !(has || named);
+    if (!menu.hidden) menu.replaceChildren(el("summary.btn", {}, icon("external"), el("span", { text: i18n.t("Open") }), icon("chevron", "chev")),
+      el("div.open-menu-list", {}, ...openLinks({ name: named, ...(has ? p : {}) }).map(([label, href]) =>
+        el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label, onclick: () => { menu.open = false; } }))));
     $("placeWhere").classList.toggle("dim", !has);
     $("placeClear").hidden = !has;
-    $("placePin").textContent = has ? i18n.t("Move on map") : i18n.t("Pin on map");
+    $("placeFindLabel").textContent = has ? i18n.t("Change") : i18n.t("Find by name");
+    $("placePinLabel").textContent = has ? i18n.t("On map") : i18n.t("Pin on map");
   }
-  $("categorySelect").addEventListener("change", () => { categoryTouched = true; paintTimes(); });
+  // The Open menu closes when anything else is clicked.
+  document.addEventListener("click", (e) => {
+    const menu = $("placeOpenIn");
+    if (menu.open && !menu.contains(e.target)) menu.open = false;
+  });
+  $("categorySelect").addEventListener("change", () => { categoryTouched = true; paintTimes(); paintBadge(); paintUntilRow(); });
   // A stay's From and To are its check-in and check-out.
   function paintTimes() {
     const stay = $("categorySelect").value === "stay";
+    // A stay's two times get a row each: Check-in, then Check-out.
+    $("timesLabel").textContent = stay ? i18n.t("Check-in") : i18n.t("Time");
+    $("timeDash").hidden = stay;
+    $("checkOutRow").hidden = !stay;
+    if (stay) $("checkOutSlot").append($("placeEndTime"));
+    else $("placeTimeSlot").append($("placeEndTime"));
     $("timeLabel").textContent = stay ? i18n.t("Check-in") : i18n.t("From", { _: "time" });
     $("endTimeLabel").textContent = stay ? i18n.t("Check-out") : i18n.t("To", { _: "time" });
   }
+  // The header's icon: the place's category, or the journey's mode.
+  function paintBadge() {
+    $("placeBadge").replaceChildren(icon(journey ? MODE_ICON[mode] : catIcon($("categorySelect").value)));
+  }
+  // A journey's header: where it leaves from and where it goes.
+  function paintRoute() {
+    const f = $("placeForm");
+    const from = f.name.value.trim(), to = f.toName.value.trim();
+    $("placeRoute").textContent = from && to ? from + " → " + to : from || to || (editingPlace ? i18n.t("Edit journey") : i18n.t("Add a journey"));
+  }
+  $("placeForm").name.addEventListener("input", () => { if (journey) paintRoute(); });
+  $("toName").addEventListener("input", paintRoute);
+  // "Until" waits behind "Lasts more than one day", unless the place already
+  // lasts several days or is a stay.
+  let untilWanted = false;
+  function paintUntilRow() {
+    const day = placeTrip.start ? $("daySelect").value : $("dayInput").value;
+    const until = placeTrip.start ? $("untilSelect").value : $("untilInput").value;
+    const show = !!day && !journey && (untilWanted || !!until || $("categorySelect").value === "stay");
+    $("untilField").hidden = !show;
+    $("untilOpen").hidden = !day || show || journey || !mayEdit(placeTrip);
+  }
+  $("untilOpen").addEventListener("click", () => {
+    untilWanted = true;
+    paintUntilRow();
+    (placeTrip.start ? $("untilSelect") : $("untilInput")).focus();
+  });
   $("placeClear").addEventListener("click", () => { loc = null; $("placeResults").replaceChildren(); $("placeFindNote").textContent = ""; paintWhere(); });
   let searching = 0;
   $("placeFind").addEventListener("click", () => findPlace($("placeForm").name, $("placeFindNote"), $("placeResults"), (r, via) => {
@@ -2223,14 +2268,21 @@
   function paintKind() {
     const f = $("placeForm");
     f.classList.toggle("is-journey", journey);
+    // One name field and one start time, moved to where this kind shows them.
+    $(journey ? "placeFromSlot" : "placeNameSlot").append(f.name);
+    if (journey) $("leaveTimeSlot").append($("placeTime"));
+    else $("placeTimeSlot").prepend($("placeTime"));
+    $("kindSeg").hidden = !!editingPlace;
     $("kindSeg").replaceChildren(...[[false, i18n.t("Place")], [true, i18n.t("Journey")]].map(([j, label]) =>
       el("button", { type: "button", role: "radio", "aria-checked": String(journey === j), text: label,
-        onclick: () => { journey = j; paintKind(); } })));
+        onclick: () => { journey = j; paintKind(); paintUntilRow(); } })));
     $("modeSeg").replaceChildren(...M.MODES.map(([id, label]) =>
       el("button", { type: "button", role: "radio", "aria-checked": String(mode === id), onclick: () => { mode = id; paintKind(); } },
         icon(MODE_ICON[id], ""), label)));
     if (mayEdit(placeTrip)) $("placeSheetTitle").textContent = editingPlace ? (journey ? i18n.t("Edit journey") : i18n.t("Edit place")) : journey ? i18n.t("Add a journey") : i18n.t("Add a place");
     f.name.placeholder = journey ? "Zurich (ZRH)" : "Fushimi Inari";
+    paintBadge();
+    paintRoute();
   }
   // When a journey arrives: the day it leaves, or one of the next three.
   function paintArrive(keep) {
@@ -2249,6 +2301,7 @@
     againOn($("placeSheet"), "places", place, trip, (p, t) => openPlace(p, t, p ? null : preset));
     editingPlace = place;
     placeTrip = trip;
+    untilWanted = false;
     const f = $("placeForm");
     f.reset();
     const p = place || { category: cats()[0][0], importance: "want", ...(preset || {}) };
@@ -2320,7 +2373,6 @@
   function paintUntil(days, keep) {
     const dated = !!placeTrip.start;
     const day = dated ? $("daySelect").value : $("dayInput").value;
-    $("untilField").hidden = !day;
     $("untilSelect").hidden = !dated;
     $("untilInput").hidden = dated;
     $("untilSelect").replaceChildren(el("option", { value: "", text: i18n.t("Just that day") }),
@@ -2329,6 +2381,7 @@
     $("untilSelect").value = keep > day ? keep : "";
     $("untilInput").min = day ? M.addDays(day, 1) : "";
     $("untilInput").value = keep > day ? keep : "";
+    paintUntilRow();
   }
   async function commitPlace() {
     const f = $("placeForm");
@@ -2876,7 +2929,7 @@
 
   // Links that open a place in another maps app: Google Maps by its id or
   // location, Apple Maps, and Waze (which needs a location).
-  function openIn(p) {
+  function openLinks(p) {
     const at = p.lat != null ? p.lat.toFixed(6) + "," + p.lng.toFixed(6) : "";
     const name = encodeURIComponent(p.name || "");
     const g = "https://www.google.com/maps/search/?api=1&query=" + (at && !p.placeId ? at : name) + (p.placeId ? "&query_place_id=" + encodeURIComponent(p.placeId) : "");
@@ -2885,6 +2938,10 @@
     if (at) links.push(["Waze", "https://waze.com/ul?ll=" + at + "&navigate=yes"]);
     // Street View is Google Maps' own; it opens there, at the place.
     if (at) links.push([i18n.t("Street View"), "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=" + at]);
+    return links;
+  }
+  function openIn(p) {
+    const links = openLinks(p);
     return el("p.open-in", {}, el("span.dim", { text: i18n.t("Open in ") }),
       links.map(([label, href], i) => [i ? el("span.dim", { text: " · " }) : null, el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label })]));
   }
@@ -4120,6 +4177,7 @@
     lastSaved = JSON.stringify(doc);
     $("back").append(icon("back", "icon-back"));
     for (const b of document.querySelectorAll(".page-back")) b.append(icon("back", "icon-back"), icon("x", "icon-x"));
+    for (const n of document.querySelectorAll("[data-icon]")) n.prepend(icon(n.dataset.icon));
     $("editTrip").append(icon("pencil"));
     $("shareTrip").append(icon("users"));
     $("viewTrip").append(icon("sliders"));
