@@ -1710,7 +1710,7 @@
       el("span", { text: p.time ? hm(p.time) : "" }), el("span.rail"),
       el("span", {}, p.arriveTime ? hm(p.arriveTime) : "", plus ? el("sup", { text: "+" + plus }) : null)) : null;
     return [el("span.card-name", {}, icon(MODE_ICON[p.mode] || "route", "cat"), el("span.card-title", { text: fromTo(p) })), when,
-      el("span.card-meta", { text: [M.MODE.get(p.mode), p.number && iso(p.number)].filter(Boolean).join(" · ") })];
+      el("span.card-meta", { text: [catWords() && M.MODE.get(p.mode), p.number && iso(p.number)].filter(Boolean).join(" · ") || null })];
   }
   function landRow(j, trip) {
     return el("li.jland", {}, el("button", { type: "button", onclick: (e) => openPlace(j, trip, null, e.currentTarget) },
