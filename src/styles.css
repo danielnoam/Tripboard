@@ -422,7 +422,6 @@ body.with-tabbar .map-panel.nowhere { inset-inline-end: calc(var(--space-3) + 72
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); }
 .sheet .seg button.imp-must[aria-checked="true"] { color: var(--must); }
 /* Your rating: five stars to tap in the place sheet, a star and number on a card. */
-.rating-row { display: flex; align-items: center; gap: var(--space-2); }
 .stars-pick { display: flex; gap: 2px; }
 .stars-pick .star { min-width: 44px; min-height: 44px; padding: 0; border: 0; background: none; font-size: 30px; line-height: 1; color: var(--line); cursor: pointer; }
 .stars-pick .star.on { color: var(--star); }
@@ -1298,3 +1297,130 @@ body.desk .files-groups .xrows { grid-template-columns: repeat(auto-fill, minmax
   .area-col.wide > .cards:last-child > li { break-inside: avoid; margin-bottom: 4px; }
 }
 .area-peek { margin: -4px 0 0; padding: 0 12px 10px; padding-inline-start: 38px; font-size: 13.5px; }
+
+/* The place panel (2026-11): the name as its header, then cards for Where
+   (Route for a journey), When, Details and Attachments, each row a label
+   and its value. The same on a phone and in the computer's side panel. */
+#placeSheet { background: var(--bg); }
+#placeSheet:not(.page) .page-bar, #placeSheet:not(.page) .sheet-actions { background: var(--bg); }
+#placeSheet .sheet-body { gap: var(--space-3); }
+#placeSheet .page-bar h2 { flex: 1; font-size: var(--fs-small); font-weight: 600; color: var(--text-dim); line-height: 1.3; }
+#placeSheet .kind-seg[hidden] { display: none; }
+.ptitle { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cat-badge { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+.cat-badge .icon { width: 22px; height: 22px; }
+.ptitle-name { flex: 1; min-width: 0; }
+.ptitle-name input, .pstop-name, #placeFromSlot input {
+  width: 100%; min-height: 44px; padding: 2px 0; border: 0; border-bottom: 1px dashed transparent; border-radius: 0;
+  background: transparent; color: var(--text); font-size: 26px; font-weight: 700; line-height: 1.2;
+}
+.ptitle-name input:placeholder-shown, .ptitle-name input:focus { border-bottom-color: var(--line); }
+.ptitle-name input:focus, .pstop-name:focus, #placeFromSlot input:focus { outline: none; border-bottom-style: solid; border-bottom-color: var(--accent); }
+.ptitle-name input::placeholder, .pstop-name::placeholder, #placeFromSlot input::placeholder { color: var(--text-dim); font-weight: 600; }
+.ptitle-name input[aria-invalid="true"] { border-bottom: 2px solid var(--danger); }
+.ptitle-route { flex: 1; min-width: 0; margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+#placeForm.is-journey .ptitle-name { display: none; }
+#placeForm .modes { margin: 0; }
+#placeForm .modes button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#placeForm .modes .icon { width: 16px; height: 16px; }
+
+.pcard { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; border-radius: var(--radius-lg); background: var(--surface); overflow: clip; }
+.pcard[hidden] { display: none; }
+.pcard-head {
+  display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: 12px var(--space-3) 4px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim);
+}
+[lang="he"] .pcard-head { letter-spacing: 0; font-size: 13px; }
+.pcard-head .icon { width: 15px; height: 15px; }
+.pcard-hint { margin: 0; padding: 0 var(--space-3) 12px; font-size: var(--fs-small); color: var(--text-dim); }
+
+/* Where, or a journey's route: each end a stop with its address and buttons. */
+.pstop { display: flex; gap: 12px; padding: 4px var(--space-3) 14px; }
+.pstop + .pstop { padding-top: 0; }
+.pstop-body { flex: 1; min-width: 0; display: grid; gap: var(--space-2); }
+.pstop-dots { display: flex; flex-direction: column; align-items: center; width: 14px; padding-top: 8px; }
+.pdot { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 3px solid var(--accent); }
+.pdot.fill { background: var(--accent); }
+.pline { flex: 1; width: 2px; margin-top: 4px; background: var(--line); }
+.pstop-k { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+[lang="he"] .pstop-k { letter-spacing: 0; font-size: 13px; }
+.pstop-name, #placeFromSlot input { font-size: 18px; min-height: 36px; }
+#placeFromSlot input[aria-invalid="true"] { border-bottom: 2px solid var(--danger); }
+.paddr { display: flex; align-items: flex-start; gap: 10px; }
+.paddr > .icon { flex: none; width: 20px; height: 20px; margin-top: 2px; color: var(--accent); }
+#placeForm.is-journey .paddr > .icon { display: none; }
+.paddr .where { flex: 1; min-width: 0; font-size: 15px; }
+.paddr .icon-btn.small { flex: none; width: 36px; height: 36px; margin: -6px 0; color: var(--text-dim); }
+.paddr .icon-btn.small .icon { width: 16px; height: 16px; }
+.paddr .icon-btn[hidden] { display: none; }
+.pcard .loc-actions .btn, .open-menu > summary { min-height: 40px; padding: 0 12px; gap: 6px; font-size: 14px; border-color: transparent; background: var(--surface-2); }
+.pcard .loc-actions .icon { width: 16px; height: 16px; }
+.open-menu { position: relative; }
+.open-menu[hidden] { display: none; }
+.open-menu > summary { list-style: none; cursor: pointer; }
+.open-menu > summary::-webkit-details-marker { display: none; }
+.open-menu .chev { width: 14px; height: 14px; color: var(--text-dim); }
+.open-menu-list {
+  position: absolute; z-index: 3; inset-block-start: calc(100% + 4px); inset-inline-start: 0; min-width: 180px;
+  display: grid; padding: 4px; border: 1px solid var(--surface-2); border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.open-menu-list a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 8px; color: var(--text); font-weight: 600; text-decoration: none; }
+.open-menu-list a:hover, .open-menu-list a:focus-visible { background: var(--surface-2); }
+.pcard .results button { background: var(--bg); }
+
+/* A row: its label at the start, its value (a drop-down, times, stars) at the end. */
+.prow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 4px var(--space-3); border-top: 1px solid var(--surface-2); }
+.prow[hidden] { display: none; }
+.pcard-head + .prow { border-top: 0; }
+.prow-lab { flex: none; max-width: 45%; color: var(--text-dim); font-size: 15px; }
+.prow-val { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.prow-val > [hidden] { display: none; }
+.prow select {
+  min-width: 0; max-width: 100%; min-height: 44px; padding-block: 0; padding-inline: 4px 26px;
+  appearance: none; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 16px;
+  text-align: end; text-align-last: end; text-overflow: ellipsis; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 11px) 50%, calc(100% - 6px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.prow-val > select:first-child { flex: 1; }
+[dir="rtl"] .prow select { background-position: 6px 50%, 11px 50%; }
+.prow input[type="time"], .prow input[type="date"] {
+  position: relative; flex: none; min-height: 40px; padding-block: 0; padding-inline: 12px 30px;
+  appearance: none; border: 0; border-radius: 10px; background-color: var(--surface-2); color: var(--text); font-size: 16px; font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+[dir="rtl"] .prow input[type="time"], [dir="rtl"] .prow input[type="date"] { background-position: 10px 50%, 15px 50%; }
+.prow input::-webkit-calendar-picker-indicator {
+  position: absolute; inset-block: 0; inset-inline-end: 0; width: 30px; height: auto; margin: 0; padding: 0; opacity: 0; cursor: pointer;
+}
+.prow select:disabled, .prow input:disabled { background-image: none; opacity: 1; cursor: default; }
+.prow-text { min-width: 0; width: 100%; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--text); font-size: 16px; text-align: end; }
+.prow-text:focus { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
+.prow .stars-pick .star { min-width: 36px; font-size: 24px; }
+.prow #ratingClear { min-height: 36px; padding: 0 6px; color: var(--text-dim); }
+.prow #ratingClear .icon { width: 16px; height: 16px; }
+.prow #ratingClear[hidden] { display: none; }
+#placeSheet .imp-seg { margin: 4px var(--space-3) 12px; }
+.prow-add {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 48px; padding: 0 var(--space-3);
+  border: 0; border-top: 1px solid var(--surface-2); background: transparent; color: var(--accent); font-weight: 600; font-size: 15px; text-align: start; cursor: pointer;
+}
+.prow-add[hidden] { display: none; }
+.prow-add .icon { width: 18px; height: 18px; }
+.pdesc { display: grid; gap: 6px; padding: 12px var(--space-3) 14px; border-top: 1px solid var(--surface-2); color: var(--text-dim); font-size: 15px; }
+.pdesc textarea {
+  width: 100%; min-height: 72px; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px;
+  background: var(--bg); color: var(--text); font-size: 16px; resize: vertical;
+}
+.pdesc textarea:focus { outline: none; border-color: var(--accent); }
+#placeSheet .pcard .attached { padding: 0 var(--space-3) 8px; }
+#placeSheet .sheet-actions { justify-content: center; flex-wrap: wrap; }
+#placeSheet .sheet-actions .btn .icon { width: 18px; height: 18px; }
+#placeSheet #nextLeg { color: var(--accent); }
+/* A journey's day and time share a row; on a phone the label goes above them. */
+@media (max-width: 480px) {
+  #placeForm.is-journey #dayRow, #arriveRow { flex-wrap: wrap; row-gap: 0; padding-block: 8px; }
+  #placeForm.is-journey #dayRow .prow-val, #arriveRow .prow-val { flex-basis: 100%; justify-content: space-between; }
+  #placeForm.is-journey #dayRow select, #arriveRow select { flex: 0 1 auto; padding-inline-start: 0; text-align: start; text-align-last: start; }
+}
