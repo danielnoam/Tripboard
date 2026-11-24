@@ -4,6 +4,24 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.6.0] - 2026-11-24
+
+### Added
+- Plan › Destination: the trip by destination, in date order, like a sheet with a block for each city. Each block has its stay, its days and what has no day yet; a destination whose dates sit inside a longer one's (a day trip, a night in Hakone from Tokyo) is a column beside it on a computer and under it on a phone. Blocks fold to one line, so a long trip reads as an outline. AI tools get the same with get_board sort "area".
+- Sync keys (Settings › Services): turn it on once and your Google and MapTiler keys travel to your other devices through GitHub sync. A key you change or remove changes everywhere; turning it off takes the keys out of the repo's current copy (its history keeps them).
+
+### Changed
+- The Add and Edit place panel is reorganised, on a phone and on a computer: the name is the header, beside its category's icon, then Where, When, Details (with the description) and Attachments, each as a card of short rows. Open in Google Maps, Apple Maps, Waze or Street View is one Open menu. Until waits behind "Lasts more than one day", unless the place already lasts several days or is a stay, whose check-in and check-out get a row each. Place or Journey is picked only when adding.
+- A journey shows its route as From → To in the header, with Leaves and Arrives each on one row.
+- New devices start with categories as icons only and importance as colour only (View sheet). A device that already saved its View choices keeps them.
+
+### Fixed
+- AI tools can't read anything in the sync repo outside covers and trip files, even with a crafted file id.
+- The List look shows the category and importance words after a place's name when View asks for them (Icon and label, or Label), as Expanded does. With importance as Label only, the name keeps the usual colour.
+- Expanded shows a place's time once, at the end of its row, not again on the line under the name.
+- The time and date fields' drop-down arrow sat against the border on Android; it's inset like the other drop-downs now.
+- In Hebrew, a place's From and To time fields said "from date" and "to date"; they say "from time" and "to time" now.
+
 ## [0.5.2] - 2026-11-23
 
 ### Changed
