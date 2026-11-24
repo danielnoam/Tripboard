@@ -102,9 +102,13 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, deskMap: true, split: 0 };
-  try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null, from: null }); } catch (e) { /* first visit */ }
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, unplacedOpen: view.unplacedOpen, destShut: view.destShut, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], stars: "", unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, deskMap: true, split: 0 };
+  try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null }); } catch (e) { /* first visit */ }
+  // The Plan goes by time or destination; category, importance, rating and
+  // distance were views of their own up to 0.7, and are filters (or gone) now.
+  if (view.sort !== "area") view.sort = "time";
+  if (!M.STAR_FILTERS.includes(view.stars)) view.stars = "";
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, stars: view.stars, unplacedOpen: view.unplacedOpen, destShut: view.destShut, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -363,8 +367,7 @@
   }
 
   // ---------- A trip's board ----------
-  const SORTS = [["time", i18n.t("Time")], ["area", i18n.t("Destination")], ["category", i18n.t("Category")], ["importance", i18n.t("Importance")], ["rating", i18n.t("Rating")], ["distance", i18n.t("Distance")]];
-  const RATING_GROUPS = M.RATINGS.concat([["none", i18n.t("Not rated")]]);
+  const SORTS = [["time", i18n.t("Time")], ["area", i18n.t("Destination")]];
   const sortsOf = (trip) => SORTS.filter(([id]) => id !== "area" || trip.destinations.length);
   function pickSort(id, seg) {
     segWas = segSpot(seg);
@@ -398,16 +401,10 @@
       main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned yet.") }), el("p.dim", { text: i18n.t("Add the first place with +.") })));
       return;
     }
-    if (view.sort === "distance" && !view.from) {
-      main.append(el("div.locate", {},
-        el("p.dim", { text: places.some((p) => p.lat != null) ? i18n.t("Nearest to you first, once you allow your location.")
-          : i18n.t("No place has a location yet. Give one with Find by name or Pin on map in its sheet, or on the Map.") }),
-        el("button.btn", { type: "button", onclick: locate }, icon("locate"), i18n.t("Use my location"))));
-    }
-    const kept = view.mapCats.length ? places.filter((p) => view.mapCats.includes(p.category)) : places;
+    const kept = M.filterPlaces(places, { only: view.only, categories: view.mapCats, stars: view.stars });
     if (view.sort === "area") {
       const wrap = el("div.groups.areas");
-      const blocks = M.board(trip, kept, "area", { only: view.only });
+      const blocks = M.board(trip, kept, "area");
       if (canDrag() && blocks.some((g) => g.dest)) {
         wireAreaDrag(wrap, trip);
       }
@@ -415,17 +412,10 @@
       main.append(wrap);
       return;
     }
-    const groups = M.board(trip, kept, view.sort, { only: view.only, from: view.from, cats: cats() });
-    // Groups with nothing in them yet, to drop into while dragging.
-    const all = view.sort === "category" ? cats() : view.sort === "importance" ? M.IMPORTANCE : view.sort === "rating" ? RATING_GROUPS : [];
-    for (const [id, title] of all) {
-      if (!groups.some((g) => g.id === id)) groups.push({ id, title, places: [], dropOnly: true });
-    }
-    const at = (id) => { const i = all.findIndex(([x]) => x === id); return i < 0 ? all.length : i; };
-    if (all.length) groups.sort((a, b) => at(a.id) - at(b.id));
+    const groups = M.board(trip, kept, "time");
     const wrap = el("div.groups");
     if (canDrag()) wireDrag(wrap);
-    const wx = view.sort === "time" ? wxDays(trip) : null;
+    const wx = wxDays(trip);
     for (const g of groups) {
       if (g.day) g.lands = M.arrivals(kept, g.day);
       wrap.append(group(trip, g, wx));
@@ -1563,16 +1553,15 @@
     const isDay = !!g.day;
     const title = isDay ? (trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, g.day), date: dayLabel(g.day) }) : dayLabel(g.day)) : g.title;
     const head = el("div.group-head", {},
-      view.sort === "rating" && g.id !== "none" ? el("h2.stars-head", { "aria-label": starsLabel(+g.id) }, stars(+g.id))
-        : el("h2", {}, view.sort === "category" ? icon(catIcon(g.id), "cat") : null, title),
+      el("h2", {}, title),
       isDay && wx && wx[g.day] ? wxChip(wx[g.day]) : null,
       el("span.count", { text: String(g.places.length) }),
-      view.sort === "time" && mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
+      mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
         onclick: (e) => openPlace(null, trip, { day: g.day || "" }, e.currentTarget) }, icon("plus")) : null);
-    const box = el("section.group" + (g.dropOnly ? ".drop-only" : ""), {}, head);
+    const box = el("section.group", {}, head);
     // On a wide screen days run on without a band for each destination, so each day names its own.
-    if (isDay && g.dest && view.sort === "time") box.prepend(el("p.group-dest", { text: g.dest }));
-    if (view.sort !== "distance") box.dataset.drop = g.id;
+    if (isDay && g.dest) box.prepend(el("p.group-dest", { text: g.dest }));
+    box.dataset.drop = g.id;
     if (isDay) {
       const lands = g.lands || [];
       if (!g.slots.length && !lands.length) box.append(el("p.dim.slot-empty", { text: i18n.t("Free day") }));
@@ -1589,45 +1578,40 @@
     } else if (g.places.length) {
       box.append(cards(trip, g.places, g));
     } else {
-      box.append(el("p.dim.slot-empty", { text: g.dropOnly ? i18n.t("Drop here") : i18n.t("Places without a day land here.") }));
+      box.append(el("p.dim.slot-empty", { text: i18n.t("Places without a day land here.") }));
     }
     return box;
   }
 
   // ---------- Drag and drop (mouse) ----------
-  // Dropping a card on another group changes what that sort groups by: its
-  // day (and time slot), category, importance or rating. Distance has nothing to change.
-  const canDrag = () => window.matchMedia("(pointer: fine)").matches && view.sort !== "distance" && mayEdit(findTrip(view.trip));
+  // Dropping a card on another group changes its day (and time slot), or
+  // in Destination, its destination.
+  const canDrag = () => window.matchMedia("(pointer: fine)").matches && mayEdit(findTrip(view.trip));
   const SLOT_TIME = { morning: "09:00", afternoon: "14:00", evening: "19:00" };
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
   function movePlace(p, groupId, slot) {
-    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating, p.dest]);
+    const before = JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.dest]);
     undoable(i18n.t("Moved {name}.", { name: p.name }), () => shift(p, groupId, slot));
-    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.category, p.importance, p.rating, p.dest]) === before) $("toast").hidden = true;
+    if (JSON.stringify([p.day, p.endDay, p.time, p.endTime, p.dest]) === before) $("toast").hidden = true;
   }
-  function shift(p, groupId, slot, sort = view.sort) {
-    if (sort === "category") p.category = groupId;
-    else if (sort === "importance") p.importance = groupId;
-    else if (sort === "rating") { if (groupId === "none") delete p.rating; else p.rating = +groupId; }
-    else if (sort === "time") {
-      if (groupId !== p.day) delete p.order;
-      // "any:<name>": no day, in that destination.
-      if (groupId === "nodate" || groupId.startsWith("any:")) {
-        delete p.day; delete p.endDay; delete p.time; delete p.endTime;
-        if (groupId !== "nodate") M.setDest(findTrip(p.trip), p, groupId.slice(4));
-      } else {
-        // A place over several days moves as a whole: it starts on the day it's dropped on.
-        if (p.endDay) p.endDay = M.addDays(groupId, M.daySpan(p));
-        p.day = groupId;
-        // A stay keeps its check-out; the slot sets its check-in.
-        if (M.isStay(p)) { if (slot === "any") delete p.time; else if (slot && (!p.time || M.slotOf(p) !== slot)) p.time = SLOT_TIME[slot]; }
-        else if (slot === "any") { delete p.time; delete p.endTime; }
-        else if (slot && (!p.time || M.slotOf(p) !== slot)) {
-          const len = p.time && p.endTime ? mins(p.endTime) - mins(p.time) : 0;
-          p.time = SLOT_TIME[slot];
-          if (len > 0 && mins(p.time) + len < 24 * 60) p.endTime = hhmm(mins(p.time) + len); else delete p.endTime;
-        }
+  function shift(p, groupId, slot) {
+    if (groupId !== p.day) delete p.order;
+    // "any:<name>": no day, in that destination.
+    if (groupId === "nodate" || groupId.startsWith("any:")) {
+      delete p.day; delete p.endDay; delete p.time; delete p.endTime;
+      if (groupId !== "nodate") M.setDest(findTrip(p.trip), p, groupId.slice(4));
+    } else {
+      // A place over several days moves as a whole: it starts on the day it's dropped on.
+      if (p.endDay) p.endDay = M.addDays(groupId, M.daySpan(p));
+      p.day = groupId;
+      // A stay keeps its check-out; the slot sets its check-in.
+      if (M.isStay(p)) { if (slot === "any") delete p.time; else if (slot && (!p.time || M.slotOf(p) !== slot)) p.time = SLOT_TIME[slot]; }
+      else if (slot === "any") { delete p.time; delete p.endTime; }
+      else if (slot && (!p.time || M.slotOf(p) !== slot)) {
+        const len = p.time && p.endTime ? mins(p.endTime) - mins(p.time) : 0;
+        p.time = SLOT_TIME[slot];
+        if (len > 0 && mins(p.time) + len < 24 * 60) p.endTime = hhmm(mins(p.time) + len); else delete p.endTime;
       }
     }
     p.updatedAt = new Date().toISOString();
@@ -1663,15 +1647,11 @@
       e.preventDefault();
       const p = doc.places.find((x) => x.id === dragging);
       const grp = t.closest("[data-drop]");
-      if (p && grp && picked && picked.has(p.id) && picked.size > 1) moveMany(grp.dataset.drop, t.dataset.slot || "", view.sort);
+      if (p && grp && picked && picked.has(p.id) && picked.size > 1) moveMany(grp.dataset.drop, t.dataset.slot || "");
       else if (p && grp) movePlace(p, grp.dataset.drop, t.dataset.slot || "");
     });
   }
 
-  // 350 m, 1.2 km; in Hebrew 350 מ׳, 1.2 ק״מ.
-  const boardDist = (km) => (km < 1
-    ? new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "meter", maximumFractionDigits: 0 }).format(Math.round(km * 1000))
-    : new Intl.NumberFormat(i18n.lang, { style: "unit", unit: "kilometer", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(km));
   // Settings' View sheet: a card's category as an icon, its name or both;
   // its importance as the colour on its edge, its name or both.
   const catWords = () => SET.get().view.cat !== "icon";
@@ -1688,7 +1668,6 @@
     document.documentElement.dataset.ratings = v.ratings;
   }
   // Gold stars, filled up to n of 5.
-  const stars = (n) => el("span.stars", { "aria-hidden": "true" }, [1, 2, 3, 4, 5].map((i) => el("span" + (i <= n ? ".on" : ""), { text: "★" })));
   // A card's rating: a star and the number, at the end of its name.
   const ratingBadge = (p) => (p.rating ? el("span.rating", { title: starsLabel(p.rating), "aria-label": starsLabel(p.rating) }, el("span.star", { text: "★", "aria-hidden": "true" }), String(p.rating)) : null);
   // A journey: its mode's icon, from → to, when it leaves and arrives, its
@@ -1731,12 +1710,11 @@
     return el("ul.cards", {}, items.flatMap((p) => {
       if (p.land) return [landRow(p.land, trip), changeRow(p.land, trip)].filter(Boolean);
       const journey = M.isJourney(p);
-      const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
+      const meta = catWords() ? [M.catName(cats(), trip, p.category)] : [];
       if (g.sameDates) { if (timeLabel(p)) meta.push(timeLabel(p)); }
       else if (view.sort !== "time" && p.day && (!g.area || p.endDay)) meta.push(daysLabel(p));
       else if (p.endDay && g.day && !["in", "out"].includes(M.stayPart(p, g.day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
-      if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));
       const on = !!(picked && picked.has(p.id));
       const card = el("li.card" + (journey ? ".journey" : ".imp-" + p.importance) + (p.visited ? ".visited" : "") + (on ? ".picked" : ""), { "data-id": p.id, draggable: canDrag() ? "true" : null,
         onmouseenter: () => { if (sideMap()) TM.hover(p.id, true); }, onmouseleave: () => TM.hover(p.id, false) },
@@ -1745,7 +1723,7 @@
             onclick: () => { p.visited = !p.visited; p.updatedAt = new Date().toISOString(); save(); } }, icon("check")),
         el("button.card-body", { type: "button", onclick: (e) => (picked ? pick(p.id) : openPlace(p, trip, null, e.currentTarget)) },
           ...(journey ? journeyParts(p) : [
-            el("span.card-name", {}, view.sort === "category" ? null : icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), view.sort === "rating" ? null : ratingBadge(p)),
+            el("span.card-name", {}, icon(catIcon(p.category), "cat"), el("span.card-title", { text: p.name }), ratingBadge(p)),
             el("span.card-meta", {}, ...metaParts(p, meta),
               nFiles ? el("span.clip", { title: i18n.tn(nFiles, "1 attachment", "{n} attachments"), "aria-label": i18n.tn(nFiles, "1 attachment", "{n} attachments") }, icon("paperclip"), String(nFiles)) : null)]),
           p.note ? el("span.card-note", { text: p.note }) : null,
@@ -1753,14 +1731,6 @@
       // A change to the next leg, when this one lands the same day.
       return journey && !p.arriveDay && view.sort === "time" ? [card, changeRow(p, trip)].filter(Boolean) : [card];
     }));
-  }
-
-  function locate() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { view.from = { lat: pos.coords.latitude, lng: pos.coords.longitude }; render(); },
-      () => { view.from = null; },
-      { maximumAge: 300000, timeout: 15000 });
   }
 
   // ---------- Back and Forward ----------
@@ -2781,8 +2751,7 @@
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
     if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay) || (M.isJourney(p) && M.landsOn(p) === view.mapDay));
-    if (view.mapCats.length) all = all.filter((p) => view.mapCats.includes(p.category));
-    return view.only.length ? all.filter((p) => view.only.includes(p.importance)) : all;
+    return M.filterPlaces(all, { only: view.only, categories: view.mapCats, stars: view.stars });
   }
   // The trip's categories, in the app's order, each with how many places.
   function tripCats(trip) {
@@ -2790,8 +2759,9 @@
     for (const p of placesOf(trip.id)) n.set(p.category, (n.get(p.category) || 0) + 1);
     return cats().filter(([id]) => n.has(id)).map(([id, name]) => ({ id, name, n: n.get(id) }));
   }
-  // The two filters the Plan and the map share, each a chip that opens the
-  // same sheet with its choices: categories (this trip's) and importance.
+  // The filters the Plan and the map share, each a chip that opens the
+  // same drop-down with its choices: categories (this trip's), importance
+  // and rating (one choice: that many stars and up, or not rated yet).
   function mapFacets(trip) {
     const n = (key) => placesOf(trip.id).reduce((m, p) => m.set(p[key], (m.get(p[key]) || 0) + 1), new Map());
     const imp = n("importance");
@@ -2800,8 +2770,13 @@
         items: tripCats(trip).map((c) => ({ ...c, mark: () => icon(catIcon(c.id)) })) },
       imp: { title: i18n.t("Importance"), key: "only", many: (k) => i18n.tn(k, "1 level", "{n} levels"),
         items: M.IMPORTANCE.map(([id, name]) => ({ id, name, n: imp.get(id) || 0, mark: () => el("span.dot.imp-" + id) })) },
+      stars: { title: i18n.t("Rating"), key: "stars", one: true,
+        items: STAR_CHOICES().map(([id, name, short]) => ({ id, name, short, n: placesOf(trip.id).filter((p) => !M.isJourney(p) && (!id || M.filterPlaces([p], { stars: id }).length)).length })) },
     };
   }
+  // The rating filter's choices: [id, its name in the list, the chip's words when on].
+  const STAR_CHOICES = () => [["", i18n.t("Any rating"), ""], ["5", i18n.t("5 stars"), i18n.t("5 stars")], ["4", i18n.t("4 stars and up"), i18n.t("4★ and up")],
+    ["3", i18n.t("3 stars and up"), i18n.t("3★ and up")], ["none", i18n.t("Not rated yet"), i18n.t("Not rated")]];
   function paintFilters(trip) {
     const bar = $("mapFilters");
     bar.hidden = !placesOf(trip.id).length;
@@ -2812,12 +2787,15 @@
     view.mapCats = view.mapCats.filter((id) => facets.cat.items.some((c) => c.id === id));
     const chip = (which) => {
       const f = facets[which];
-      const picked = f.items.filter((c) => view[f.key].includes(c.id));
+      const on = f.one ? f.items.find((c) => c.id && c.id === view[f.key]) : null;
+      const picked = f.one ? (on ? [on] : []) : f.items.filter((c) => view[f.key].includes(c.id));
       return el("button.chip.pick.filter-pick", { type: "button", "aria-pressed": String(picked.length > 0), "aria-haspopup": "menu", "data-which": which,
         "aria-expanded": String(filterMenu.open === which), onclick: (e) => filterMenu(trip, which, e.currentTarget) },
-        picked.length === 1 ? picked[0].mark() : null, !picked.length ? f.title : picked.length === 1 ? picked[0].name : f.many(picked.length), icon("chevron"));
+        on ? null : picked.length === 1 ? picked[0].mark() : null, on ? on.short : !picked.length ? f.title : picked.length === 1 ? picked[0].name : f.many(picked.length), icon("chevron"));
     };
-    return [facets.cat.items.length > 1 ? chip("cat") : null, chip("imp")].filter(Boolean);
+    // Rating only once a place has one (or the filter is on).
+    const rated = view.stars || placesOf(trip.id).some((p) => p.rating);
+    return [facets.cat.items.length > 1 ? chip("cat") : null, chip("imp"), rated ? chip("stars") : null].filter(Boolean);
   }
   // A filter's drop-down, under its chip: All, then a box for each choice.
   // It stays open while boxes are ticked; the last ticked box can't be
@@ -2840,6 +2818,13 @@
     const box = el("div.quick-menu.filter-menu", { role: "menu", "aria-label": mapFacets(trip)[which].title });
     const paint = () => {
       const f = mapFacets(trip)[which];
+      if (f.one) {
+        const row = (c) => el("button", { type: "button", role: "menuitemradio", "aria-checked": String(view[f.key] === c.id),
+          onclick: () => { view[f.key] = c.id; remember(); paint(); render(); } },
+          el("span.box.radio", {}, view[f.key] === c.id ? icon("check") : null), +c.id ? el("span.star", { text: "★", "aria-hidden": "true" }) : null, el("span.grow", { text: c.name }), c.id ? el("span.dim", { text: String(c.n) }) : null);
+        box.replaceChildren(row(f.items[0]), el("hr"), ...f.items.slice(1, -1).map(row), el("hr"), row(f.items[f.items.length - 1]));
+        return;
+      }
       const ids = f.items.map((x) => x.id);
       const on = (id) => !view[f.key].length || view[f.key].includes(id);
       const set = (next) => { view[f.key] = next.length === ids.length ? [] : next; remember(); paint(); render(); };
@@ -4021,7 +4006,7 @@
     if (m && !trip) { go("#/", true); return; }
     if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { go("#/trip/" + trip.id, true); return; }
     if (trip && m[2] === "today" && !underWay(trip)) { go("#/trip/" + trip.id, true); return; }
-    if ((trip && trip.id) !== view.trip) { picked = null; view.from = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
+    if ((trip && trip.id) !== view.trip) { picked = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
     $("mapView").hidden = !mapOn();
@@ -4341,12 +4326,12 @@
     if (sideMap()) render();
     else go("#/trip/" + trip.id + "/map");
   }
-  function moveMany(groupId, slot, sort) {
+  function moveMany(groupId, slot) {
     const list = pickedPlaces();
     closeSheet($("moveSheet"));
     picked = null;
     if (!list.length) return render();
-    undoable(i18n.tn(list.length, "Moved 1 place.", "Moved {n} places."), () => list.forEach((p) => shift(p, groupId, slot, sort)));
+    undoable(i18n.tn(list.length, "Moved 1 place.", "Moved {n} places."), () => list.forEach((p) => shift(p, groupId, slot)));
   }
   // Every place in a destination (Plan › Destination's grouping, its
   // stays and journeys left as they are) onto one day, or off any day. A
@@ -4377,7 +4362,7 @@
       const moving = one ? list : list.filter((p) => !(M.isDay(p.day) && p.day >= a && p.day <= b));
       if (!name && !moving.length) return;
       undoable(moving.length ? i18n.tn(moving.length, "Moved 1 place.", "Moved {n} places.") : i18n.t("{name} has new dates.", { name }), () => {
-        moving.forEach((p) => shift(p, a, "", "time"));
+        moving.forEach((p) => shift(p, a, ""));
         if (a === "nodate" || !name) return;
         const t = findTrip(trip.id), info = (t.destInfo || {})[name] || {};
         t.destInfo = { ...(t.destInfo || {}), [name]: { ...info, start: a, end: b } };
@@ -4436,37 +4421,27 @@
       t.updatedAt = new Date().toISOString();
     });
   }
-  // Where the picked places can go: the trip's days (with a time of day),
-  // its categories, or the importances. Sorted by distance, it's the days.
+  // Where the picked places can go: the trip's days (with a time of day).
   function openMove(from) {
     const trip = findTrip(view.trip), n = picked ? picked.size : 0;
     if (!trip || !n) return;
-    const sort = view.sort === "distance" || view.sort === "area" ? "time" : view.sort;
     $("moveTitle").textContent = i18n.tn(n, "Move 1 place", "Move {n} places");
     document.querySelectorAll(".move-hint").forEach((n) => n.remove());
     const row = (label, ico, go) => el("button.move-to", { type: "button", onclick: go }, ico ? icon(ico, "cat") : null, el("span", { text: label }));
     const box = $("moveList");
     box.replaceChildren();
-    if (sort === "time") {
-      let slot = "";
-      const slots = [["", i18n.t("Keep the time")]].concat(M.SLOTS.map(([id, t]) => [id, t]), [["any", i18n.t("Any time")]]);
-      const seg = el("div.seg.move-slots", { role: "radiogroup", "aria-label": i18n.t("Time of day") }, slots.map(([id, t]) =>
-        el("button", { type: "button", role: "radio", "aria-checked": String(id === slot), text: t, onclick: (e) => {
-          slot = id;
-          seg.querySelectorAll("[role=radio]").forEach((b) => { b.setAttribute("aria-checked", String(b === e.currentTarget)); b.tabIndex = b === e.currentTarget ? 0 : -1; });
-        } })));
-      box.append(seg);
-      for (const day of M.tripDays(trip, placesOf(trip.id))) {
-        box.append(row(trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, day), date: dayLabel(day) }) : dayLabel(day), null, () => moveMany(day, slot, sort)));
-      }
-      box.append(row(i18n.t("No date"), null, () => moveMany("nodate", "", sort)));
-    } else if (sort === "category") {
-      for (const [id, label] of cats()) box.append(row(label, catIcon(id), () => moveMany(id, "", sort)));
-    } else if (sort === "rating") {
-      for (const [id] of RATING_GROUPS) box.append(row(id === "none" ? i18n.t("Not rated") : starsLabel(+id), null, () => moveMany(id, "", sort)));
-    } else {
-      for (const [id, label] of M.IMPORTANCE) box.append(row(label, null, () => moveMany(id, "", sort)));
+    let slot = "";
+    const slots = [["", i18n.t("Keep the time")]].concat(M.SLOTS.map(([id, t]) => [id, t]), [["any", i18n.t("Any time")]]);
+    const seg = el("div.seg.move-slots", { role: "radiogroup", "aria-label": i18n.t("Time of day") }, slots.map(([id, t]) =>
+      el("button", { type: "button", role: "radio", "aria-checked": String(id === slot), text: t, onclick: (e) => {
+        slot = id;
+        seg.querySelectorAll("[role=radio]").forEach((b) => { b.setAttribute("aria-checked", String(b === e.currentTarget)); b.tabIndex = b === e.currentTarget ? 0 : -1; });
+      } })));
+    box.append(seg);
+    for (const day of M.tripDays(trip, placesOf(trip.id))) {
+      box.append(row(trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, day), date: dayLabel(day) }) : dayLabel(day), null, () => moveMany(day, slot)));
     }
+    box.append(row(i18n.t("No date"), null, () => moveMany("nodate", "")));
     openSheet($("moveSheet"), from);
   }
 

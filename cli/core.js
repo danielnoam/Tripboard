@@ -645,21 +645,23 @@ const queries = {
     if (from) out.sort((x, y) => (x.km ?? Infinity) - (y.km ?? Infinity));
     return a.limit ? out.slice(0, +a.limit) : out;
   },
-  // The board as the app groups it: by day and time slot, category,
-  // importance, rating, or distance from a point.
+  // The Plan as the app groups it: by day and time slot, or by destination.
   getBoard(st, a) {
     const t = findTrip(st.doc, a.trip);
     const cats = catsOf(st.cats);
     const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, endTime: p.endTime, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}),
       ...(M.isJourney(p) ? { kind: "journey", mode: p.mode, toName: p.toName, arriveDay: p.arriveDay, arriveTime: p.arriveTime, number: p.number } : {}) });
-    const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, from: nearOf(st.doc, t, a.near), cats });
+    if (a.sort && !["time", "area"].includes(a.sort)) throw new Error("The Plan goes by time or area. For places by category, importance, rating or distance, use find_places.");
+    const all = cats.concat(Object.entries(t.cats || {}));
+    const categories = (a.categories || []).map((c) => findCat(all, c)[0]);
+    const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, categories, stars: a.rating });
     const area = (g) => ({ id: g.id, kind: g.kind || "none", title: g.title, ...(g.dest ? { destination: g.dest } : {}), start: g.start || null, end: g.end || null,
       ...(g.stays ? { stays: g.stays.map(brief) } : {}), places: g.places.map(brief), ...(g.side && g.side.length ? { side: g.side.map(area) } : {}) });
     if (a.sort === "area") return groups.map(area);
     return groups.map((g) => g.kind === "dest" ? { id: g.id, kind: "destination", title: g.title, start: g.start, end: g.end, ...(g.again ? { again: true } : {}) } : ({ id: g.id, title: g.title,
       ...(g.kind === "any" ? { kind: "anyDay", destination: g.dest } : {}), ...(g.day ? { dayNumber: M.dayIndex(t, g.day), ...(g.dest ? { destination: g.dest } : {}) } : {}),
       ...(g.parts ? { parts: g.parts.map((x) => ({ destination: x.dest, places: x.places.map(brief) })) } : {}),
-      ...(g.slots ? { slots: g.slots.map((s) => ({ id: s.id, title: s.title, places: s.places.map(brief) })) } : { places: g.places.map((p) => ({ ...brief(p), ...(g.km ? { km: Math.round(g.km.get(p.id) * 100) / 100 } : {}) })) }) }));
+      ...(g.slots ? { slots: g.slots.map((s) => ({ id: s.id, title: s.title, places: s.places.map(brief) })) } : { places: g.places.map(brief) }) }));
   },
   // One day as the Today view shows it: the plan in order, the guessed
   // time between places, the next one not yet visited, and that day's

@@ -26,6 +26,9 @@ come later.
 
 Importance is also a filter (show only the must-sees, say).
 
+(2026-11-25: the Plan now goes by Time or Destination only; category,
+importance and rating are filters, and Distance is gone. See DROPPED.md.)
+
 **Map.** The trip's places on a map: MapLibre GL with OpenFreeMap tiles,
 free and with no key. Credited in About.
 
