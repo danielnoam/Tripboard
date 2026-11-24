@@ -2953,6 +2953,13 @@
     view.sel = view.sel === id ? null : id;
     render();
   };
+  TM.onFocus = (id) => {
+    if (view.pick) return;
+    const p = doc.places.find((x) => x.id === id);
+    view.sel = id;
+    render();
+    if (p) TM.focus(p);
+  };
   TM.onTap = ({ lat, lng }) => {
     if (view.pick) {
       const p = doc.places.find((x) => x.id === view.pick);
