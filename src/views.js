@@ -365,6 +365,13 @@
   // ---------- A trip's board ----------
   const SORTS = [["time", i18n.t("Time")], ["area", i18n.t("Destination")], ["category", i18n.t("Category")], ["importance", i18n.t("Importance")], ["rating", i18n.t("Rating")], ["distance", i18n.t("Distance")]];
   const RATING_GROUPS = M.RATINGS.concat([["none", i18n.t("Not rated")]]);
+  const sortsOf = (trip) => SORTS.filter(([id]) => id !== "area" || trip.destinations.length);
+  function pickSort(id, seg) {
+    segWas = segSpot(seg);
+    view.sort = id;
+    remember();
+    render();
+  }
   const starsLabel = (n) => i18n.tn(n, "1 star", "{n} stars");
   function renderBoard(main, trip) {
     $("title").textContent = trip.name;
@@ -378,9 +385,9 @@
     main.append(hero);
 
     const controls = el("div.controls", {},
-      el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), SORTS.filter(([id]) => id !== "area" || trip.destinations.length).map(([id, label]) =>
+      el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), sortsOf(trip).map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
-          onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.sort = id; remember(); render(); } }))),
+          onclick: (e) => pickSort(id, e.currentTarget.parentNode) }))),
       places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
     main.append(controls);
     slideSeg(controls.firstChild);
@@ -4067,10 +4074,12 @@
     if (trip && sideMap()) showMap(trip);
   }
 
-  // Swiping sideways moves between a trip's tabs: on the bottom bar always,
-  // on the page everywhere but the map, which needs the finger to pan. Not
-  // from a screen edge (the system's back), over a dialog, a field, a row
-  // that scrolls sideways, or while text is selected.
+  // Swiping sideways on the bottom bar moves between a trip's tabs; on the
+  // Plan's page it moves between its views (Time, Destination, ...), in
+  // the order the switch shows them. Nowhere else, so the page never
+  // changes tab under a finger. Not from a screen edge (the system's
+  // back), over a dialog, a field, the map, a row that scrolls sideways,
+  // or while text is selected.
   function wireSwipe() {
     let s = null;
     const sideways = (n) => {
@@ -4084,21 +4093,29 @@
       const t = e.touches[0], at = e.target;
       if (e.touches.length > 1 || !view.trip || view.mode === "share" || document.querySelector("dialog[open]")) return;
       if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
-      const onBar = !!at.closest("#bottomBar");
-      if (!onBar && (view.mode === "map" || at.closest("#mapView") || at.closest("input, textarea, select, [contenteditable]") || sideways(at))) return;
-      s = { x: t.clientX, y: t.clientY, at: e.timeStamp };
+      const bar = !!at.closest("#bottomBar");
+      if (!bar && (view.mode !== "board" || view.pick || at.closest("#mapView") || at.closest("input, textarea, select, [contenteditable]") || sideways(at))) return;
+      s = { x: t.clientX, y: t.clientY, at: e.timeStamp, bar };
     }, { passive: true });
     document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) s = null; }, { passive: true });
     document.addEventListener("touchcancel", () => { s = null; }, { passive: true });
     document.addEventListener("touchend", (e) => {
       if (!s) return;
-      const t = e.changedTouches[0];
+      const t = e.changedTouches[0], bar = s.bar;
       const step = M.swipeStep(t.clientX - s.x, t.clientY - s.y, e.timeStamp - s.at, i18n.dir === "rtl");
       s = null;
       const sel = window.getSelection();
       if (!step || (sel && !sel.isCollapsed)) return;
       const trip = findTrip(view.trip);
-      const tabs = trip ? tripTabs(trip) : [];
+      if (!trip) return;
+      if (!bar) {
+        if (view.mode !== "board") return;
+        const sorts = sortsOf(trip), i = sorts.findIndex(([id]) => id === view.sort);
+        const next = i < 0 ? null : sorts[i + step];
+        if (next) pickSort(next[0], document.querySelector(".seg.sorts"));
+        return;
+      }
+      const tabs = tripTabs(trip);
       const i = tabs.findIndex(([mode]) => mode === view.mode);
       const next = i < 0 ? null : tabs[i + step];
       if (!next) return;
