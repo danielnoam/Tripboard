@@ -773,6 +773,9 @@ main.tab-leaving:not(.tab-under) { background: var(--bg); min-height: 100dvh; }
   border: 0; border-radius: 10px; background: var(--accent-soft); color: var(--text); font-weight: 600; text-align: start; cursor: pointer;
 }
 .attached-file > span:not(.attached-local) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attached-file:has(.attached-url) > span:first-of-type { flex: 0 1 auto; }
+.attached-file > span.attached-url { flex: 1 1 0; color: var(--text-dim); font-weight: 400; font-size: 13px; text-align: start; }
+[dir="rtl"] .attached-file > span.attached-url { text-align: right; }
 .attached-file .icon { width: 18px; height: 18px; flex: none; color: var(--accent); }
 .attached-local .icon { color: var(--text-dim); }
 .clip { display: inline-flex; align-items: center; gap: 2px; margin-inline-start: 6px; color: var(--accent); font-weight: 600; }

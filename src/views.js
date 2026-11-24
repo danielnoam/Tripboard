@@ -1301,7 +1301,9 @@
   const filesOn = (placeId) => (doc.files || []).filter((f) => f.place === placeId);
   function fileButtons(list) {
     return list.map((f) => {
-      const kids = [icon(entryIcon(f)), el("span", { text: f.name }),
+      // A link shows where it goes, in grey after its name, as far as there's room.
+      const where = f.kind === "link" && f.url ? f.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") : "";
+      const kids = [icon(entryIcon(f)), el("span", { text: f.name }), where ? el("span.attached-url", { text: where, dir: "ltr" }) : null,
         f.local ? el("span.attached-local", { title: i18n.t("Only this device"), "aria-label": i18n.t("Only this device") }, icon("phone")) : null];
       return el("li", {}, f.kind === "link" ? el("a.attached-file", { href: f.url, target: "_blank", rel: "noopener noreferrer" }, ...kids)
         : el("button.attached-file", { type: "button", onclick: (e) => (f.kind === "note" ? openNote(f, findTrip(f.trip), e.currentTarget) : viewFile(f)) }, ...kids));
