@@ -429,9 +429,16 @@
     }
   }
 
-  // A trip's tabs, in the bar's order: Today sits in the middle while the trip is under way.
-  const tripTabs = (trip) => [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"], ["today", "sun", i18n.t("Today"), "/today"],
-    ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "paperclip", i18n.t("Attachments"), "/files"]].filter(([mode]) => (mode === "today" ? underWay(trip) : sees(trip, mode)));
+  // A trip's tabs, in the bar's order: Today sits in the middle while the
+  // trip is under way (and leads back to today), or as Day while one day
+  // opened from the Plan is showing.
+  const tripTabs = (trip) => {
+    const now = underWay(trip);
+    return [["board", "list", i18n.t("Plan"), ""], ["map", "map", i18n.t("Map"), "/map"], ["today", "sun", now ? i18n.t("Today") : i18n.t("Day"), now ? "/today" : "/today/" + view.day],
+      ["expenses", "wallet", i18n.t("Expenses"), "/expenses"], ["files", "paperclip", i18n.t("Attachments"), "/files"]].filter(([mode]) => (mode === "today" ? now || view.mode === "today" : sees(trip, mode)));
+  };
+  // One day's page, from a day's heading on the Plan.
+  const dayHref = (trip, day) => "#/trip/" + trip.id + "/today" + (day === today() && underWay(trip) ? "" : "/" + day);
   // On a computer's wide screen a trip is laid out for it: its tabs in a
   // side bar at the start instead of the pill at the bottom, and the map
   // beside the Plan, Today, Expenses and Files (folded away with the handle
@@ -898,18 +905,32 @@
 
   function renderToday(main, trip) {
     $("title").textContent = trip.name;
-    const day = today();
+    const day = view.day;
+    const isToday = day === today();
     const all = placesOf(trip.id);
     const plan = M.dayPlan(all, day);
-    const next = M.nextOf(plan);
+    const next = isToday ? M.nextOf(plan) : null;
     const done = plan.filter((p) => p.visited).length;
     const total = trip.end ? M.dayIndex(trip, trip.end) : null;
     const here = M.dayDest(trip, day);
+    const n = M.dayIndex(trip, day);
+    const inTrip = total && n >= 1 && n <= total;
+    const kicker = isToday ? (inTrip ? i18n.t("Today · day {n} of {total}", { n, total }) : i18n.t("Today")) : inTrip ? i18n.t("Day {n} of {total}", { n, total }) : "";
+    // The trip's days, one step at a time, and back to today while under way.
+    const days = M.tripDays(trip, all);
+    const at = days.indexOf(day);
+    const before = at > 0 ? days[at - 1] : at < 0 ? days.filter((d) => d < day).pop() : null;
+    const after = at >= 0 ? days[at + 1] : days.find((d) => d > day);
+    const step = (to, label, ico) => el("a.icon-btn.day-step" + (to ? "" : ".off"), to ? { href: dayHref(trip, to), "aria-label": label, title: label } : { "aria-label": label, "aria-disabled": "true" }, icon(ico));
     main.append(el("header.today-head", {},
-      el("div", {},
-        el("p.today-kicker", { text: (total ? i18n.t("Today · day {n} of {total}", { n: M.dayIndex(trip, day), total }) : i18n.t("Today")) + (here ? " · " + here : "") }),
-        el("h2.today-date", { text: fmt({ weekday: "long", day: "numeric", month: "long" }).format(asDate(day)) })),
-      plan.length ? el("span.dim.today-done", { text: i18n.t("{n} of {total} done", { n: done, total: plan.length }) }) : null));
+      el("div.today-top", {},
+        el("p.today-kicker", { text: [kicker, here].filter(Boolean).join(" · ") }),
+        el("nav.day-steps", { "aria-label": i18n.t("Days") },
+          step(before, i18n.t("The day before"), "prev"),
+          !isToday && underWay(trip) ? el("a.btn.quiet.day-back", { href: dayHref(trip, today()), text: i18n.t("Today") }) : null,
+          step(after, i18n.t("The day after"), "next"))),
+      el("h2.today-date", { text: fmt({ weekday: "long", day: "numeric", month: "long" }).format(asDate(day)) }),
+      plan.length ? el("p.dim.today-done", { text: i18n.t("{n} of {total} done", { n: done, total: plan.length }) }) : null));
     const wx = wxDays(trip);
     const w = wx && wx[day];
     if (w) {
@@ -939,8 +960,8 @@
     }
     items.push(...left.map((j) => ({ land: j })));
     if (!items.length) {
-      main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned for today.") }),
-        el("p.dim", { text: mayEdit(trip) ? i18n.t("Add a place for today with +, or give one today's date on the Plan.") : i18n.t("The whole trip is on the Plan.") })));
+      main.append(el("div.empty", {}, el("p", { text: isToday ? i18n.t("Nothing planned for today.") : i18n.t("Nothing planned for this day.") }),
+        el("p.dim", { text: !mayEdit(trip) ? i18n.t("The whole trip is on the Plan.") : isToday ? i18n.t("Add a place for today with +, or give one today's date on the Plan.") : i18n.t("Add a place for this day with +, or give one this day's date on the Plan.") })));
     } else {
       const list = el("ol.today");
       const now = new Date();
@@ -1000,8 +1021,8 @@
     const tomorrow = M.addDays(day, 1);
     const later = trip.end && tomorrow <= trip.end ? M.dayPlan(all, tomorrow) : [];
     if (later.length) {
-      main.append(el("a.panel.tomorrow", { href: "#/trip/" + trip.id },
-        el("span.tomorrow-head", {}, el("h2", { text: i18n.t("Tomorrow") }), wx && wx[tomorrow] ? wxChip(wx[tomorrow]) : null, el("span.dim", { text: String(later.length) })),
+      main.append(el("a.panel.tomorrow", { href: dayHref(trip, tomorrow) },
+        el("span.tomorrow-head", {}, el("h2", { text: isToday ? i18n.t("Tomorrow") : i18n.t("The day after") }), wx && wx[tomorrow] ? wxChip(wx[tomorrow]) : null, el("span.dim", { text: String(later.length) })),
         el("p.dim", { text: later.map((p) => p.name).join(", ") })));
     }
   }
@@ -1506,7 +1527,7 @@
     if (g.stays && g.stays.length) col.append(el("h4.slot", { text: i18n.t("Stay") }), cards(trip, g.stays, one ? { area: true, sameDates: true } : ctx));
     const byDay = new Map();
     for (const p of g.places.filter((x) => x.day)) byDay.set(p.day, (byDay.get(p.day) || []).concat(p));
-    for (const [day, list] of byDay) col.append(el("h4.slot", { text: dayLabel(day) }), cards(trip, list, { area: true, day }));
+    for (const [day, list] of byDay) col.append(el("h4.slot", {}, el("a.day-open", { href: dayHref(trip, day), title: i18n.t("Open this day") }, el("span", { text: dayLabel(day) }), icon("next", "day-open-ic"))), cards(trip, list, { area: true, day }));
     const rest = g.places.filter((x) => !x.day);
     if (rest.length) col.append(el("h4.slot", { text: byDay.size || (g.stays && g.stays.length) ? i18n.t("Any day") : i18n.t("Places") }), cards(trip, rest, ctx));
     if (col.childElementCount === (side ? 1 : 0)) col.append(el("p.dim.slot-empty", { text: i18n.t("Nothing here yet.") }));
@@ -1554,7 +1575,7 @@
     const isDay = !!g.day;
     const title = isDay ? (trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, g.day), date: dayLabel(g.day) }) : dayLabel(g.day)) : g.title;
     const head = el("div.group-head", {},
-      el("h2", {}, title),
+      isDay ? el("h2", {}, el("a.day-open", { href: dayHref(trip, g.day), title: i18n.t("Open this day") }, el("span", { text: title }), icon("next", "day-open-ic"))) : el("h2", {}, title),
       isDay && wx && wx[g.day] ? wxChip(wx[g.day]) : null,
       el("span.count", { text: String(g.places.length) }),
       mayEdit(trip) ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title: title }),
@@ -4001,12 +4022,13 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     const jm = /^#\/join\/([\w-]+)\/([\w-]+)(?:\/([\w.:-]+))?/.exec(location.hash);
-    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today))?/.exec(location.hash);
+    const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today)(?:\/(\d{4}-\d\d-\d\d))?)?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
     $("settingsBtn").hidden = settings || !!m;
     if (m && !trip) { go("#/", true); return; }
     if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { go("#/trip/" + trip.id, true); return; }
-    if (trip && m[2] === "today" && !underWay(trip)) { go("#/trip/" + trip.id, true); return; }
+    if (trip && m[2] === "today" && !(m[3] && M.isDay(m[3])) && !underWay(trip)) { go("#/trip/" + trip.id, true); return; }
+    if (trip && m[2] === "today") view.day = m[3] && M.isDay(m[3]) ? m[3] : today();
     if ((trip && trip.id) !== view.trip) { picked = null; view.pick = null; view.sel = null; view.mapDay = null; view.trip = trip ? trip.id : null; }
     view.mode = trip && m[2] ? m[2] : "board";
     const onMap = view.mode === "map";
@@ -4080,7 +4102,7 @@
       if (e.touches.length > 1 || !view.trip || view.mode === "share" || document.querySelector("dialog[open]")) return;
       if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
       const bar = !!at.closest("#bottomBar");
-      if (!bar && (view.mode !== "board" || view.pick || at.closest("#mapView") || at.closest("input, textarea, select, [contenteditable]") || sideways(at))) return;
+      if (!bar && (!["board", "today"].includes(view.mode) || view.pick || at.closest("#mapView") || at.closest("input, textarea, select, [contenteditable]") || sideways(at))) return;
       s = { x: t.clientX, y: t.clientY, at: e.timeStamp, bar };
     }, { passive: true });
     document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) s = null; }, { passive: true });
@@ -4095,6 +4117,11 @@
       const trip = findTrip(view.trip);
       if (!trip) return;
       if (!bar) {
+        if (view.mode === "today") {
+          const to = document.querySelectorAll(".day-steps .day-step")[step > 0 ? 1 : 0];
+          if (to && to.href) go(to.getAttribute("href"));
+          return;
+        }
         if (view.mode !== "board") return;
         const sorts = sortsOf(trip), i = sorts.findIndex(([id]) => id === view.sort);
         const next = i < 0 ? null : sorts[i + step];
@@ -4451,7 +4478,7 @@
     const trip = findTrip(view.trip), mode = view.mode;
     if (mode === "files") { $("addKindSheet").again = () => (view.mode === "files" ? addHere() : false); openSheet($("addKindSheet"), from); }
     else if (mode === "expenses") openExpense(null, trip, from);
-    else openPlace(null, trip, mode === "today" ? { day: today() } : null, from);
+    else openPlace(null, trip, mode === "today" ? { day: view.day || today() } : null, from);
   }
   function start(ctx) {
     ({ doc, store, motion, save: saveDoc } = ctx);

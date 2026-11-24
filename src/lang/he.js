@@ -754,4 +754,11 @@ Keel.i18n.strings("he", {
   "Now the last day, or the same day again for just that one.": "עכשיו היום האחרון, או שוב אותו יום אם זה רק יום אחד.",
   "Set the destination for all": "קביעת יעד לכולם",
   "Moved {n} places to {to}.": { one: "מקום אחד הועבר ל-{to}.", two: "שני מקומות הועברו ל-{to}.", other: "{n} מקומות הועברו ל-{to}." },
+  "Open this day": "פתיחת היום הזה",
+  "Days": "ימים",
+  "The day before": "היום הקודם",
+  "The day after": "היום הבא",
+  "Day {n} of {total}": "יום {n} מתוך {total}",
+  "Nothing planned for this day.": "אין תוכניות ליום הזה.",
+  "Add a place for this day with +, or give one this day's date on the Plan.": "אפשר להוסיף מקום ליום הזה עם +, או לתת למקום את התאריך שלו בתוכנית.",
 });
