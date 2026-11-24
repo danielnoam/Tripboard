@@ -10,7 +10,7 @@
 //   TripMap.zoom(±1), TripMap.locate()  the map's own buttons (views.js draws them)
 //   TripMap.hover(id, on)              a pin stands out while its card is pointed at
 //   TripMap.drag(id, onDrop)           that place's pin can be dragged; onDrop({ lat, lng }) when let go
-//   TripMap.onPin = (id) => …, TripMap.onTap = ({ lat, lng }) => …, TripMap.onLocateFail = () => …
+//   TripMap.onPin = (id) => …, TripMap.onFocus = (id) => … (a pin pressed twice), TripMap.onTap = ({ lat, lng }) => …, TripMap.onLocateFail = () => …
 (function () {
   // In the browser i18n comes from src/language.js; in Node (tests, the CLI) the English stays.
   const i18n = (typeof window === "object" && window.i18n) || { t: (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)), tn: (n, one, other, v) => (n === 1 ? one : other).replace(/\{(\w+)\}/g, (m, k) => (k === "n" ? n : v && k in v ? v[k] : m)) };
@@ -297,6 +297,7 @@
     drawRoute();
   };
 
+  const lastPin = { id: null, at: 0 };
   T.places = function (list, selected, order) {
     if (!map) return;
     const keep = new Set();
@@ -307,7 +308,14 @@
       if (!m) {
         const el = document.createElement("button");
         el.type = "button";
-        el.addEventListener("click", (e) => { e.stopPropagation(); if (T.onPin) T.onPin(el.dataset.id); });
+        // A second press soon after on the same pin focuses it (zooms in on it).
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const now = Date.now(), twice = lastPin.id === el.dataset.id && now - lastPin.at < 400;
+          lastPin.id = twice ? null : el.dataset.id; lastPin.at = now;
+          if (twice) { if (T.onFocus) T.onFocus(el.dataset.id); } else if (T.onPin) T.onPin(el.dataset.id);
+        });
+        el.addEventListener("dblclick", (e) => { e.stopPropagation(); e.preventDefault(); });
         m = new lib.Marker({ element: el, anchor: "center" }).setLngLat([p.lng, p.lat]).addTo(map);
         pins.set(p.id, m);
       }
@@ -365,7 +373,9 @@
     map.fitBounds(b, { padding: { top: 110, bottom: 160, left: 70, right: 70 }, maxZoom: 15, ...move });
   };
   T.flyTo = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 13), ...(still() ? { duration: 0 } : {}) });
-  T.resize = () => map && map.resize();
+  // Redrawn at once: resizing clears the canvas, and a frame left blank flashes while the split is dragged.
+  T.focus = (p) => map && p.lat != null && map.easeTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom() + 2, 16), ...(still() ? { duration: 0 } : {}) });
+  T.resize = () => { if (!map) return; map.resize(); if (map.redraw) map.redraw(); };
   // A place's pin stands out while its card is under the pointer.
   T.hover = (id, on) => { const m = pins.get(id); if (m) m.getElement().classList.toggle("hot", !!on); };
   T.zoom = (d) => map && (d > 0 ? map.zoomIn(still() ? { duration: 0 } : {}) : map.zoomOut(still() ? { duration: 0 } : {}));
