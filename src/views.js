@@ -2072,8 +2072,8 @@
   // A stay's From and To are its check-in and check-out.
   function paintTimes() {
     const stay = $("categorySelect").value === "stay";
-    $("timeLabel").textContent = stay ? i18n.t("Check-in") : i18n.t("From");
-    $("endTimeLabel").textContent = stay ? i18n.t("Check-out") : i18n.t("To");
+    $("timeLabel").textContent = stay ? i18n.t("Check-in") : i18n.t("From", { _: "time" });
+    $("endTimeLabel").textContent = stay ? i18n.t("Check-out") : i18n.t("To", { _: "time" });
   }
   $("placeClear").addEventListener("click", () => { loc = null; $("placeResults").replaceChildren(); $("placeFindNote").textContent = ""; paintWhere(); });
   let searching = 0;

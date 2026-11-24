@@ -391,13 +391,20 @@ body.with-tabbar .map-panel.nowhere { inset-inline-end: calc(var(--space-3) + 72
 }
 /* Chromium and Android's WebView draw their own arrow flush with the edge,
    ignoring padding, so the arrow is drawn here: two gradients make a chevron. */
-.field select {
+.field select, .field input[type="time"], .field input[type="date"] {
   appearance: none; padding-inline-end: 40px;
   background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
   background-position: calc(100% - 21px) 50%, calc(100% - 16px) 50%;
   background-size: 5px 5px; background-repeat: no-repeat;
 }
-[dir="rtl"] .field select { background-position: 16px 50%, 21px 50%; }
+[dir="rtl"] .field select, [dir="rtl"] .field input[type="time"], [dir="rtl"] .field input[type="date"] { background-position: 16px 50%, 21px 50%; }
+/* Android draws time and date fields as drop-downs with the same flush arrow.
+   A computer's own clock or calendar button is kept, unseen, over the chevron. */
+.field input[type="time"], .field input[type="date"] { position: relative; text-align: start; }
+.field input::-webkit-calendar-picker-indicator {
+  position: absolute; inset-block: 0; inset-inline-end: 0; width: 40px; height: auto;
+  margin: 0; padding: 0; opacity: 0; cursor: pointer;
+}
 .field textarea { resize: vertical; }
 .field [aria-invalid="true"] { border-color: var(--danger); }
 .field input[hidden], .field select[hidden] { display: none; }
