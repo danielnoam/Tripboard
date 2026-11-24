@@ -363,12 +363,14 @@
   }
 
   // ---------- A trip's board ----------
-  const SORTS = [["time", i18n.t("Time")], ["category", i18n.t("Category")], ["importance", i18n.t("Importance")], ["rating", i18n.t("Rating")], ["distance", i18n.t("Distance")]];
+  const SORTS = [["time", i18n.t("Time")], ["area", i18n.t("Destination")], ["category", i18n.t("Category")], ["importance", i18n.t("Importance")], ["rating", i18n.t("Rating")], ["distance", i18n.t("Distance")]];
   const RATING_GROUPS = M.RATINGS.concat([["none", i18n.t("Not rated")]]);
   const starsLabel = (n) => i18n.tn(n, "1 star", "{n} stars");
   function renderBoard(main, trip) {
     $("title").textContent = trip.name;
     const places = placesOf(trip.id);
+    // By destination needs destinations; without, the Plan goes by time.
+    if (view.sort === "area" && !trip.destinations.length) view.sort = "time";
     const hero = coverBox(trip, "hero");
     hero.append(el("div.hero-text", {},
       el("span", { text: rangeLabel(trip) + (whenLabel(trip) ? " · " + whenLabel(trip) : "") }),
@@ -376,7 +378,7 @@
     main.append(hero);
 
     const controls = el("div.controls", {},
-      el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), SORTS.map(([id, label]) =>
+      el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), SORTS.filter(([id]) => id !== "area" || trip.destinations.length).map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
           onclick: (e) => { segWas = segSpot(e.currentTarget.parentNode); view.sort = id; remember(); render(); } }))),
       places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
@@ -396,6 +398,12 @@
         el("button.btn", { type: "button", onclick: locate }, icon("locate"), i18n.t("Use my location"))));
     }
     const kept = view.mapCats.length ? places.filter((p) => view.mapCats.includes(p.category)) : places;
+    if (view.sort === "area") {
+      const wrap = el("div.groups.areas");
+      for (const g of M.board(trip, kept, "area", { only: view.only })) wrap.append(area(trip, g));
+      main.append(wrap);
+      return;
+    }
     const groups = M.board(trip, kept, view.sort, { only: view.only, from: view.from, cats: cats() });
     // Groups with nothing in them yet, to drop into while dragging.
     const all = view.sort === "category" ? cats() : view.sort === "importance" ? M.IMPORTANCE : view.sort === "rating" ? RATING_GROUPS : [];
@@ -1346,6 +1354,69 @@
     await closing;
   });
 
+  // ---------- By destination ----------
+  // A destination's block, as in a sheet with a block for each city: its
+  // stays, its days, then what has no day yet; trips out of it (a day in
+  // Hiroshima from Osaka) sit beside it on a wide screen, under it on a phone.
+  function area(trip, g) {
+    const k = destKey(trip, "area:" + (g.dest || g.id));
+    const open = !view.destShut.includes(k);
+    const flip = () => {
+      view.destShut = open ? view.destShut.concat(k).slice(-50) : view.destShut.filter((x) => x !== k);
+      remember();
+      render();
+    };
+    const all = (g.places || []).concat(g.stays || [], ...(g.side || []).map((s) => s.places.concat(s.stays)));
+    const been = all.filter((p) => p.visited && !M.isJourney(p) && !M.isStay(p)).length;
+    const counted = all.filter((p) => !M.isJourney(p) && !M.isStay(p)).length;
+    const title = g.kind === "travel" ? i18n.t("On the way") : g.dest ? g.dest : i18n.t("No destination");
+    const head = el("div.area-head", {},
+      el("button.fold", { type: "button", "aria-expanded": String(open), onclick: flip },
+        icon(g.kind === "travel" ? "plane" : "pin"),
+        el("span.area-name", {}, el("h2", { text: title }), el("span.dim", { text: areaWhen(g) })),
+        counted ? el("span.area-count", { text: been ? i18n.t("{been} of {n} been", { been, n: counted }) : i18n.tn(counted, "1 place", "{n} places") }) : null,
+        icon("chevron")),
+      mayEdit(trip) && g.dest ? el("button.icon-btn.small", { type: "button", "aria-label": i18n.t("Add a place to {title}", { title }),
+        onclick: (e) => openPlace(null, trip, { dest: g.dest }, e.currentTarget) }, icon("plus")) : null);
+    const box = el("section.area" + (open ? ".open" : "") + (g.kind === "travel" ? ".travel" : ""), { "data-area": g.dest || g.id }, head);
+    if (!open) {
+      if (g.side && g.side.length) box.append(el("p.dim.area-peek", { text: i18n.t("Including {names}", { names: g.side.map((x) => x.dest).join(" · ") }) }));
+      return box;
+    }
+    const cols = el("div.area-cols", {}, areaCol(trip, g, false));
+    for (const s of g.side || []) cols.append(areaCol(trip, s, true));
+    box.append(cols);
+    // On a wide screen blocks share a row by how many columns each needs.
+    const n = [...cols.children].reduce((sum, c) => sum + (c.classList.contains("wide") ? 2 : 1), 0);
+    box.style.setProperty("--cols", String(n));
+    return box;
+  }
+  function areaWhen(g) {
+    if (!g.start) return g.kind === "area" ? i18n.t("No dates yet") : "";
+    const nights = M.daySpan({ day: g.start, endDay: g.end });
+    return destRange(g) + (nights ? " · " + i18n.tn(nights, "1 night", "{n} nights") : "");
+  }
+  // One column: a trip out (with its own name and dates) or the destination's own.
+  function areaCol(trip, g, side) {
+    const col = el("div.area-col" + (side ? ".trip-out" : ""));
+    if (side) {
+      const nights = M.daySpan({ day: g.start, endDay: g.end });
+      col.append(el("div.area-col-head", {}, el("h3", { text: g.dest }),
+        el("span.dim", { text: destRange(g) + " · " + (nights ? i18n.tn(nights, "1 night", "{n} nights") : i18n.t("Day trip")) })));
+    }
+    const ctx = { area: true };
+    if (g.stays && g.stays.length) col.append(el("h4.slot", { text: i18n.t("Stay") }), cards(trip, g.stays, ctx));
+    const byDay = new Map();
+    for (const p of g.places.filter((x) => x.day)) byDay.set(p.day, (byDay.get(p.day) || []).concat(p));
+    for (const [day, list] of byDay) col.append(el("h4.slot", { text: dayLabel(day) }), cards(trip, list, { area: true, day }));
+    const rest = g.places.filter((x) => !x.day);
+    if (rest.length) col.append(el("h4.slot", { text: byDay.size || (g.stays && g.stays.length) ? i18n.t("Any day") : i18n.t("Places") }), cards(trip, rest, ctx));
+    if (col.childElementCount === (side ? 1 : 0)) col.append(el("p.dim.slot-empty", { text: i18n.t("Nothing here yet.") }));
+    if (!side && g.side && g.side.length) col.classList.add("main");
+    if (!side && rest.length > 14) col.classList.add("wide");
+    return col;
+  }
+
   // A destination's run of days starts with its name and dates.
   function destBand(g) {
     const nights = g.start ? M.daySpan({ day: g.start, endDay: g.end }) : 0;
@@ -1563,7 +1634,7 @@
       if (p.land) return [landRow(p.land, trip), changeRow(p.land, trip)].filter(Boolean);
       const journey = M.isJourney(p);
       const meta = view.sort === "category" || !catWords() ? [] : [M.catName(cats(), trip, p.category)];
-      if (view.sort !== "time" && p.day) meta.push(daysLabel(p));
+      if (view.sort !== "time" && p.day && (!g.area || p.endDay)) meta.push(daysLabel(p));
       else if (p.endDay && g.day && !["in", "out"].includes(M.stayPart(p, g.day))) meta.push(i18n.t("{n} of {total} days", { n: M.daySpan({ day: p.day, endDay: g.day }) + 1, total: M.daySpan(p) + 1 }));
       const nFiles = sees(trip, "files") ? filesOn(p.id).length : 0;
       if (g.km && g.km.has(p.id)) meta.push(boardDist(g.km.get(p.id)));

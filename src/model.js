@@ -513,6 +513,13 @@
   //   importance  Must see, Want to, Maybe
   //   rating      five stars down to one, then "Not rated"
   //   distance    one list, nearest to `from` first, then "No location"
+  //   area        one group a destination, in date order, like a sheet with a
+  //               block for each city: { kind: "area", dest, start, end,
+  //               stays, places, side: [same, for each trip out of it] }.
+  //               A destination whose dates sit inside a longer one's is a
+  //               trip out of it (Hiroshima from Osaka). Destinations with
+  //               no dates follow, then { kind: "travel" } for journeys
+  //               outside every destination's dates, and "No destination".
   function journeyFields(p, out) {
     out.kind = "journey";
     out.mode = MODE.has(p.mode) ? p.mode : "other";
@@ -561,8 +568,59 @@
       .sort((x, y) => (x.day + x.time).localeCompare(y.day + y.time))[0] || null;
   }
 
+  // The board by destination (sort "area"). A place goes to the
+  // destination it was put in or is near; one with a day outside that
+  // destination's dates, or near none, to the destination of its day. A
+  // journey goes to the destination of the day it leaves. In each: stays
+  // first, then places with a day by day and time, then the rest by
+  // importance.
+  function areas(trip, places) {
+    const dests = destsOf(trip);
+    const dated = dests.filter((d) => d.start && d.end);
+    const span = (d) => dayNum(d.end) - dayNum(d.start);
+    const parentOf = (d) => dated.filter((o) => o !== d && o.start <= d.start && d.end <= o.end && span(o) > span(d))
+      .sort((a, b) => span(a) - span(b))[0] || null;
+    const home = (p) => {
+      if (isJourney(p)) return p.day ? dayDest(trip, p.day) : null;
+      const near = destOf(trip, p);
+      if (!p.day) return near;
+      const d = near && dests.find((x) => x.name === near);
+      if (d && (!d.start || (p.day <= d.end && (p.endDay || p.day) >= d.start))) return near;
+      return dayDest(trip, p.day) || near;
+    };
+    const byWhen = (a, b) => (a.day ? 0 : 1) - (b.day ? 0 : 1) || (a.day || "").localeCompare(b.day || "") || byTime(a, b);
+    const of = new Map(dests.map((d) => [d.name, { kind: "area", id: "area:" + d.name, title: d.name, dest: d.name, start: d.start || null, end: d.end || null, stays: [], places: [], side: [] }]));
+    const travel = [], none = [];
+    for (const p of places) {
+      const g = of.get(home(p));
+      if (!g) (isJourney(p) && p.day ? travel : none).push(p);
+      else if (isStay(p) && p.day) g.stays.push(p);
+      else g.places.push(p);
+    }
+    for (const g of of.values()) { g.stays.sort(byWhen); g.places.sort(byWhen); }
+    for (const d of dated) {
+      const up = parentOf(d);
+      if (up) of.get(up.name).side.push(of.get(d.name));
+    }
+    const top = dests.filter((d) => !(d.start && d.end && parentOf(d))).map((d) => of.get(d.name))
+      .filter((g) => g.start || g.places.length || g.stays.length);
+    for (const g of of.values()) g.side.sort((a, b) => a.start.localeCompare(b.start));
+    // Journeys outside every destination's dates, in runs of days in a row.
+    travel.sort(byWhen);
+    const runs = [];
+    for (const j of travel) {
+      const last = runs[runs.length - 1];
+      if (last && dayNum(j.day) - dayNum(last.end) <= 1) { last.places.push(j); last.end = j.day; }
+      else runs.push({ kind: "travel", id: "travel:" + j.day, title: i18n.t("On the way"), start: j.day, end: j.day, places: [j] });
+    }
+    const out = top.concat(runs).sort((a, b) => (a.start ? 0 : 1) - (b.start ? 0 : 1) || (a.start || "").localeCompare(b.start || ""));
+    if (none.length) out.push({ id: "nodest", title: i18n.t("No destination"), places: none.sort(byWhen) });
+    return out;
+  }
+
   function board(trip, places, sort, { only, from, cats } = {}) {
     let shown = only && only.length ? places.filter((p) => only.includes(p.importance) || isJourney(p)) : places.slice();
+    if (sort === "area") return areas(trip, shown);
     if (sort === "category") {
       const list = cats || CATEGORIES;
       // A category that isn't in your list (someone else's, on a shared
@@ -728,7 +786,7 @@
     sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, isStay, timeOn, stayPart, distanceKm, board, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
+    slotOf, isStay, timeOn, stayPart, distanceKm, board, areas, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.
     KNOWN: { trip: KNOWN_TRIP, place: KNOWN_PLACE, expense: KNOWN_EXPENSE, file: KNOWN_FILE },
   };

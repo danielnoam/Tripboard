@@ -1,0 +1,2 @@
+### Added
+- Plan › Destination: the trip by destination, in date order, like a sheet with a block for each city. Each block has its stay, its days and what has no day yet; a destination whose dates sit inside a longer one's (a day trip, a night in Hakone from Tokyo) is a column beside it on a computer and under it on a phone. Blocks fold to one line, so a long trip reads as an outline. AI tools get the same with get_board sort "area".

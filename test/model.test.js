@@ -52,6 +52,33 @@ test("by time: every trip day, a day outside it, slots in order, then No date", 
   assert.strictEqual(M.dayIndex(trip, "2026-11-21"), 5);
 });
 
+test("by area: a block a destination in date order, trips out of a longer one inside it, then undated and none", () => {
+  const tr = M.sanitizeTrip({ id: "j", name: "Japan", start: "2023-02-05", end: "2023-02-20", destinations: ["Osaka", "Hiroshima", "Tokyo", "Nara"],
+    destInfo: { Osaka: { start: "2023-02-06", end: "2023-02-13", lat: 34.69, lng: 135.5 }, Hiroshima: { start: "2023-02-08", end: "2023-02-08", lat: 34.39, lng: 132.46 },
+      Tokyo: { start: "2023-02-13", end: "2023-02-20", lat: 35.68, lng: 139.77 }, Nara: { lat: 34.69, lng: 135.8 } } });
+  const ps = [
+    P({ id: "fly", trip: "j", name: "TLV", kind: "journey", mode: "flight", day: "2023-02-05", time: "05:40", toName: "ZRH" }),
+    P({ id: "hotel", trip: "j", name: "IAM", category: "stay", day: "2023-02-06", endDay: "2023-02-13", lat: 34.67, lng: 135.5 }),
+    P({ id: "castle", trip: "j", name: "Osaka Castle", lat: 34.68, lng: 135.52 }),
+    P({ id: "usj", trip: "j", name: "USJ", day: "2023-02-09", lat: 34.66, lng: 135.43 }),
+    P({ id: "dome", trip: "j", name: "Peace Park", day: "2023-02-08", lat: 34.39, lng: 132.45 }),
+    P({ id: "miya", trip: "j", name: "Miyajima", day: "2023-02-08" }),
+    P({ id: "deer", trip: "j", name: "Nara Park", lat: 34.68, lng: 135.84 }),
+    P({ id: "crawl", trip: "j", name: "Pub crawl" }),
+  ];
+  const g = M.board(tr, ps, "area");
+  assert.deepStrictEqual(g.map((x) => [x.kind || "none", x.title]), [["travel", "On the way"], ["area", "Osaka"], ["area", "Tokyo"], ["area", "Nara"], ["none", "No destination"]]);
+  const osaka = g[1];
+  assert.deepStrictEqual(osaka.stays.map((p) => p.id), ["hotel"]);
+  assert.deepStrictEqual(osaka.places.map((p) => p.id), ["usj", "castle"]);
+  assert.deepStrictEqual(osaka.side.map((x) => [x.dest, x.places.map((p) => p.id)]), [["Hiroshima", ["miya", "dome"]]]);
+  assert.deepStrictEqual(g[3].places.map((p) => p.id), ["deer"]);
+  assert.deepStrictEqual(g[4].places.map((p) => p.id), ["crawl"]);
+  // A place near Osaka but on a Tokyo day goes with Tokyo.
+  ps[3].day = "2023-02-15";
+  assert.deepStrictEqual(M.board(tr, ps, "area")[2].places.map((p) => p.id), ["usj"]);
+});
+
 test("by category and by importance: only groups with places, most important first", () => {
   assert.deepStrictEqual(M.board(trip, places, "category").map((g) => [g.id, g.places.map((p) => p.id)]),
     [["sight", ["a"]], ["food", ["e", "b"]], ["nature", ["d"]], ["other", ["c"]]]);
