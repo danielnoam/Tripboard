@@ -4249,6 +4249,14 @@
         ["plus", i18n.t("Add a place"), () => openPlace(null, trip, { dest: name }, head)],
       ].filter(Boolean), x, y, keyboard);
     }));
+    qHeld.push(onHold(".area[data-area=nodest] > .area-head", (head, x, y, keyboard) => {
+      const trip = findTrip(view.trip);
+      if (!trip || !mayEdit(trip)) return false;
+      return openQuick(head, i18n.t("No destination"), [
+        ["calendar", i18n.t("Set the days for all"), () => openDestDay(head, trip, null)],
+        ["pin", i18n.t("Set the destination for all"), () => openSetDest(head, trip)],
+      ], x, y, keyboard);
+    }));
     qHeld.push(onHold(".trip-card[data-trip]", (card, x, y, keyboard) => {
       const trip = findTrip(card.dataset.trip);
       if (!trip || !mayEdit(trip)) return false;
@@ -4334,7 +4342,8 @@
   // destination with no dates of its own gets that day, so it shows as a
   // day trip on it.
   function destPlaces(trip, name) {
-    const find = (list) => { for (const g of list) { if (g.dest === name) return g; const s = find(g.side || []); if (s) return s; } return null; };
+    // No name: the No destination block.
+    const find = (list) => { for (const g of list) { if (name ? g.dest === name : g.id === "nodest") return g; const s = find(g.side || []); if (s) return s; } return null; };
     const g = find(M.board(trip, placesOf(trip.id), "area"));
     return g ? g.places.filter((p) => !M.isJourney(p) && !M.isStay(p)) : [];
   }
@@ -4343,7 +4352,7 @@
   // already on one of them there, the rest with no day (its Any day).
   function openDestDay(from, trip, name) {
     const list = destPlaces(trip, name);
-    $("moveTitle").textContent = i18n.t("Set the days for {name}", { name });
+    $("moveTitle").textContent = i18n.t("Set the days for {name}", { name: name || i18n.t("No destination") });
     const box = $("moveList");
     box.replaceChildren();
     document.querySelectorAll(".move-hint").forEach((n) => n.remove());
@@ -4355,9 +4364,10 @@
       if (a !== "nodate" && b < a) [a, b] = [b, a];
       const one = a === "nodate" || a === b;
       const moving = one ? list : list.filter((p) => !(M.isDay(p.day) && p.day >= a && p.day <= b));
+      if (!name && !moving.length) return;
       undoable(moving.length ? i18n.tn(moving.length, "Moved 1 place.", "Moved {n} places.") : i18n.t("{name} has new dates.", { name }), () => {
         moving.forEach((p) => shift(p, one ? a : "nodate", "", "time"));
-        if (a === "nodate") return;
+        if (a === "nodate" || !name) return;
         const t = findTrip(trip.id), info = (t.destInfo || {})[name] || {};
         t.destInfo = { ...(t.destInfo || {}), [name]: { ...info, start: a, end: b } };
         t.updatedAt = new Date().toISOString();
@@ -4381,6 +4391,31 @@
       box.append(row);
     }
     box.append(el("button.move-to", { type: "button", onclick: () => go("nodate", "nodate") }, el("span", { text: i18n.t("No date") })));
+    openSheet($("moveSheet"), from);
+  }
+  // Everything in No destination into one destination. Its dates grow to
+  // take in their days, or they'd only fall back out by their dates.
+  function openSetDest(from, trip) {
+    const g = M.board(trip, placesOf(trip.id), "area").find((x) => x.id === "nodest");
+    const list = g ? g.places.concat(g.stays || []).filter((p) => !M.isJourney(p)) : [];
+    $("moveTitle").textContent = i18n.t("Set the destination for all");
+    const box = $("moveList");
+    box.replaceChildren();
+    document.querySelectorAll(".move-hint").forEach((n) => n.remove());
+    if (!list.length) box.append(el("p.dim", { text: i18n.t("Nothing here yet.") }));
+    else for (const name of trip.destinations) box.append(el("button.move-to", { type: "button", onclick: () => {
+      closeSheet($("moveSheet"));
+      undoable(i18n.tn(list.length, "Moved 1 place to {to}.", "Moved {n} places to {to}.", { to: name }), () => {
+        const t = findTrip(trip.id), stamp = new Date().toISOString();
+        for (const p of list) { p.dest = name; p.updatedAt = stamp; }
+        const days = list.flatMap((p) => [p.day, p.endDay]).filter(M.isDay).sort();
+        const info = (t.destInfo || {})[name] || {};
+        if (days.length && info.start) {
+          const start = days[0] < info.start ? days[0] : info.start, end = days[days.length - 1] > info.end ? days[days.length - 1] : info.end;
+          if (start !== info.start || end !== info.end) { t.destInfo = { ...t.destInfo, [name]: { ...info, start, end } }; t.updatedAt = stamp; }
+        }
+      });
+    } }, icon("pin", "cat"), el("span", { text: name })));
     openSheet($("moveSheet"), from);
   }
   function setDestIn(trip, name, to) {

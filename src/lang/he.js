@@ -757,4 +757,6 @@ Keel.i18n.strings("he", {
   "Set the days for {name}": "קביעת הימים של {name}",
   "Tap a day, then the last day for more than one. Tap it again for just that day.": "יש להקיש על יום, ואז על היום האחרון אם יש יותר מאחד. הקשה נוספת על אותו יום משאירה רק אותו.",
   "Now the last day, or the same day again for just that one.": "עכשיו היום האחרון, או שוב אותו יום אם זה רק יום אחד.",
+  "Set the destination for all": "קביעת יעד לכולם",
+  "Moved {n} places to {to}.": { one: "מקום אחד הועבר ל-{to}.", two: "שני מקומות הועברו ל-{to}.", other: "{n} מקומות הועברו ל-{to}." },
 });
