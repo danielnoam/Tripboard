@@ -742,7 +742,6 @@ Keel.i18n.strings("he", {
   "Any day": "בכל יום",
   "Places": "מקומות",
   "Including {names}": "כולל {names}",
-  "Drop here to give it a block of its own": "אפשר לשחרר כאן כדי לתת לו בלוק משלו",
   "Moved {name} to {to}.": "{name} הועבר ל-{to}.",
   "{name} is inside {to} now.": "{name} נמצא עכשיו בתוך {to}.",
   "{name} has a block of its own now.": "ל-{name} יש עכשיו בלוק משלו.",
