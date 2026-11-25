@@ -126,6 +126,7 @@
       </div>
       <div class="sheet-actions">
         <button class="btn danger" id="tripDelete" type="button" hidden data-t>Delete trip</button>
+        <button class="btn quiet" id="tripDup" type="button" hidden data-t>Duplicate</button>
         <span class="grow"></span>
         <button class="btn primary" type="submit" id="tripSave" data-t>Create trip</button>
       </div>
@@ -198,6 +199,30 @@
         <button class="btn quiet" type="button" data-close data-t>Cancel</button>
       </div>
     </div>
+  </dialog>
+  <dialog class="sheet" id="dupSheet" aria-labelledby="dupTitle">
+    <form class="sheet-body" id="dupForm" novalidate>
+      <h2 id="dupTitle"></h2>
+      <label class="field"><span data-t>Name</span>
+        <input name="name" type="text" autocomplete="off" maxlength="160" required>
+      </label>
+      <fieldset class="field dup-what">
+        <legend id="dupWhat"></legend>
+        <label class="check dup-check"><input type="checkbox" name="locations" checked><span><strong data-t>Locations</strong><span class="hint dim" data-t>Each place's pin on the map. Off: names only, to find again.</span></span></label>
+        <label class="check dup-check"><input type="checkbox" name="dates" checked><span><strong data-t>Dates</strong><span class="hint dim" data-t>The trip's days, and each place's day and time. Off: no dates, every place in No date.</span></span></label>
+        <label class="check dup-check" id="dupFilesRow"><input type="checkbox" name="attachments" checked><span><strong data-t>Attachments</strong><span class="hint dim" id="dupFilesHint"></span></span></label>
+      </fieldset>
+      <label class="field" id="dupStartRow"><span data-t>New start</span>
+        <input name="start" type="date">
+        <span class="hint dim" id="dupStartHint"></span>
+      </label>
+      <p class="hint dim" data-t>Names, categories, importance, descriptions and destinations always come along. Ratings, been there, expenses and the people it's shared with never do: the copy is yours alone.</p>
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn quiet" type="button" data-close data-t>Cancel</button>
+        <button class="btn primary" type="submit" data-t>Duplicate</button>
+      </div>
+    </form>
   </dialog>
   <dialog class="sheet confirm" id="confirmSheet" aria-labelledby="confirmTitle">
     <div class="sheet-body">

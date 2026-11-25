@@ -247,6 +247,56 @@
     return Object.assign(trip, { owner: me.id, members: [{ id: me.id, name: text(me.name), role: "owner" }] });
   }
 
+  // A copy of a trip, yours alone (no people, no sharing). Its places come
+  // with their name, category, importance, description and destination;
+  // never their rating or "been there", and never the trip's expenses.
+  //   opts.locations: each place's (and journey's) location
+  //   opts.dates: the trip's days and each place's day and time, moved to
+  //     opts.start when the trip has a start (Day 2 stays Day 2)
+  //   opts.attachments: links, notes and files, on their copied places
+  // → { trip, places, files, fileIds: [[from, to]] } — a file's bytes and
+  // the cover photo are the caller's to copy (fileIds, trip.cover).
+  const PLACE_WHERE = ["lat", "lng", "address", "placeId", "geoAt", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt"];
+  const PLACE_WHEN = ["day", "endDay", "time", "endTime", "order", "arriveDay", "arriveTime"];
+  function duplicateTrip(doc, trip, opts = {}, me) {
+    const at = now();
+    const o = { locations: opts.locations !== false, dates: opts.dates !== false, attachments: opts.attachments !== false };
+    const shift = o.dates && trip.start && isDay(opts.start) ? dayNum(opts.start) - dayNum(trip.start) : 0;
+    const move = (d) => (isDay(d) ? addDays(d, shift) : d);
+    const t = { id: newId(), name: text(opts.name) || trip.name, destinations: [...trip.destinations], createdAt: at, updatedAt: at };
+    if (o.dates && trip.start) { t.start = move(trip.start); if (trip.end) t.end = move(trip.end); }
+    const info = {};
+    for (const [name, v] of Object.entries(trip.destInfo || {})) {
+      const r = { ...v };
+      if (o.dates && r.start) { r.start = move(r.start); r.end = move(r.end); } else { delete r.start; delete r.end; }
+      if (Object.keys(r).length) info[name] = r;
+    }
+    if (Object.keys(info).length) t.destInfo = info;
+    if (trip.cats) t.cats = { ...trip.cats };
+    if (trip.art) t.art = trip.art;
+    if (trip.cover) { t.cover = true; t.coverAt = at; }
+    ownTrip(t, me);
+    const ids = new Map();
+    const places = (doc.places || []).filter((p) => p.trip === trip.id).map((p) => {
+      const c = { ...p, id: newId(), trip: t.id, createdAt: at, updatedAt: at };
+      ids.set(p.id, c.id);
+      for (const k of ["rating", "visited", "by"]) delete c[k];
+      if (!o.locations) for (const k of PLACE_WHERE) delete c[k];
+      if (!o.dates) for (const k of PLACE_WHEN) delete c[k];
+      else for (const k of ["day", "endDay", "arriveDay"]) if (c[k]) c[k] = move(c[k]);
+      return sanitizePlace(c);
+    });
+    const fileIds = [];
+    const files = !o.attachments ? [] : (doc.files || []).filter((f) => f.trip === trip.id && (!f.place || ids.has(f.place))).map((f) => {
+      const c = { ...f, id: newId(), trip: t.id, createdAt: at, updatedAt: at };
+      delete c.by;
+      if (f.place) c.place = ids.get(f.place);
+      if (hasBytes(f)) fileIds.push([f.id, c.id]);
+      return sanitizeFile(c);
+    });
+    return { trip: sanitizeTrip(t), places, files, fileIds };
+  }
+
   function sanitizePlace(p) {
     p = p || {};
     const out = {
@@ -779,7 +829,7 @@
   }
 
   const api = {
-    sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
+    sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, duplicateTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, STAR_FILTERS, filterPlaces, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, isStay, timeOn, stayPart, distanceKm, board, areas, REACH_KM, destsOf, hasDestDates, destOf, dayDest, awayStay, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,

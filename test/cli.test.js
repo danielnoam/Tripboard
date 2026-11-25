@@ -37,6 +37,35 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(g.commits, 3);
   });
 
+  await test("duplicate-trip copies a trip with its places, files and cover, moved to a new start", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Kyoto", "--start", "2026-12-01", "--end", "2026-12-04"], env, out);
+    await cli.main(["add-place", "kyoto", "--name", "Fushimi Inari", "--day", "2026-12-02", "--time", "07:00", "--lat", "34.967", "--lng", "135.772"], env, out);
+    await cli.main(["edit-place", "kyoto", "fushimi", "--rating", "5"], env, out);
+    await cli.main(["add-expense", "Kyoto", "--amount", "10", "--currency", "jpy", "--title", "Tea"], env, out);
+    const st0 = await core.open({ token: "tok", repo: "me/data" }).snapshot();
+    const src = st0.doc.trips[0];
+    await core.open({ token: "tok", repo: "me/data" }).change((doc, ctx) => core.ops.addFile(doc, { trip: src.id, name: "ticket.pdf", bytes: Buffer.from("%PDF-1") }, ctx));
+    await cli.main(["duplicate-trip", "kyoto", "--name", "Kyoto again", "--start", "2027-03-01"], env, out);
+    const st = await core.open({ token: "tok", repo: "me/data" }).snapshot();
+    const copy = st.doc.trips.find((t) => t.name === "Kyoto again");
+    assert.deepStrictEqual([copy.start, copy.end], ["2027-03-01", "2027-03-04"]);
+    const p = st.doc.places.find((x) => x.trip === copy.id);
+    assert.deepStrictEqual([p.name, p.day, p.time, p.lat, p.rating], ["Fushimi Inari", "2027-03-02", "07:00", 34.967, undefined]);
+    assert.strictEqual(st.doc.expenses.filter((x) => x.trip === copy.id).length, 0, "expenses stay behind");
+    const f = st.doc.files.find((x) => x.trip === copy.id);
+    assert.ok(f, "the file's record came");
+    assert.strictEqual(Buffer.from(await st.raw("files/" + copy.id + "/" + f.id)).toString(), "%PDF-1", "and its bytes");
+    await cli.main(["duplicate-trip", "kyoto", "--dates", "false", "--locations", "false", "--attachments", "false"], env, out);
+    const st2 = await core.open({ token: "tok", repo: "me/data" }).snapshot();
+    const bare = st2.doc.trips.find((t) => t.name === "Kyoto (copy)");
+    const q = st2.doc.places.find((x) => x.trip === bare.id);
+    assert.deepStrictEqual([bare.start, q.day, q.lat], [undefined, undefined, undefined]);
+    assert.strictEqual(st2.doc.files.filter((x) => x.trip === bare.id).length, 0);
+  });
+
   await test("show says which sharing server a shared trip is on, never its key", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;
