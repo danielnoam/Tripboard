@@ -797,4 +797,9 @@ Keel.i18n.strings("he", {
   "To check · {n}": "לבדיקה · {n}",
   "{n} are in this trip already.": { one: "אחד כבר נמצא בטיול הזה.", other: "{n} כבר נמצאים בטיול הזה." },
   "{n} short links (maps.app.goo.gl) can't be read here: paste the places' names instead.": { one: "קישור מקוצר אחד (maps.app.goo.gl) אי אפשר לקרוא כאן: במקומו כדאי להדביק את שם המקום.", other: "{n} קישורים מקוצרים (maps.app.goo.gl) אי אפשר לקרוא כאן: במקומם כדאי להדביק את שמות המקומות." },
+  "Add to a trip": "הוספה לטיול",
+  "Nothing came with that to add.": "לא הגיע עם זה שום דבר להוספה.",
+  "from Google Maps": "ממפות Google",
+  "A place on Google Maps": "מקום במפות Google",
+  "A link": "קישור",
 });
