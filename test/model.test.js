@@ -522,4 +522,11 @@ test("duplicating a trip: yours alone, dates moved, what's kept is chosen", () =
   assert.deepStrictEqual([same.trip.start, same.places.find((p) => p.name === "Belém Tower").day], ["2026-12-10", "2026-12-11"], "no new start: the same days");
 });
 
+test("To check: kept only as true, and a filter of its own", () => {
+  const a = M.sanitizePlace({ id: "a", trip: "t", name: "A", check: true }), b = M.sanitizePlace({ id: "b", trip: "t", name: "B", check: "yes" });
+  assert.deepStrictEqual([a.check, b.check], [true, undefined]);
+  assert.deepStrictEqual(M.filterPlaces([a, b], { check: true }).map((p) => p.id), ["a"]);
+  assert.strictEqual(M.filterPlaces([a, b], {}).length, 2);
+});
+
 console.log(passed + " passed");

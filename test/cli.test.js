@@ -66,6 +66,23 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     assert.strictEqual(st2.doc.files.filter((x) => x.trip === bare.id).length, 0);
   });
 
+  await test("import --lines adds a pasted list with one importance and day; setting a location clears To check", async () => {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const out = () => {};
+    await cli.main(["new-trip", "--name", "Lisbon", "--start", "2026-12-10", "--end", "2026-12-12"], env, out);
+    await cli.main(["import", "lisbon", "--lines", "Belém Tower\n- Time Out Market\nhttps://www.google.com/maps/place/LX+Factory/@38.7036,-9.1784,17z", "--importance", "must", "--day", "2026-12-11"], env, out);
+    let st = await core.open({ token: "tok", repo: "me/data" }).snapshot();
+    assert.deepStrictEqual(st.doc.places.map((p) => [p.name, p.importance, p.day, p.lat != null]),
+      [["Belém Tower", "must", "2026-12-11", false], ["Time Out Market", "must", "2026-12-11", false], ["LX Factory", "must", "2026-12-11", true]]);
+    await cli.main(["edit-place", "lisbon", "belém", "--check", "true"], env, out);
+    st = await core.open({ token: "tok", repo: "me/data" }).snapshot();
+    assert.strictEqual(st.doc.places.find((p) => p.name === "Belém Tower").check, true);
+    await cli.main(["edit-place", "lisbon", "belém", "--lat", "38.6916", "--lng", "-9.216"], env, out);
+    st = await core.open({ token: "tok", repo: "me/data" }).snapshot();
+    assert.strictEqual(st.doc.places.find((p) => p.name === "Belém Tower").check, undefined);
+  });
+
   await test("show says which sharing server a shared trip is on, never its key", async () => {
     const g = fakeGitHub();
     globalThis.fetch = g.fetch;

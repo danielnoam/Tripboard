@@ -128,7 +128,42 @@
     return clean(String(fileName).replace(/\.csv$/i, "").replace(/\s*\(\d+\)$/, ""));
   }
 
-  const api = { parse, title, fromUrl, csvRows };
+  // A pasted list: one place a line, a name or a Google Maps place link
+  // (/maps/place/<name>/…, often with its location). Bullets and numbers
+  // at the start go, and a name already given is skipped. A short link
+  // (maps.app.goo.gl) can't be read without opening it: on a line of its
+  // own it's counted in `short`, unless it follows a name, as Google Maps'
+  // Share writes "Name" and then its link (that name is the place).
+  // → { places: [{ name, lat?, lng?, url?, from: "name" | "link" }], short }
+  const SHORT = /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)\//i;
+  function pasted(text) {
+    const places = [], seen = new Set();
+    let short = 0, afterName = false;
+    for (const raw of String(text || "").replace(/^\uFEFF/, "").split(/\r\n?|\n/)) {
+      const line = clean(raw.replace(/^\s*(?:[-*•·–—>]+|\d{1,3}[.)])\s+/, ""));
+      if (!line) { afterName = false; continue; }
+      const url = (/https?:\/\/\S+/.exec(line) || [])[0] || "";
+      const rest = clean(line.replace(url, "").replace(/[\s:,–—-]+$/, ""));
+      let p = null;
+      if (url && SHORT.test(url)) {
+        if (rest) p = { name: rest, from: "name" };
+        else if (!afterName) short++;
+      } else if (url) {
+        const name = nameFromUrl(url) || rest;
+        if (name) p = { name, ...fromUrl(url), url, from: "link" };
+      } else p = { name: line, from: "name" };
+      afterName = !!p && !url;
+      if (!p) continue;
+      p.name = p.name.slice(0, 160);
+      const key = p.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      places.push(p);
+    }
+    return { places, short };
+  }
+
+  const api = { parse, title, fromUrl, csvRows, pasted };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.listImport = api; }
 })();

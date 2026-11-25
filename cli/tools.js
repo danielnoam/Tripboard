@@ -38,6 +38,7 @@ const placeFields = [
   ["address", { type: "string" }],
   ["placeId", { type: "string", description: "Google's place id, if it came from Google." }],
   ["visited", { type: "boolean", description: "Been there (the Today view's tick)." }],
+  ["check", { type: "boolean", description: "To check: a list's lookup wasn't sure of its location, or found none (the Plan's To check filter). Setting lat and lng clears it." }],
   ["rating", { type: "number", description: "Your own rating, 1 to 5 whole stars." + clears }],
   ["dest", { type: "string", description: "The trip destination it belongs to, picked by hand; without one it goes with the nearest destination that has a location." + clears }],
   ["kind", { type: "string", enum: ["place", "journey"], description: "journey: a flight, train, bus or ferry leg. Then name, lat, lng and address are where it leaves from, day and time when; the to* fields where it arrives. place (or empty) turns it back into a plain place and drops the journey fields." }],
@@ -130,6 +131,7 @@ const TOOLS = [
       ["category", { type: "string", description: "A category's id or name." }],
       ["importance", { type: "array", items: { type: "string", enum: M.IMPORTANCE.map((c) => c[0]) } }],
       ["visited", { type: "boolean" }],
+      ["check", { type: "boolean", description: "true: only places To check (a list's lookup wasn't sure, or found nothing)." }],
       ["kind", { type: "string", enum: ["place", "journey"], description: "Only journeys (flights, trains) or only places." }],
       ["rating", { type: "array", items: { type: "number", enum: [0, 1, 2, 3, 4, 5] }, description: "Only places with one of these ratings; 0 in the list means not rated." }],
       ["located", { type: "boolean", description: "true: only places with a location; false: only those without." }],
@@ -249,11 +251,15 @@ const TOOLS = [
   { tool: "delete_place", cmd: "delete-place", kind: "write", op: "deletePlace", args: [tripArg, placeArg(true)],
     description: "Delete a place from a trip." },
   { tool: "import_places", cmd: "import", kind: "write", op: "importPlaces", input: "bytes",
-    description: "Import a Google Maps list into a trip, or with no trip into a new one named after the list: its shared link (maps.app.goo.gl/…), or a file (Takeout CSV, My Maps KML, Saved Places JSON). Names already in the trip are skipped. Places without a location stay unlocated: find_location finds them. A link is read through Tripboard's server, which sees the link and the list's places; Google can change what it reads at any time, and then the file is the way.",
+    description: "Import a Google Maps list into a trip, or with no trip into a new one named after the list: its shared link (maps.app.goo.gl/…), or a file (Takeout CSV, My Maps KML, Saved Places JSON), or pasted lines (lines). Names already in the trip are skipped. Places without a location stay unlocated: find_location finds them. A link is read through Tripboard's server, which sees the link and the list's places; Google can change what it reads at any time, and then the file is the way.",
     args: [["trip", { type: "string", description: "The trip's id or name; leave out to make a new trip." }, { pos: 0 }],
       ["link", { type: "string", description: "A shared Google Maps list's link, instead of a file." }], ...bytesArgs,
       ["fileName", { type: "string", description: "The export's file name (its ending says the format; a CSV's name is the list's)." }, { mcp: true, cli: false }],
-      ["name", { type: "string", description: "The new trip's name, instead of the list's." }]],
+      ["name", { type: "string", description: "The new trip's name, instead of the list's." }],
+      ["lines", { type: "string", description: "A pasted list instead, as the app's Paste a list: one place a line, a name or a Google Maps place link (its name, and its location when the link has one). Bullets and numbers are dropped; a short link (maps.app.goo.gl) alone on a line can't be read and is skipped." }],
+      ["importance", { type: "string", enum: M.IMPORTANCE.map((c) => c[0]), description: "Every new place's importance (want by default)." }],
+      ["category", { type: "string", description: "Every new place's category, an id or name (other by default)." }],
+      ["day", { ...day, description: "Every new place's day (YYYY-MM-DD); undated by default." }]],
     before: async (a, via, env) => {
       if (!a.link) return a;
       if (a.bytes) throw new Error("Give a link or a file, not both.");
