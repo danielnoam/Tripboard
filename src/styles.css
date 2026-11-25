@@ -982,6 +982,11 @@ body.on-board main.today-page { max-width: 640px; }
 .leg { margin-inline-start: 8px; padding-block: var(--space-1); padding-inline: var(--space-3) 0; border-inline-start: 2px dotted var(--line); color: var(--text-dim); font-size: var(--fs-small); }
 .leg:empty { min-height: var(--space-2); padding-block: 0; }
 .today + .hint { margin: var(--space-2) 0 0; }
+/* A stay booked for tonight somewhere else, apart from the day's own places */
+.also-booked { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-3) 0; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.also-booked-ic .icon { width: 20px; height: 20px; color: var(--text-dim); margin-top: 2px; }
+.also-booked-label { margin: 0; font-size: var(--fs-small); }
+.also-booked-name { display: block; padding: 2px 0; border: 0; background: none; color: var(--text); font: inherit; text-align: start; cursor: pointer; }
 .tomorrow { margin-top: var(--space-4); color: inherit; text-decoration: none; }
 .tomorrow-head { display: flex; justify-content: space-between; align-items: baseline; }
 

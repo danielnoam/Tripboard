@@ -908,7 +908,9 @@
     const day = view.day;
     const isToday = day === today();
     const all = placesOf(trip.id);
-    const plan = M.dayPlan(all, day);
+    const booked = M.dayPlan(all, day);
+    const plan = booked.filter((p) => !M.awayStay(trip, p, day));
+    const away = booked.filter((p) => M.awayStay(trip, p, day));
     const next = isToday ? M.nextOf(plan) : null;
     const done = plan.filter((p) => p.visited).length;
     const total = trip.end ? M.dayIndex(trip, trip.end) : null;
@@ -1001,6 +1003,14 @@
       main.append(list);
       if (plan.some((p) => p.lat != null)) main.append(el("p.hint.dim", { text: i18n.t("Times are guesses from the straight line between places.") }));
     }
+    if (away.length) {
+      main.append(el("section.also-booked", { "aria-label": i18n.t("Also booked") },
+        el("span.also-booked-ic", {}, icon("bed")),
+        el("div", {},
+          el("p.dim.also-booked-label", { text: i18n.t("Also booked") }),
+          ...away.map((p) => el("button.also-booked-name", { type: "button", onclick: (e) => openPlace(p, trip, null, e.currentTarget) },
+            el("span", { text: p.name }), el("span.dim", { text: " · " + i18n.t("{n} of {total} nights", { n: M.daySpan({ day: p.day, endDay: day }) + 1, total: M.daySpan(p) }) }))))));
+    }
 
     // The destination's places with no day yet, to fit in while there.
     const rank = (p) => M.IMPORTANCE.findIndex(([x]) => x === p.importance);
@@ -1019,7 +1029,7 @@
     }
 
     const tomorrow = M.addDays(day, 1);
-    const later = trip.end && tomorrow <= trip.end ? M.dayPlan(all, tomorrow) : [];
+    const later = trip.end && tomorrow <= trip.end ? M.dayPlan(all, tomorrow).filter((p) => !M.awayStay(trip, p, tomorrow)) : [];
     if (later.length) {
       main.append(el("a.panel.tomorrow", { href: dayHref(trip, tomorrow) },
         el("span.tomorrow-head", {}, el("h2", { text: isToday ? i18n.t("Tomorrow") : i18n.t("The day after") }), wx && wx[tomorrow] ? wxChip(wx[tomorrow]) : null, el("span.dim", { text: String(later.length) })),
