@@ -954,6 +954,13 @@ body.desk #placeSheet .field input, body.desk #placeSheet .field select, body.de
 .offline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .check { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer; }
 .check input, .field .check input { width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; accent-color: var(--accent); }
+/* Duplicate trip: what comes along, one choice a row with its hint under it */
+.dup-what { gap: 0; }
+.dup-what legend { margin-block-end: var(--space-1); }
+.dup-check { display: flex; align-items: flex-start; padding-block: var(--space-2); color: var(--text); }
+.dup-check input { margin-block-start: 2px; flex: none; }
+.dup-check strong { display: block; font-weight: 600; }
+.dup-check .hint { display: block; }
 /* Today: today's places in order, the way between them, Next and Navigate */
 body.on-board main.today-page { max-width: 640px; }
 .today-head { margin: var(--space-3) 0; }

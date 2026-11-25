@@ -88,12 +88,14 @@ function open({ token, repo, branch, fetch } = {}) {
       const st = await load();
       const { doc, head, bundles } = st;
       const before = clone(doc);
-      const puts = new Map(), drops = new Set();
+      const puts = new Map(), drops = new Set(), copies = new Map();
       const ctx = {
         me: st.me, cats: st.cats, ai: st.ai, paths: st.paths, catsChanged: false,
         setCats(list) { ctx.cats = { list, at: new Date().toISOString() }; ctx.catsChanged = true; },
         put(path, bytes) { puts.set(path, bytes); drops.delete(path); },
         drop(path) { puts.delete(path); if (st.paths.has(path)) drops.add(path); },
+        // A file already in the repo, under a new path too (no download: the same blob).
+        copy(from, to) { if (!st.paths.has(from)) return false; copies.set(to, st.paths.get(from)); return true; },
         raw: (path) => gh.getRaw(path, { ref: head, as: "bytes" }),
       };
       const result = await fn(doc, ctx);
@@ -123,6 +125,7 @@ function open({ token, repo, branch, fetch } = {}) {
       if (ctx.catsChanged) writes.push({ path: "categories.json", text: text(ctx.cats) });
       for (const p of drops) writes.push({ path: p, sha: null });
       if (writes.concat([...puts.keys()].map((path) => ({ path }))).some((w) => w.path === AI_FILE)) throw new Error("Only the app changes " + AI_FILE + " (Settings › AI tools).");
+      for (const [p, sha] of copies) writes.push({ path: p, sha });
       if (!writes.length && !puts.size) return answer;
       try {
         for (const [p, bytes] of puts) writes.push({ path: p, sha: await gh.createBlob(new Uint8Array(bytes)) });
@@ -318,6 +321,22 @@ const ops = {
     const t = findTrip(doc, a.trip);
     doc.trips = doc.trips.filter((x) => x !== t);
     return { deleted: t.name };
+  },
+  // A copy of a trip that's yours alone, with what the app's Duplicate keeps
+  // (M.duplicateTrip): locations, dates (moved to start) and attachments.
+  // The cover and files are copied in the repo; one not synced yet stays behind.
+  duplicateTrip(doc, a, ctx) {
+    const t = findTrip(doc, a.trip);
+    if (a.start !== undefined && a.start !== "" && !M.isDay(a.start)) throw new Error("start is a date, YYYY-MM-DD.");
+    const got = M.duplicateTrip(doc, t, { name: a.name || t.name + " (copy)", start: a.start, locations: a.locations, dates: a.dates, attachments: a.attachments },
+      ctx.me ? { id: ctx.me, name: "" } : null);
+    if (got.trip.cover && !ctx.copy("covers/" + t.id + ".jpg", "covers/" + got.trip.id + ".jpg")) { got.trip.cover = false; delete got.trip.coverAt; }
+    const left = new Set();
+    for (const [from, to] of got.fileIds) if (!ctx.copy("files/" + t.id + "/" + from, "files/" + got.trip.id + "/" + to)) left.add(to);
+    doc.trips.push(got.trip);
+    doc.places.push(...got.places);
+    doc.files = (doc.files || []).concat(got.files.filter((f) => !left.has(f.id)));
+    return left.size ? { ...got.trip, note: left.size + " file(s) weren't in the repo yet, so they stayed behind." } : got.trip;
   },
   // A cover photo (JPEG, PNG or WebP bytes), or none.
   setCover(doc, a, ctx) {

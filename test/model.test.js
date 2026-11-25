@@ -478,4 +478,48 @@ test("a journey: its fields cleaned, its arrival, a change between legs, left ou
   assert.deepStrictEqual(M.dayRoute([j3, hotel], "2023-02-06").map((p) => p.id), ["h"]);
 });
 
+test("duplicating a trip: yours alone, dates moved, what's kept is chosen", () => {
+  const me = { id: "p_me", name: "Daniel" };
+  const src = M.sanitizeTrip({ id: "src", name: "Lisbon", start: "2026-12-10", end: "2026-12-15", destinations: ["Lisbon", "Sintra"], owner: "p_x",
+    members: [{ id: "p_x", name: "X", role: "owner" }], share: { role: "viewer" }, art: "city", cover: true, cats: { food: "Eats" },
+    destInfo: { Sintra: { start: "2026-12-12", end: "2026-12-12", lat: 38.8, lng: -9.39 } } });
+  const doc = { trips: [src], places: [
+    M.sanitizePlace({ id: "a", trip: "src", name: "Belém Tower", category: "sight", importance: "must", lat: 38.69, lng: -9.21, day: "2026-12-11", time: "10:00", rating: 5, visited: true, note: "Early", dest: "Lisbon", by: "p_x" }),
+    M.sanitizePlace({ id: "j", trip: "src", kind: "journey", mode: "train", name: "Rossio", lat: 38.71, lng: -9.14, day: "2026-12-12", toName: "Sintra", toLat: 38.8, toLng: -9.38, arriveTime: "10:40" }),
+    M.sanitizePlace({ id: "other", trip: "elsewhere", name: "Not this trip" }),
+  ], files: [
+    M.sanitizeFile({ id: "f1", trip: "src", kind: "link", url: "https://example.com", place: "a" }),
+    M.sanitizeFile({ id: "f2", trip: "src", name: "ticket.pdf", type: "application/pdf", size: 10 }),
+  ], expenses: [M.sanitizeExpense({ id: "x", trip: "src", amount: 5 })] };
+  const all = M.duplicateTrip(doc, src, { name: "Lisbon again", start: "2027-04-02" }, me);
+  assert.strictEqual(all.trip.name, "Lisbon again");
+  assert.notStrictEqual(all.trip.id, "src");
+  assert.deepStrictEqual([all.trip.start, all.trip.end], ["2027-04-02", "2027-04-07"]);
+  assert.deepStrictEqual(all.trip.destInfo.Sintra, { start: "2027-04-04", end: "2027-04-04", lat: 38.8, lng: -9.39 });
+  assert.deepStrictEqual([all.trip.owner, all.trip.members.map((m) => m.id), all.trip.share], ["p_me", ["p_me"], undefined], "yours alone");
+  assert.deepStrictEqual([all.trip.art, all.trip.cover, all.trip.cats], ["city", true, { food: "Eats" }]);
+  assert.strictEqual(all.places.length, 2);
+  const a = all.places.find((p) => p.name === "Belém Tower");
+  assert.deepStrictEqual([a.trip, a.day, a.time, a.lat, a.note, a.dest, a.importance], [all.trip.id, "2027-04-03", "10:00", 38.69, "Early", "Lisbon", "must"]);
+  assert.deepStrictEqual([a.rating, a.visited, a.by], [undefined, undefined, undefined], "ratings and been there aren't copied");
+  const j = all.places.find((p) => p.kind === "journey");
+  assert.deepStrictEqual([j.day, j.toLat, j.arriveTime], ["2027-04-04", 38.8, "10:40"]);
+  assert.strictEqual(all.files.length, 2);
+  assert.strictEqual(all.files.find((f) => f.kind === "link").place, a.id, "an attachment follows its place's copy");
+  assert.deepStrictEqual(all.fileIds.map(([from]) => from), ["f2"], "only a file with bytes needs them copied");
+  assert.ok(all.files.every((f) => f.trip === all.trip.id));
+
+  const bare = M.duplicateTrip(doc, src, { locations: false, dates: false, attachments: false }, me);
+  assert.strictEqual(bare.trip.name, "Lisbon");
+  assert.deepStrictEqual([bare.trip.start, bare.trip.end], [undefined, undefined]);
+  assert.deepStrictEqual(bare.trip.destInfo, { Sintra: { lat: 38.8, lng: -9.39 } }, "destinations keep where they are, not their dates");
+  const b = bare.places.find((p) => p.name === "Belém Tower");
+  assert.deepStrictEqual([b.lat, b.day, b.time, b.importance], [undefined, undefined, undefined, "must"]);
+  assert.strictEqual(bare.places.find((p) => p.kind === "journey").toLat, undefined);
+  assert.deepStrictEqual([bare.files, bare.fileIds], [[], []]);
+
+  const same = M.duplicateTrip(doc, src, {}, me);
+  assert.deepStrictEqual([same.trip.start, same.places.find((p) => p.name === "Belém Tower").day], ["2026-12-10", "2026-12-11"], "no new start: the same days");
+});
+
 console.log(passed + " passed");

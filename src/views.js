@@ -1986,7 +1986,7 @@
     if (!destRows.length) destRows.push({ name: "" });
     paintDests();
     showCoverPreview(trip ? await coverUrl(trip) : null, trip && trip.art);
-    $("tripDelete").hidden = !trip;
+    $("tripDelete").hidden = $("tripDup").hidden = !trip;
     $("tripFileRow").hidden = !trip;
     $("tripExport").onclick = () => trip && saveBackup([trip.id]);
     $("tripOfflineRow").hidden = !trip;
@@ -1997,6 +1997,7 @@
     pendingList = null;
     paintList();
     if (trip) armDelete($("tripDelete"), i18n.t("Delete trip"), () => deleteTrip(trip));
+    $("tripDup").onclick = trip ? async () => { await closeSheet($("tripSheet")); openDup(trip); } : null;
     openSheet($("tripSheet"), from);
     paintOffline();
   }
@@ -2249,6 +2250,69 @@
     undoable(i18n.t("Deleted {name}.", { name: trip.name }), () => { doc.trips = doc.trips.filter((t) => t !== trip); },
       async () => { if (blob) await store.setCover(trip.id, blob); });
   }
+
+  // Duplicate trip: a copy that's yours alone, with what the sheet keeps.
+  let dupOf = null;
+  function openDup(trip, from) {
+    dupOf = trip;
+    const f = $("dupForm");
+    f.reset();
+    $("dupTitle").textContent = i18n.t("Duplicate {name}", { name: trip.name });
+    f.name.value = i18n.t("{name} (copy)", { name: trip.name });
+    const n = placesOf(trip.id).length;
+    $("dupWhat").textContent = i18n.tn(n, "Copy its 1 place, with", "Copy its {n} places, with");
+    const files = filesOf(trip.id), bytes = files.filter(M.hasBytes);
+    const size = bytes.reduce((a, x) => a + (x.size || 0), 0);
+    $("dupFilesRow").hidden = !files.length;
+    $("dupFilesHint").textContent = !bytes.length ? i18n.tn(files.length, "1 link or note.", "{n} links and notes.")
+      : files.length === bytes.length ? i18n.tn(bytes.length, "1 file ({size}).", "{n} files ({size}).", { size: sizeLabel(size) })
+      : i18n.t("{links} links and notes, {files} files ({size}).", { links: files.length - bytes.length, files: bytes.length, size: sizeLabel(size) });
+    f.start.value = trip.start || "";
+    paintDup();
+    openSheet($("dupSheet"), from);
+    f.name.select();
+  }
+  // The new start only matters with dates, on a trip that has them.
+  function paintDup() {
+    const f = $("dupForm"), trip = dupOf;
+    $("dupStartRow").hidden = !(trip.start && f.dates.checked);
+    if (!f.start.value) f.start.value = trip.start || "";
+    if (!trip.start) return;
+    const start = M.isDay(f.start.value) ? f.start.value : trip.start;
+    const shift = Math.round((Date.parse(start) - Date.parse(trip.start)) / 864e5);
+    $("dupStartHint").textContent = rangeLabel({ start, end: trip.end ? M.addDays(trip.end, shift) : start }) + ". " + i18n.t("Every planned day moves with it: Day 2 stays Day 2.");
+  }
+  $("dupForm").addEventListener("change", paintDup);
+  $("dupForm").addEventListener("input", (e) => { if (e.target.name === "start") paintDup(); });
+  $("dupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target, trip = dupOf;
+    if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
+    f.name.removeAttribute("aria-invalid");
+    const got = M.duplicateTrip(doc, trip, { name: f.name.value, start: f.start.value, locations: f.locations.checked, dates: f.dates.checked, attachments: f.attachments.checked }, SET.get().me);
+    // A cover photo and each file's bytes are copied on this device; a file
+    // that hasn't come here yet stays behind.
+    const blob = got.trip.cover ? await store.cover(trip.id) : null;
+    if (got.trip.cover && blob) await store.setCover(got.trip.id, blob);
+    else if (got.trip.cover) { got.trip.cover = false; delete got.trip.coverAt; }
+    const missing = new Set();
+    for (const [from, to] of got.fileIds) {
+      const b = await store.file(from);
+      if (b) await store.setFile(to, b); else missing.add(to);
+    }
+    const files = got.files.filter((x) => !missing.has(x.id));
+    await closeSheet($("dupSheet"));
+    undoable(missing.size ? i18n.tn(missing.size, "Made {name}. 1 file isn't on this device yet, so it stayed behind.", "Made {name}. {n} files aren't on this device yet, so they stayed behind.", { name: got.trip.name }) : i18n.t("Made {name}.", { name: got.trip.name }), () => {
+      doc.trips.push(got.trip);
+      doc.places.push(...got.places);
+      if (files.length) doc.files = (doc.files || []).concat(files);
+    }, async () => {
+      await store.dropCover(got.trip.id);
+      for (const x of files) if (M.hasBytes(x)) await store.dropFile(x.id);
+    });
+    go("#/trip/" + got.trip.id);
+    locateDests(got.trip.id);
+  });
 
   // Place sheet
   let editingPlace = null, placeTrip = null, importance = "want", rating = 0, loc, categoryTouched = false;
@@ -4306,11 +4370,13 @@
     }));
     qHeld.push(onHold(".trip-card[data-trip]", (card, x, y, keyboard) => {
       const trip = findTrip(card.dataset.trip);
-      if (!trip || !mayEdit(trip)) return false;
+      if (!trip) return false;
+      const edit = mayEdit(trip);
       return openQuick(card, trip.name, [
-        ["pencil", i18n.t("Edit"), () => openTrip(trip, card)],
-        ["trash", i18n.t("Delete"), async () => { if (await confirmDelete(i18n.t("Delete {name}?", { name: trip.name }), card)) deleteTrip(trip); }, true],
-      ], x, y, keyboard);
+        edit ? ["pencil", i18n.t("Edit"), () => openTrip(trip, card)] : null,
+        ["copy", i18n.t("Duplicate"), () => openDup(trip, card)],
+        edit ? ["trash", i18n.t("Delete"), async () => { if (await confirmDelete(i18n.t("Delete {name}?", { name: trip.name }), card)) deleteTrip(trip); }, true] : null,
+      ].filter(Boolean), x, y, keyboard);
     }));
   }
 

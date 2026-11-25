@@ -42,6 +42,7 @@ they always match.
 |---|---|---|
 | Make a trip | `new-trip` | `create_trip` |
 | Change a trip's name, dates or destinations (and each destination's dates and location, or dates from its stays) | `edit-trip` | `update_trip` |
+| Duplicate a trip: a copy that's yours alone, with or without locations, dates (moved to a new start) and attachments | `duplicate-trip` | `duplicate_trip` |
 | Delete a trip with its places, expenses, files and cover | `delete-trip` | `delete_trip` |
 | Set or remove a trip's cover photo | `cover` | `set_trip_cover` |
 | Add a place, or a journey (a flight or train leg: `kind` journey, `mode`, `toName`, `arriveDay`, `arriveTime`, `number`) | `add-place` | `add_place` |

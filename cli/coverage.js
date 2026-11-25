@@ -17,7 +17,7 @@ const PUBLISHED = ["list_trips", "get_trip", "create_trip", "update_trip", "dele
   "add_expense", "update_expense", "update_sharing", "delete_expense",
   "find_places", "get_board", "get_day", "list_categories", "get_file", "export_backup", "find_location", "set_trip_cover",
   "import_places", "add_file", "update_file", "delete_file", "remove_person", "add_category", "update_category", "delete_category",
-  "reset_categories", "import_backup", "get_weather", "order_day", "batch_update", "add_link", "add_note"];
+  "reset_categories", "import_backup", "get_weather", "order_day", "batch_update", "add_link", "add_note", "duplicate_trip"];
 
 const made = "auto: made by core.js (ids, times, who changed it)";
 const fields = {
@@ -70,6 +70,7 @@ const collections = {
 
 // index.html's sheets.
 const sheets = {
+  dupSheet: ["duplicate_trip"],
   tripSheet: ["create_trip", "update_trip", "delete_trip", "set_trip_cover", "import_places"],
   placeSheet: ["add_place", "update_place", "delete_place", "find_location"],
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
@@ -117,6 +118,8 @@ const actions = {
   "Restored 1 trip.": ["import_backup"],
   "Removed {name}. Its places are in Other now.": ["delete_category"],
   "Categories are back to the defaults.": ["reset_categories"],
+  "Made {name}.": ["duplicate_trip"],
+  "Made {name}. 1 file isn't on this device yet, so it stayed behind.": ["duplicate_trip"],
 };
 
 // Files sync.js keeps in the repo.
@@ -134,7 +137,7 @@ const repo = {
 // model.js's API: "cli" when cli/ uses it, or why it doesn't.
 const ui = "device: the app's screens only";
 const model = {
-  sanitizeFile: "cli", MAX_FILE_MB: "cli", MAX_NOTE: "cli", hasBytes: "cli", linkUrl: "cli", linkHost: "auto: sanitizeFile names a link after its site with it", SECTIONS: "cli", access: "cli", can: "cli", ownTrip: "cli", EXPENSE_CATEGORIES: "cli", CATEGORY: "cli",
+  sanitizeFile: "cli", MAX_FILE_MB: "cli", MAX_NOTE: "cli", hasBytes: "cli", linkUrl: "cli", linkHost: "auto: sanitizeFile names a link after its site with it", SECTIONS: "cli", access: "cli", can: "cli", ownTrip: "cli", duplicateTrip: "cli", EXPENSE_CATEGORIES: "cli", CATEGORY: "cli",
   sanitizeExpense: "cli", expenseTotals: "cli", expensesByCategory: "cli", onDay: "cli", catList: "cli", catName: "cli", carryCats: "cli", isCatId: "cli",
   CATEGORIES: "cli", IMPORTANCE: "cli", newId: "cli", isDay: "cli", sanitizeTrip: "cli", sanitizePlace: "cli", sanitizeDoc: "cli", stamp: "cli",
   tripDays: "cli", dayIndex: "cli", tripStatus: "cli", sortTrips: "cli", slotOf: "cli", timeOn: "cli", stayPart: "cli", isStay: "auto: sanitizePlace, timeOn and stayPart use it", distanceKm: "cli", board: "cli", filterPlaces: "auto: board uses it for get_board's only, categories and rating", STAR_FILTERS: "cli", areas: "auto: board uses it for sort area", backupOf: "cli",
