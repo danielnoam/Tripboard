@@ -4,15 +4,6 @@ What's planned, roughly in no order yet. When something ships it leaves
 this list (and gets a line in `changes/`); when Daniel turns it down it
 moves to DROPPED.md with his reason.
 
-## Next up (mockups OK'd 2026-11-16)
-
-Mockups are in the screenshot gallery (claude.ai/artifact/L6hDngGoaGY1uyTwRg13eW,
-"mockups, not built yet").
-
-- **Share into a trip on Android.** In Google Maps, Share → Tripboard
-  asks which trip, then opens Add a place already filled in. The signed
-  APK itself ships from 0.3.0 (android.yml, still run by hand).
-
 ## Data
 
 - **Turn on Google Drive backups.** Built (src/drive.js); waits for

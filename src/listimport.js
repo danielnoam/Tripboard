@@ -163,7 +163,31 @@
     return { places, short };
   }
 
-  const api = { parse, title, fromUrl, csvRows, pasted };
+  // What another app shared into Tripboard (Android's Share, or the web
+  // app's share target): Google Maps sends the place's name, often its
+  // address, then a link, one a line; a title may come apart from the text.
+  // A short link can't be read here, so it's kept to attach, not followed.
+  // → { name, address, url, lat?, lng?, maps } or null when nothing came.
+  const MAPS = /^https?:\/\/((www\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)/i;
+  function shared(text, title) {
+    const all = String(text || "").replace(/^﻿/, "");
+    const raw = (/https?:\/\/\S+/.exec(all) || [])[0] || "";
+    const url = raw.replace(/[)\].,;]+$/, "");
+    const lines = all.split(/\r\n?|\n/).map((l) => clean(l.replace(raw, "").replace(/^[\s:,.–—-]+|[\s:,.–—-]+$/g, ""))).filter(Boolean);
+    const head = clean(title);
+    let name = lines[0] || "", address = lines.length > 1 ? lines[1] : "";
+    // A title that isn't the text's first line names it, and the first line is then the address.
+    if (head && head !== name && !/^https?:/i.test(head)) { address = address || name; name = head; }
+    if (address === name) address = "";
+    const fromLink = url && !SHORT.test(url) ? fromUrl(url) : {};
+    if (!name && url) name = nameFromUrl(url);
+    if (!name && !url) return null;
+    const out = { name: name.slice(0, 160), address: address.slice(0, 300), url, maps: MAPS.test(url) };
+    if (fromLink.lat != null) Object.assign(out, fromLink);
+    return out;
+  }
+
+  const api = { parse, title, fromUrl, csvRows, pasted, shared };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else { window.Tripboard = window.Tripboard || {}; window.Tripboard.listImport = api; }
 })();

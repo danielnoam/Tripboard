@@ -2049,6 +2049,7 @@
   async function openTrip(trip, from) {
     $("tripSheet").again = () => { const t = trip && findTrip(trip.id); if (trip && !t) return false; openTrip(t || null); };
     editingTrip = trip;
+    shareWaiting = null;
     pendingCover = pendingArt = undefined;
     const f = $("tripForm");
     f.reset();
@@ -2309,6 +2310,7 @@
     }
     if (pendingArt !== undefined) { if (pendingArt) trip.art = pendingArt; else delete trip.art; }
     if (!editingTrip) doc.trips.push(trip);
+    const shared = !editingTrip && shareWaiting;
     const closing = closeSheet($("tripSheet"));
     save();
     if (!editingTrip) go("#/trip/" + trip.id);
@@ -2317,6 +2319,7 @@
     pendingList = null;
     if (list) await importList(doc.trips.find((t) => t.id === trip.id) || trip, list.places);
     locateDests(trip.id);
+    if (shared) shareInto(findTrip(trip.id) || trip, shared);
   });
   async function deleteTrip(trip) {
     const blob = trip.cover ? await store.cover(trip.id) : null;
@@ -2610,6 +2613,7 @@
     againOn($("placeSheet"), "places", place, trip, (p, t) => openPlace(p, t, p ? null : preset));
     editingPlace = place;
     placeTrip = trip;
+    shareLink = null;
     untilWanted = false;
     checkedOk = false;
     const f = $("placeForm");
@@ -2678,6 +2682,56 @@
     };
     openSheet($("placeSheet"), from);
   }
+  // ---------- Shared into Tripboard ----------
+  // Android's Share (MainActivity hands it to the App plugin as a
+  // tripboard-share: address) or the installed web app's share target
+  // (manifest.json, ?sharetext=): pick a trip, then Add a place opens with
+  // what came, searched for by its name, and its link kept to attach.
+  let shareLink = null, shareWaiting = null;
+  function sharedIn(text, title) {
+    const got = window.Tripboard.listImport.shared(text, title);
+    if (!got) { toast(i18n.t("Nothing came with that to add.")); return; }
+    // The address in its own direction, so a Hebrew "from Google Maps" doesn't get mixed into it.
+    const from = got.maps ? i18n.t("from Google Maps") : got.url ? M.linkHost(got.url) : "";
+    const where = [got.address ? el("bdi", { text: got.address }) : null, got.address && from ? " · " : "", from].filter(Boolean);
+    $("shareInWhat").replaceChildren(el("strong", { text: got.name || (got.maps ? i18n.t("A place on Google Maps") : i18n.t("A link")) }),
+      where.length ? el("span.dim", {}, ...where) : null);
+    const trips = M.sortTrips(doc.trips, today()).filter((t) => mayEdit(t));
+    // The trip under way, or else the next one, is the likely one.
+    const likely = trips.find((t) => M.tripStatus(t, today()) === "now") || trips.find((t) => M.tripStatus(t, today()) === "upcoming");
+    $("shareInTrips").replaceChildren(...trips.map((t) =>
+      el("button.xrow" + (t === likely ? ".suggest" : ""), { type: "button", onclick: () => { closeSheet($("shareInSheet")).then(() => shareInto(t, got)); } },
+        el("span.xrow-text", {}, el("span.xrow-title", { text: t.name }),
+          el("span.xrow-meta", { text: [t.start ? rangeLabel(t) : "", t.destinations.join(", ")].filter(Boolean).join(" · ") || i18n.t("No dates yet") })))),
+      el("button.xrow", { type: "button", onclick: async (e) => {
+        await closeSheet($("shareInSheet"));
+        openTrip(null, e.currentTarget);
+        shareWaiting = got;
+      } }, el("span.xrow-ic", {}, icon("plus")), el("span.xrow-text", {}, el("span.xrow-title", { text: i18n.t("New trip") }))));
+    openSheet($("shareInSheet"));
+  }
+  // A new trip made for it gets it; one left unmade lets it go.
+  $("tripSheet").addEventListener("close", () => { shareWaiting = null; });
+  function shareInto(trip, got) {
+    go("#/trip/" + trip.id);
+    openPlace(null, trip, { name: got.name, ...(got.lat != null ? { lat: got.lat, lng: got.lng } : {}) });
+    shareLink = got.url ? { url: got.url, maps: got.maps } : null;
+    if (got.name && got.lat == null) findThis();
+    else if (!got.name) $("placeForm").name.focus();
+  }
+  // Android: once from the share that opened the app, then each one after.
+  function takeShares() {
+    if (appPlugin) appPlugin.addListener("appUrlOpen", ({ url }) => {
+      if (!/^tripboard-share:/.test(url || "")) return;
+      let q;
+      try { q = new URL(url).searchParams; } catch (e) { return; }
+      sharedIn(q.get("text"), q.get("title"));
+    });
+    const q = new URLSearchParams(location.search);
+    if (!["sharetext", "sharetitle", "shareurl"].some((k) => q.has(k))) return;
+    history.replaceState(history.state, "", location.pathname + location.hash);
+    sharedIn([q.get("sharetext"), q.get("shareurl")].filter(Boolean).join("\n"), q.get("sharetitle"));
+  }
   // "Until": for a place that lasts several days, the last of them. Offered
   // once there's a day; the days after it, or any later date.
   function paintUntil(days, keep) {
@@ -2741,7 +2795,14 @@
     const closing = closeSheet($("placeSheet"));
     // Forward after Back opens the place just added, not a new empty one.
     if (!editingPlace) againOn($("placeSheet"), "places", p, placeTrip, (x, t) => openPlace(x, t));
-    if (!editingPlace) undoable(i18n.t("Added {name}.", { name: p.name }), () => doc.places.push(p));
+    // What came with a share: its link goes on the new place's Attachments.
+    const link = !editingPlace && shareLink;
+    shareLink = null;
+    if (!editingPlace) undoable(i18n.t("Added {name}.", { name: p.name }), () => {
+      doc.places.push(p);
+      if (link) doc.files = (doc.files || []).concat(M.sanitizeFile({ id: M.newId(), trip: placeTrip.id, kind: "link", url: link.url,
+        name: link.maps ? "Google Maps" : M.linkHost(link.url), place: p.id, createdAt: stamp, updatedAt: stamp }));
+    });
     else if (!same(p, JSON.parse(raw))) save();
     // Opened and left without a change: nothing to sync.
     else { for (const k of Object.keys(p)) delete p[k]; Object.assign(p, JSON.parse(raw)); }
@@ -4750,6 +4811,7 @@
     radioKeys();
     wireSwipe();
     if (!takeSetupLink()) render();
+    takeShares();
     setTimeout(refreshGoogle, 2000);
     sweepFiles();
     if (doc.trips.length) OFF.sweep(doc.trips.map((t) => t.id));

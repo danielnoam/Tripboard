@@ -7,7 +7,7 @@ is updated here in the same change.
 
 ```
 index.html           the page: its Content-Security-Policy first, then the scripts in load order
-manifest.json        the web app manifest
+manifest.json        the web app manifest; its share_target lets the installed web app (Android Chrome) take a share, as ?sharetext=&sharetitle=&shareurl=
 icon.svg             the app icon
 assets/covers/       the ready-made covers, flat SVG drawings; a trip names its own as `art`, and a photo shows instead when it has one
 sw.js                the web copy's service worker: offline, test builds (keel's sw-preview.js), and the CSP's extra sharing servers
@@ -19,7 +19,7 @@ src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard 
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
 src/share.js         shared trips: each device on one syncs that trip with its sharing server (server/: Tripboard's, or one the person runs), beside GitHub sync; invite links, joining, leaving
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
-src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) and its name, and a pasted list (pasted: a name or Google Maps place link a line); New trip can start from one, Edit trip imports into the trip (Node-tested)
+src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) and its name, and a pasted list (pasted: a name or Google Maps place link a line), what another app shared (shared: a name, an address, a link); New trip can start from one, Edit trip imports into the trip (Node-tested)
 src/weather.js       the forecast per trip day from Open-Meteo: where each day's weather is for (its places' middle, rounded), one request for all of them, its answer read, when it's stale (Node-tested)
 src/places.js        finding a place by name: OpenStreetMap, Google Places or MapTiler, tried in Settings' order (Node-tested)
 src/offline.js       a trip saved for no signal: OpenFreeMap's map around its places in the Cache API, the plan of tiles, and the tbo:// protocol the map reads it through (Node-tested)
@@ -72,7 +72,7 @@ changes/             notes for the next release (changes/README.md)
 server.js            the local server: this computer only (from keel)
 tools/               release.js, keel-sync.js, keel-checks.js, android-version.js (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www/ (phones) or www-desktop/ (desktop), with app-build.json
-tools/android-manifest.js  what the app adds to Capacitor's AndroidManifest.xml
+tools/android-manifest.js  what the app adds to Capacitor's AndroidManifest.xml, and the MainActivity it writes for Share → Tripboard (a SEND of text becomes a tripboard-share: address the App plugin passes on; views.js takeShares → the Add to a trip sheet → Add a place, the link attached once it's saved)
 tools/ios-project.js the iOS project's Info.plist keys and version
 tools/sign-apk.sh    signs the APK with the release key, or a throwaway one
 tools/test-build.sh  a pull request's build on the test-<branch> pre-release
@@ -94,6 +94,12 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 What the app gives up on purpose, said plainly. A change that adds one
 adds a line here.
 
+- Any app can share text into Tripboard (Android's Share, or the web
+  app's share target). It only fills the Add to a trip sheet: nothing is
+  kept until the person picks a trip and leaves Add a place with a name,
+  and a link is kept only if it's http or https. The shared name is then
+  searched for with the place search the person set up, as Enter in the
+  name does; a short Google Maps link is never opened.
 - Picking a map style that needs a key (Map style on the map) makes that
   provider the map and OpenFreeMap its fallback, so a refused key still
   shows a map; the style is sent nowhere else. The Street View link, like

@@ -6,5 +6,6 @@
   "display": "standalone",
   "background_color": "#F6F5F2",
   "theme_color": "#F6F5F2",
+  "share_target": { "action": "./", "method": "GET", "params": { "title": "sharetitle", "text": "sharetext", "url": "shareurl" } },
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }

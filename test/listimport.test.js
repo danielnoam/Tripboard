@@ -58,4 +58,20 @@ test("a pasted list: names and place links a line, bullets dropped, Share's shor
   assert.deepStrictEqual(L.pasted(""), { places: [], short: 0 });
 });
 
+test("Shared from Google Maps: name, address, the link kept, a location when the link has one", () => {
+  assert.deepStrictEqual(L.shared("Time Out Market Lisboa\nAv. 24 de Julho 49, 1200-479 Lisboa, Portugal\nhttps://maps.app.goo.gl/AbC123"),
+    { name: "Time Out Market Lisboa", address: "Av. 24 de Julho 49, 1200-479 Lisboa, Portugal", url: "https://maps.app.goo.gl/AbC123", maps: true });
+  assert.deepStrictEqual(L.shared("Time Out Market Lisboa https://maps.app.goo.gl/AbC123"),
+    { name: "Time Out Market Lisboa", address: "", url: "https://maps.app.goo.gl/AbC123", maps: true });
+  assert.deepStrictEqual(L.shared("https://maps.app.goo.gl/AbC123"), { name: "", address: "", url: "https://maps.app.goo.gl/AbC123", maps: true },
+    "a short link alone: no name to give, the link still comes");
+  assert.deepStrictEqual(L.shared("https://www.google.com/maps/place/Feira+da+Ladra/@38.71,-9.12,17z"),
+    { name: "Feira da Ladra", address: "", url: "https://www.google.com/maps/place/Feira+da+Ladra/@38.71,-9.12,17z", maps: true, lat: 38.71, lng: -9.12 });
+  assert.deepStrictEqual(L.shared("Av. 24 de Julho 49\nhttps://maps.app.goo.gl/x", "Time Out Market"),
+    { name: "Time Out Market", address: "Av. 24 de Julho 49", url: "https://maps.app.goo.gl/x", maps: true }, "a title apart names it");
+  assert.deepStrictEqual(L.shared("A great ramen list: https://example.com/ramen."), { name: "A great ramen list", address: "", url: "https://example.com/ramen", maps: false });
+  assert.strictEqual(L.shared("  \n "), null);
+  assert.strictEqual(L.shared("", ""), null);
+});
+
 console.log(passed + " passed");

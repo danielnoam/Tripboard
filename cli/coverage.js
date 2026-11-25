@@ -72,6 +72,7 @@ const collections = {
 const sheets = {
   dupSheet: ["duplicate_trip"],
   pasteSheet: ["import_places", "find_location"],
+  shareInSheet: ["add_place", "add_link", "import_places"],
   tripSheet: ["create_trip", "update_trip", "delete_trip", "set_trip_cover", "import_places"],
   placeSheet: ["add_place", "update_place", "delete_place", "find_location"],
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],
