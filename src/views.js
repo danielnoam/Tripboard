@@ -385,14 +385,15 @@
     hero.append(el("div.hero-text", {},
       el("span", { text: rangeLabel(trip) + (whenLabel(trip) ? " · " + whenLabel(trip) : "") }),
       trip.destinations.length ? el("ul.chips", {}, trip.destinations.map((d) => el("li", { text: d }))) : null));
-    main.append(hero);
+    if (!document.body.classList.contains("land")) main.append(hero);
 
     const controls = el("div.controls", {},
       el("div.seg.sorts", { role: "tablist", "aria-label": i18n.t("Sort places by") }, segBubble(), sortsOf(trip).map(([id, label]) =>
         el("button", { type: "button", role: "tab", "aria-selected": String(view.sort === id), text: label,
           onclick: (e) => pickSort(id, e.currentTarget.parentNode) }))),
       places.length ? el("div.filters", { role: "group", "aria-label": i18n.t("Show") }, filterChips(trip)) : null);
-    main.append(controls);
+    if (document.body.classList.contains("land")) $("title").after(controls);
+    else main.append(controls);
     slideSeg(controls.firstChild);
     const ask = wxAsk(trip);
     if (ask) main.append(ask);
@@ -447,6 +448,11 @@
   const DESK = window.matchMedia("(min-width: 1100px)");
   const desk = () => DESK.matches;
   const deskTrip = () => desk() && !!view.trip && view.mode !== "share";
+  // A phone on its side is short and wide: a trip's tabs go to a rail at
+  // the start, the Plan's switch and filters into the top bar, and the
+  // Plan is laid out in columns as on a computer.
+  const LAND = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
+  const land = () => LAND.matches && !desk();
   const sideMap = () => deskTrip() && view.deskMap && view.mode !== "map";
   const mapOn = () => view.mode === "map" || sideMap();
   // On a computer a trip's page scrolls by itself, beside the side bar and the map.
@@ -582,7 +588,7 @@
   // A trip's floating pill at the bottom: Plan, Map, Expenses, Files, as icons.
   function paintTripBar(trip) {
     const bar = $("tripBar");
-    const was = !$("bottomBar").hidden && bubble.isConnected && !bubble.hidden ? new DOMMatrix(getComputedStyle(bubble).transform).m41 : null;
+    const was = !$("bottomBar").hidden && bubble.isConnected && !bubble.hidden ? new DOMMatrix(getComputedStyle(bubble).transform)[document.body.classList.contains("land") ? "m42" : "m41"] : null;
     $("bottomBar").hidden = !trip;
     document.body.classList.toggle("with-tabbar", !!trip);
     if (!trip) return;
@@ -624,22 +630,26 @@
     const on = tabs.find((t) => t.getAttribute("aria-current") === "page");
     bubble.hidden = !on;
     if (!on) return;
-    const x = on.offsetLeft;
-    if (bubble.dataset.x === String(x) && bubble.getAnimations().length) return;
+    // On the landscape rail the tabs stand in a column, so the circle moves down it.
+    const axis = document.body.classList.contains("land") ? "Y" : "X", at = (n) => (axis === "Y" ? n.offsetTop : n.offsetLeft);
+    const x = at(on);
+    if (bubble.dataset.x === axis + x && bubble.getAnimations().length) return;
     bubble.getAnimations().forEach((a) => a.cancel());
-    bubble.dataset.x = x;
-    bubble.style.transform = "translateX(" + x + "px)";
+    if (bubble.dataset.x && bubble.dataset.x[0] !== axis) was = null;
+    bubble.dataset.x = axis + x;
+    bubble.style.transform = "translate" + axis + "(" + x + "px)";
     if (was == null || Math.abs(was - x) < 1 || lessMotion() || !bubble.animate) return;
     const t = onSpring(TAB_BUBBLE), reach = Math.min(1, Math.abs(x - was) / 100);
-    const lo = Math.min(...tabs.map((n) => n.offsetLeft)), hi = Math.max(...tabs.map((n) => n.offsetLeft));
-    bubble.animate(TAB_BUBBLE.pts.map((k) => ({ transform: "translateX(" + Math.min(hi, Math.max(lo, was + (x - was) * k)) + "px)" })),
+    const lo = Math.min(...tabs.map(at)), hi = Math.max(...tabs.map(at));
+    bubble.animate(TAB_BUBBLE.pts.map((k) => ({ transform: "translate" + axis + "(" + Math.min(hi, Math.max(lo, was + (x - was) * k)) + "px)" })),
       { duration: t.duration, easing: "linear" });
-    bubble.animate([{ scale: "1 1" }, { scale: (1 + 0.28 * reach) + " " + (1 - 0.1 * reach), offset: 0.22 }, { scale: "1 1", offset: 0.6 }, { scale: "1 1" }],
+    const stretch = axis === "Y" ? (1 - 0.1 * reach) + " " + (1 + 0.28 * reach) : (1 + 0.28 * reach) + " " + (1 - 0.1 * reach);
+    bubble.animate([{ scale: "1 1" }, { scale: stretch, offset: 0.22 }, { scale: "1 1", offset: 0.6 }, { scale: "1 1" }],
       { duration: t.duration, easing: "ease-out" });
     const off = tabs.find((n) => n !== on), dim = off ? getComputedStyle(off).color : null, white = getComputedStyle(on).color;
     if (dim) {
       on.animate([{ color: dim }, { color: dim, offset: 0.3 }, { color: white }], { duration: 260, easing: "linear" });
-      const left = tabs.reduce((a, n) => (Math.abs(n.offsetLeft - was) < Math.abs(a.offsetLeft - was) ? n : a), tabs[0]);
+      const left = tabs.reduce((a, n) => (Math.abs(at(n) - was) < Math.abs(at(a) - was) ? n : a), tabs[0]);
       if (left !== on) left.animate([{ color: white }, { color: dim }], { duration: 160, easing: "linear" });
     }
     swell(on.firstChild, 60);
@@ -1431,7 +1441,7 @@
     const k = destKey(trip, "area:" + (g.dest || g.id));
     // A computer has the room to show every block, so they don't fold there,
     // and a block alone on the board has nothing to fold away for.
-    const folds = !desk() && !lone;
+    const folds = !desk() && !land() && !lone;
     const open = !folds || !view.destShut.includes(k);
     const flip = () => {
       view.destShut = open ? view.destShut.concat(k).slice(-50) : view.destShut.filter((x) => x !== k);
@@ -4044,6 +4054,8 @@
     const onMap = view.mode === "map";
     $("mapView").hidden = !mapOn();
     document.body.classList.toggle("desk", deskTrip());
+    document.body.classList.toggle("land", !!trip && land() && view.mode !== "share");
+    document.querySelectorAll(".bar > .controls").forEach((c) => c.remove());
     document.body.classList.toggle("side-map", sideMap());
     document.documentElement.dataset.look = "list";
     document.documentElement.dataset.rows = "expanded";
@@ -4112,6 +4124,7 @@
       if (e.touches.length > 1 || !view.trip || view.mode === "share" || document.querySelector("dialog[open]")) return;
       if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
       const bar = !!at.closest("#bottomBar");
+      if (bar && document.body.classList.contains("land")) return;
       if (!bar && (!["board", "today"].includes(view.mode) || view.pick || at.closest("#mapView") || at.closest("input, textarea, select, [contenteditable]") || sideways(at))) return;
       s = { x: t.clientX, y: t.clientY, at: e.timeStamp, bar };
     }, { passive: true });
@@ -4550,6 +4563,7 @@
     $("deskSplit").setAttribute("aria-label", i18n.t("Drag to share the width between the plan and the map"));
     wireSplit();
     DESK.addEventListener("change", () => render());
+    LAND.addEventListener("change", () => render());
     window.addEventListener("hashchange", () => { if (!takeSetupLink()) render(); });
     radioKeys();
     wireSwipe();
