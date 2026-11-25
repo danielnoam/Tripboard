@@ -30,7 +30,7 @@
 // MCP_SECRET (a long random string) and MCP_USERS ("<GitHub user id>=<owner>/<repo>[@branch]",
 // comma-separated). Without them every route here answers 404.
 
-import mcpCli from "../cli/mcp.js";
+import mcpCli from "./app/cli/mcp.js";
 import * as GL from "./googlelist.js";
 import * as PUB from "./published.js";
 

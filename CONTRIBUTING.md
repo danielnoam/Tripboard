@@ -69,7 +69,10 @@ does the work, `test/cli.test.js` tests it, `cli/README.md` lists it).
 and `test/coverage.test.js` fails when something new isn't there. Only
 what never leaves the device (keys, providers, theme, offline maps) gets
 a "device:" reason instead of a tool. Tools are added, never renamed or
-removed (`PUBLISHED` in coverage.js).
+removed (`PUBLISHED` in coverage.js). The sharing server serves the same tools
+from its own copies (server/app/, so server/ stands alone for its Deploy
+to Cloudflare button): after changing `cli/` or a `src/` file they load,
+run `node tools/server-copy.js` (`test/server.test.js` fails until then).
 
 ## Keeping the notes files right
 

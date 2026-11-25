@@ -50,6 +50,30 @@ Anyone can run a server of their own, so their shared trips sit in their
 own Cloudflare account instead of Daniel's, under their own free-plan
 limits. The app stays the same one, at Tripboard's usual address.
 
+### The quick way: Deploy to Cloudflare
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/danielnoam/Tripboard/tree/main/server)
+
+1. Press the button and sign in to Cloudflare (or make an account) and
+   to GitHub.
+2. Keep what it fills in. It makes a repo of your own with this folder in
+   it, makes the database and the file store, sets up the tables
+   (package.json's `deploy`) and deploys. It shows your server's address,
+   like `https://tripboard.<your subdomain>.workers.dev`.
+3. In Tripboard: **Settings › Sharing server › Your own**, as in step 3
+   below.
+
+Your repo is a copy, not a fork: it doesn't get Tripboard's changes by
+itself. To update, copy this folder over yours (or press the button again
+for a new server, which starts empty). The cloud connector's settings
+(below) go in the Worker's **Settings → Variables and Secrets** in
+Cloudflare, as secrets.
+
+### The long way: a fork
+
+A fork gets updates with one click (**Sync fork**), and deploys from
+GitHub Actions like Tripboard's own.
+
 1. On GitHub, **Fork** danielnoam/Tripboard (your copy holds the server
    code and the workflow that deploys it). In the fork's **Actions** tab,
    turn workflows on.
@@ -74,15 +98,17 @@ Sharing server workflow again. The cloud connector for AI apps (below)
 works on your server the same way, with your own GitHub App and your
 own id in `TRIPBOARD_MCP_USERS`.
 
-A Deploy to Cloudflare button would skip the fork, but it needs the
-server to be self-contained in `server/`, and `mcp.js` uses `cli/`. Not
-done yet (TODO.md).
+`server/` stands on its own (the button takes only this folder): the
+app files the connector serves, `cli/`'s tools and the `src/` files they
+load, are copied into `app/` by `node tools/server-copy.js`, and
+`test/server.test.js` fails while a copy is out of date.
 
 ## Changing it
 
 The tables change only through a new file in `migrations/`, never by
-editing an old one. A merge that changes `server/`, `cli/` or a `src/` file the
-connector loads deploys it (`.github/workflows/server.yml` lists them).
+editing an old one. After changing `cli/` or a `src/` file the connector
+loads, run `node tools/server-copy.js` so `app/` has it. A merge that
+changes `server/` deploys it (`.github/workflows/server.yml`).
 
 ## The cloud connector for AI apps (optional)
 
