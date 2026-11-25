@@ -33,7 +33,8 @@
   S.enabled = () => !!server();
   S.shared = (id) => (state[id] ? { role: state[id].role, hidden: state[id].hidden || [] } : null);
 
-  const OWN = "tripboard.shareServer", JOINING = "tripboard.joinServer";
+  // LIST: the servers src/csp.js allows in the phone and desktop apps.
+  const OWN = "tripboard.shareServer", JOINING = "tripboard.joinServer", LIST = "tripboard.servers";
   const i18n = { t: (s, v) => window.i18n ? window.i18n.t(s, v) : s.replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? v[k] : m)) };
   const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) { /* private window */ } return null; };
 
@@ -55,21 +56,30 @@
   S.server = server;
   const at = (id) => (state[id] && state[id].server) || SERVER;
 
-  // The servers this page's CSP lets it reach (sw.js adds the picked ones).
+  // The servers this page's CSP lets it reach (sw.js adds the picked ones;
+  // in the phone and desktop apps, src/csp.js). Every policy on the page
+  // has to allow it.
   S.allowed = (origin) => {
     if (origin === SERVER) return true;
-    const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-    const m = meta && /(?:^|;)\s*connect-src([^;]*)/.exec(meta.content);
-    return !!m && m[1].trim().split(/\s+/).includes(origin);
+    const metas = [...document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]')];
+    return metas.length > 0 && metas.every((meta) => {
+      const m = /(?:^|;)\s*connect-src([^;]*)/.exec(meta.content);
+      const list = m ? m[1].trim().split(/\s+/) : [];
+      return list.includes(origin) || list.includes("https:");
+    });
   };
-  // Own servers need sw.js to reach them: the web app, over https.
-  S.canUseOwn = () => !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+  // Own servers need sw.js (the web app, over https) or src/csp.js (the
+  // phone and desktop apps) to reach them.
+  S.canUseOwn = () => !!(navigator.serviceWorker && navigator.serviceWorker.controller) ||
+    !!document.querySelector('meta[name="tripboard-csp"]');
   // The servers sw.js should allow: your own, every shared trip's, and
   // one an invite link is about to join through.
   S.servers = () => [...new Set([ls(OWN), ls(JOINING), ...Object.values(state).map((st) => st.server)].map(S.origin).filter((o) => o && o !== SERVER))].sort();
   async function writeServers() {
-    if (typeof caches === "undefined" || !ctx) return;
+    if (!ctx) return;
     await load();
+    ls(LIST, S.servers().length ? JSON.stringify(S.servers()) : null);
+    if (typeof caches === "undefined") return;
     try { await (await caches.open("tripboard-servers")).put("servers", new Response(JSON.stringify(S.servers()), { headers: { "Content-Type": "application/json" } })); }
     catch (e) { /* private window */ }
   }
