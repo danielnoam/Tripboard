@@ -956,10 +956,22 @@ body.desk #placeSheet .field input, body.desk #placeSheet .field select, body.de
 .check input, .field .check input { width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; accent-color: var(--accent); }
 /* Today: today's places in order, the way between them, Next and Navigate */
 body.on-board main.today-page { max-width: 640px; }
-.today-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); margin: var(--space-3) 0; }
+.today-head { margin: var(--space-3) 0; }
+.today-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-block: -8px -4px; }
 .today-kicker { margin: 0; color: var(--accent); font-weight: 600; }
 .today-date { margin: 0; font-size: 26px; line-height: 1.2; }
-.today-done { flex: none; padding-bottom: 4px; }
+.today-done { margin: 2px 0 0; font-size: 14px; }
+/* Stepping through the trip's days: before, back to today, after */
+.day-steps { flex: none; display: flex; align-items: center; gap: 2px; margin-inline-end: -10px; }
+.day-steps .icon-btn { color: var(--text); }
+.day-steps .day-step.off { opacity: 0.3; pointer-events: none; }
+.day-back { min-height: 36px; padding: 0 12px; text-decoration: none; }
+/* A day's heading on the Plan opens that day */
+.day-open { display: inline-flex; align-items: center; gap: 2px; color: inherit; text-decoration: none; }
+.day-open-ic { width: 16px; height: 16px; color: var(--text-dim); }
+.day-open:hover > span { text-decoration: underline; }
+.slot .day-open-ic { width: 13px; height: 13px; }
+[dir="rtl"] .day-step .icon, [dir="rtl"] .day-open-ic { transform: scaleX(-1); }
 .today { list-style: none; margin: 0; padding: 0; }
 .today .card { flex-direction: column; align-items: stretch; gap: 0; }
 .today .card-row { display: flex; align-items: flex-start; gap: var(--space-1); }
