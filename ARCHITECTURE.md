@@ -17,7 +17,7 @@ src/store.js         IndexedDB on this device: the data ("doc"), each trip's cov
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
-src/share.js         shared trips: each device on one syncs that trip with its sharing server (server/: Tripboard's, or one the person runs), beside GitHub sync; invite links, joining, leaving
+src/share.js         shared trips: each device on one syncs that trip with its sharing server (server/: Tripboard's, or one the person runs), beside GitHub sync; invite links, joining, leaving; publishing a trip (Sharing › Publish: a read-only snapshot of model.publishedOf, its key in "meta:published" and published.json) and opening a published one (#/p/<id>[/<host>], views.js renderPublished; Copy to my trips is the Duplicate sheet on model.publishedDoc)
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) and its name, and a pasted list (pasted: a name or Google Maps place link a line), what another app shared (shared: a name, an address, a link); New trip can start from one, Edit trip imports into the trip (Node-tested)
 src/weather.js       the forecast per trip day from Open-Meteo: where each day's weather is for (its places' middle, rounded), one request for all of them, its answer read, when it's stale (Node-tested)
@@ -62,7 +62,7 @@ cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync 
 cli/coverage.js      every part of the app (record fields, sheets, Settings pages, undoable actions, repo files, model.js's API) and the tool that covers it, or why a chat can't
 test/cli.test.js     cli/, against a fake GitHub
 test/coverage.test.js  the drift guard: reads the app and fails when something in it has no CLI/MCP tool or reason in cli/coverage.js
-server/              the sharing server: a Cloudflare Worker (worker.js) with D1 and KV, Google Maps list links (googlelist.js); not deployed yet (server/README.md)
+server/              the sharing server: a Cloudflare Worker (worker.js) with D1 and KV, Google Maps list links (googlelist.js), published trips (published.js); not deployed yet (server/README.md)
 test/server.test.js  server/, in Node against SQLite (as D1) and an in-memory KV
 server/mcp.js        the cloud connector: the same Worker as a remote MCP server for AI apps (Claude, ChatGPT, …), OAuth 2.1 sign-in with GitHub behind it, serving cli/mcp.js's tools minus deleting
 test/cloud-mcp.test.js  server/mcp.js's sign-in and MCP over HTTP, against a fake GitHub and KV
@@ -169,6 +169,22 @@ adds a line here.
 - A shared trip's key is kept in its member's own sync repo
   (shares.json), so their devices share it; anyone who can read that
   repo could use the key until the person is taken off the trip.
+- Publishing a trip (Sharing › Publish, publish_trip) puts a read-only
+  snapshot of its plan on the sharing server, readable by anyone who has
+  the link, and links get forwarded. The link's id is random (16
+  characters) and nothing lists published trips, so it's unlisted, not
+  private. What goes is picked field by field (model.publishedOf, and
+  server/published.js again, so a newer field stays home until it's
+  listed): name, destinations, drawn cover, categories, each place's
+  name, category, importance, location, day and time, and optionally
+  descriptions and links/notes. Never ratings, been there, expenses,
+  files, a cover photo or who is on the trip. It says who published it
+  by the name in Settings › Sharing (none if empty). Real dates are
+  optional: without them the days are moved to start on 2001-01-01 and
+  shown as Day 1, Day 2. The key that updates or removes it is kept in
+  the publisher's sync repo (published.json), like shares.json. Opening
+  a link sends the server nothing but the id; copying adds one to a
+  count the publisher sees, with nothing about who copied it.
 
 - Without GitHub sync (or a backup file), trips live on this device only
   (IndexedDB): a cleared browser or a new phone starts empty.

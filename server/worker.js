@@ -28,12 +28,15 @@
 //   DELETE /trips/:id/me               leave the trip
 //   GET|PUT /trips/:id/files/:fileId  the bytes of a file in the trip
 //   GET|PUT /trips/:id/cover          the cover photo
+//   /published/…                      published trips, read-only copies
+//                                     anyone with the link can copy (published.js)
 //   POST   /google-list               { url } -> { title, places } (googlelist.js;
 //                                     unofficial, 60 a day per address)
 //   /mcp, /authorize, /token, …        the cloud connector for AI apps (mcp.js)
 
 import * as GL from "./googlelist.js";
 import { handleMcp } from "./mcp.js";
+import * as PUB from "./published.js";
 
 const SECTIONS = ["expenses", "files"];
 const MAX_BUNDLE = 2e6;
@@ -105,6 +108,7 @@ export async function handle(req, env) {
     // The app's Settings › Sharing server asks this to check an address.
     if (!parts.length && req.method === "GET") return json({ tripboard: "sharing" });
     if (parts[0] === "google-list" && req.method === "POST") return await googleList(req, env);
+    if (parts[0] === "published") return await published(req, env, parts);
     if (parts[0] !== "trips") return fail(404, "Not here.");
     const tripId = parts[1];
     const sub = parts[2] || "";
@@ -175,6 +179,19 @@ export async function handle(req, env) {
     if (e.status) return fail(e.status, e.message);
     return fail(500, "Something went wrong on the server.");
   }
+}
+
+async function published(req, env, parts) {
+  const P = PUB.api(env);
+  const [, id, sub] = parts;
+  const m = req.method;
+  const key = (/^Bearer (.+)$/.exec(req.headers.get("Authorization") || "") || [])[1];
+  if (!id && m === "POST") return json(await P.create(await readJson(req), req.headers.get("CF-Connecting-IP")), 201);
+  if (id && sub === "copied" && m === "POST") return json(await P.copied(id));
+  if (id && !sub && m === "GET") return json(await P.get(id));
+  if (id && !sub && m === "PUT") return json(await P.update(id, key, await readJson(req)));
+  if (id && !sub && m === "DELETE") return json(await P.remove(id, key));
+  return fail(404, "Not here.");
 }
 
 async function googleList(req, env) {

@@ -1,8 +1,9 @@
 # The sharing server
 
 A Cloudflare Worker (`worker.js`) that holds the trips people share,
-with a D1 database (trips, keys, invite links) and a KV namespace (file
-bytes and covers). How it works, and what it checks, is at the top of
+and the trips people publish for anyone with the link to copy
+(`published.js`), with a D1 database (trips, keys, invite links,
+published trips) and a KV namespace (file bytes and covers). How it works, and what it checks, is at the top of
 `worker.js`. `node test/server.test.js` runs it against SQLite.
 
 Tripboard's own server is Daniel's (`SERVER` in `src/share.js`), and

@@ -9,8 +9,9 @@
 // place categories (the newer list wins), ai.json, whether AI tools may
 // delete (the newer change wins; only the app writes it), keys.json, the map
 // and search keys while Settings › Services › Sync keys is on (each newer
-// change wins; nothing but the app reads it), and shares.json, the keys
-// of the shared trips you're on (src/share.js). A sync reads the repo's tree in one call,
+// change wins; nothing but the app reads it), shares.json, the keys
+// of the shared trips you're on, and published.json, the keys of the trips
+// you published (both src/share.js). A sync reads the repo's tree in one call,
 // fetches only the trips whose file changed since the last sync, merges
 // them three ways against the copy both sides last agreed on (kept in
 // IndexedDB as "meta:sync"), and writes everything that differs in one
@@ -144,6 +145,20 @@
       await T.share.adoptKeys(theirKeys);
       const myKeys = await T.share.keys();
       if (JSON.stringify(myKeys) !== JSON.stringify(remote.has("shares.json") ? theirKeys : {})) writes.push({ path: "shares.json", text: text(myKeys) });
+    }
+    // Published trips' keys, so any of your devices can publish one again
+    // or stop it (src/share.js). The newer change to each wins.
+    if (T.share && T.share.enabled()) {
+      let theirPubs = state.pubsSeen || {};
+      if (remote.has("published.json") && state.pubsSha !== remote.get("published.json")) {
+        const got = await gh.getJson("published.json");
+        theirPubs = (got && got.data) || {};
+        state.pubsSha = remote.get("published.json");
+        state.pubsSeen = theirPubs;
+      }
+      await T.share.adoptPubKeys(theirPubs);
+      const myPubs = await T.share.pubKeys();
+      if (JSON.stringify(myPubs) !== JSON.stringify(remote.has("published.json") ? theirPubs : {})) writes.push({ path: "published.json", text: text(myPubs) });
     }
     doc = T.model.sanitizeDoc(doc);
 

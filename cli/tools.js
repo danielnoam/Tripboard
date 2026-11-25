@@ -86,6 +86,30 @@ async function googleList(url, env) {
   return body;
 }
 
+// Published trips (server/published.js): its calls over HTTP; the cloud
+// connector passes its own (env.published) so the Worker doesn't call itself.
+function publisher(env) {
+  if (env.published) return env.published;
+  const base = env.TRIPBOARD_SERVER || SERVER;
+  const call = async (method, p, body, key, to) => {
+    const headers = {};
+    if (body) headers["Content-Type"] = "application/json";
+    if (key) headers.Authorization = "Bearer " + key;
+    const r = await (env.fetch || globalThis.fetch)((to || base) + p, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    let out = null;
+    try { out = await r.json(); } catch (e) { /* not JSON */ }
+    if (!r.ok) throw Object.assign(new Error((out && out.error) || "Tripboard's server said no (" + r.status + ")."), { status: r.status });
+    return out;
+  };
+  return {
+    create: (body) => call("POST", "/published", body),
+    get: (id, host) => call("GET", "/published/" + id, null, null, host ? "https://" + host : null),
+    update: (id, key, body) => call("PUT", "/published/" + id, body, key),
+    remove: (id, key) => call("DELETE", "/published/" + id, null, key),
+    copied: (id, host) => call("POST", "/published/" + id + "/copied", null, null, host ? "https://" + host : null),
+  };
+}
+
 const money = (n, cur) => { try { return new Intl.NumberFormat("en", { style: "currency", currency: cur }).format(n); } catch (e) { return n + " " + cur; } };
 const placeLine = (p) => [p.day || "no date", p.time || "", M.isJourney(p) ? p.mode + " " + (p.number ? p.number + " " : "") + p.name + " → " + (p.toName || "?") + (p.arriveTime ? " " + p.arriveTime + (p.arriveDay ? " (" + p.arriveDay + ")" : "") : "") : p.name, M.isJourney(p) ? "" : "[" + p.importance + ", " + p.category + "]", p.visited ? "visited" : "", p.rating ? "★" + p.rating : "", p.km != null ? p.km + " km" : ""].filter(Boolean).join("  ") + "  (" + p.id + ")";
 
@@ -234,6 +258,33 @@ const TOOLS = [
       ["locations", { type: "boolean", description: "Keep each place's location (default true)." }],
       ["dates", { type: "boolean", description: "Keep the trip's dates and each place's day and time (default true)." }],
       ["attachments", { type: "boolean", description: "Copy links, notes and files (default true)." }]] },
+  { tool: "publish_trip", cmd: "publish", kind: "act",
+    description: "Publish a trip, as the app's Sharing › Publish: a read-only copy of its plan on Tripboard's server that anyone with the link can open and copy into their own trips (copy_published). Gives the link. It's a snapshot: publish again to update it (same link). Never published: expenses, files, ratings, been there, a cover photo or who is on the trip. Only its owner can publish a shared trip. Ask the person first: anyone the link reaches can read it.",
+    args: [tripArg, ["dates", { type: "boolean", description: "Keep its real dates (default true). Off: Day 1, Day 2 and so on." }],
+      ["notes", { type: "boolean", description: "Include each place's description and the trip's links and notes (default true)." }],
+      ["name", { type: "string", description: "The name it says it's by; your name on the trip by default." }]],
+    act: (tb, a, env) => core.publishTrip(tb, a, publisher(env)),
+    print: (r) => (r.again ? "Published " + r.trip + " again: " : "Published " + r.trip + ": ") + r.link },
+  { tool: "unpublish_trip", cmd: "unpublish", kind: "act",
+    description: "Stop publishing a trip: its published link stops working. Copies people already made stay theirs.",
+    args: [tripArg],
+    act: (tb, a, env) => core.unpublishTrip(tb, a, publisher(env)),
+    print: (r) => r.trip + " isn't published any more." },
+  { tool: "copy_published", cmd: "copy-published", kind: "write", op: "copyPublished",
+    description: "Copy a published trip (someone's link, …#/p/<id>) into your trips, as the app's Copy to my trips: a new trip that's yours alone. Choose whether locations, dates and attachments (links and notes) come; all do by default. start moves every day; a trip published without dates keeps its days only with a start.",
+    args: [["link", { type: "string", description: "The published trip's link, or its id." }, { req: true, pos: 0 }],
+      ["name", { type: "string", description: "The copy's name; the published trip's by default." }],
+      ["start", { ...day, description: "The copy's first day (YYYY-MM-DD); every planned day moves with it." }],
+      ["locations", { type: "boolean", description: "Keep each place's location (default true)." }],
+      ["dates", { type: "boolean", description: "Keep the days and times (default true)." }],
+      ["attachments", { type: "boolean", description: "Copy its links and notes (default true)." }]],
+    before: async (a, via, env) => {
+      const { id, host } = core.pubFromLink(a.link);
+      const P = publisher(env);
+      const pub = await P.get(id, host).catch((e) => { throw e.status === 404 ? new Error("That trip isn't published any more.") : e; });
+      await P.copied(id, host).catch(() => null);
+      return { ...a, pub };
+    } },
   { tool: "set_trip_cover", cmd: "cover", kind: "write", op: "setCover", input: "bytes",
     description: "Set a trip's cover: a photo (JPEG, PNG or WebP, up to 5 MB; the app shrinks its own, this keeps it as given), or one of the app's drawings by name (art), or remove it.",
     args: [tripArg, ...bytesArgs.filter(([n]) => n !== "text"), ["art", { type: "string", enum: M.COVER_ART, description: "A drawn cover instead of a photo." }], ["remove", { type: "boolean" }]] },
@@ -383,6 +434,7 @@ const OFF = "Deleting is off for AI tools. The person can turn it on in the Trip
 // Runs a tool on a connection; `via` is "cli" or "mcp". Gives the answer.
 async function run(tb, t, args, via, env = {}) {
   const a = await prep(t, args, via, env);
+  if (t.act) { const r = await t.act(tb, a, env); return t[via] ? t[via](r, a, env) : r; }
   if (t.kind === "write") return tb.change((doc, ctx) => {
     if (destructive(t) && !(ctx.ai && ctx.ai.deleting)) throw Object.assign(new Error(OFF), { deletingOff: true });
     return core.ops[t.op](doc, a, ctx);

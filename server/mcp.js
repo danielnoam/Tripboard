@@ -32,6 +32,7 @@
 
 import mcpCli from "../cli/mcp.js";
 import * as GL from "./googlelist.js";
+import * as PUB from "./published.js";
 
 const GH_LOGIN = "https://github.com/login/oauth";
 const GH_API = "https://api.github.com";
@@ -333,6 +334,23 @@ async function mcp(req, env, origin) {
     // A list's link is read here, as the app's /google-list does, so the
     // Worker doesn't call itself.
     googleList: (url) => listFor(env, g.user, url),
+    // Publishing works on this Worker's own tables (published.js), counted
+    // by connector user; a link naming another server is fetched from it.
+    published: (() => {
+      const P = PUB.api(env);
+      const away = (host) => host && host !== new URL(origin).host;
+      const other = async (method, p, host) => {
+        const r = await (env.FETCH || fetch)("https://" + host + p, { method, headers: { "User-Agent": "Tripboard-MCP" } });
+        const out = await r.json().catch(() => null);
+        if (!r.ok) throw Object.assign(new Error((out && out.error) || host + " said no (" + r.status + ")."), { status: r.status });
+        return out;
+      };
+      return {
+        create: (body) => P.create(body, "mcp:" + g.user), update: P.update, remove: P.remove,
+        get: (id, host) => (away(host) ? other("GET", "/published/" + id, host) : P.get(id)),
+        copied: (id, host) => (away(host) ? other("POST", "/published/" + id + "/copied", host) : P.copied(id)),
+      };
+    })(),
   });
   const one = async (msg) => {
     if (!msg || typeof msg !== "object") return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } };

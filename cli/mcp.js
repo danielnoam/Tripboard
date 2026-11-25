@@ -24,9 +24,9 @@ function schema(t) {
 // annotations (readOnlyHint for reads, destructiveHint for anything that
 // deletes, removes or replaces), which clients use to skip or ask before a call.
 const LIST = TOOLS.map((t) => ({ name: t.tool, description: t.description + (destructive(t) ? " Works only while the app's Settings › AI tools › Let AI tools delete is on (off at first); no tool can turn it on." : ""), inputSchema: schema(t),
-  annotations: { readOnlyHint: t.kind === "read", destructiveHint: destructive(t), openWorldHint: t.tool === "find_location" || t.tool === "import_places" } }));
+  annotations: { readOnlyHint: t.kind === "read", destructiveHint: destructive(t), openWorldHint: ["find_location", "import_places", "publish_trip", "unpublish_trip", "copy_published"].includes(t.tool) } }));
 
-function server({ env = process.env, fetch, write = (s) => process.stdout.write(s), googleList } = {}) {
+function server({ env = process.env, fetch, write = (s) => process.stdout.write(s), googleList, published } = {}) {
   let tb = null;
   const conn = () => tb || (tb = core.open({ token: env.TRIPBOARD_TOKEN, repo: env.TRIPBOARD_REPO, branch: env.TRIPBOARD_BRANCH, fetch }));
   const send = (msg) => write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\n");
@@ -35,7 +35,7 @@ function server({ env = process.env, fetch, write = (s) => process.stdout.write(
     const tool = TOOLS.find((t) => t.tool === name);
     if (!tool) throw Object.assign(new Error("Unknown tool " + name), { code: -32602 });
     try {
-      const out = await run(conn(), tool, args || {}, "mcp", { ...env, fetch, googleList });
+      const out = await run(conn(), tool, args || {}, "mcp", { ...env, fetch, googleList, published });
       return { content: [{ type: "text", text: JSON.stringify(out, null, 1) }] };
     } catch (e) {
       return { content: [{ type: "text", text: e.message || String(e) }], isError: true };

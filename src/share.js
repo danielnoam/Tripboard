@@ -210,6 +210,73 @@
     changed();
   }
 
+  // ---------- Publishing ----------
+  // A trip published for anyone with its link to open and copy
+  // (server/published.js): a snapshot of its plan (model.publishedOf),
+  // sent again by Publish again. Each one's key, which updates or removes
+  // it, is kept in IndexedDB ("meta:published") and, through GitHub sync,
+  // in your sync repo's published.json, so your other devices can update
+  // or stop it too: { [trip id]: { id, key, at, dates, notes, server } },
+  // or { stopped: true, at } once stopped. The newer `at` wins a merge.
+  let pubs = null;
+  const pubLoad = async () => (pubs = pubs || (await ctx.store.meta("published")) || {});
+  const pubKeep = () => ctx.store.setMeta("published", pubs);
+  const pubAt = (st) => (st && st.server) || SERVER;
+  S.published = (tripId) => (pubs && pubs[tripId] && !pubs[tripId].stopped ? pubs[tripId] : null);
+  S.publishedLink = (st) => {
+    const base = /^(localhost|127\.)/.test(location.hostname) ? location.origin + location.pathname : APP_URL;
+    return base + "#/p/" + st.id + (st.server ? "/" + S.host(st.server) : "");
+  };
+  S.publish = async (trip, opts) => {
+    await pubLoad();
+    const o = { dates: opts.dates !== false, notes: opts.notes !== false };
+    const body = { bundle: T.model.publishedOf(ctx.getDoc(), trip, o), by: me().name || "", dates: o.dates };
+    const was = S.published(trip.id);
+    let st;
+    if (was) {
+      const r = await call("PUT", "/published/" + was.id, { key: was.key, body, to: pubAt(was) }).catch((e) => { if (e.status === 404 || e.status === 401) return null; throw e; });
+      if (r) st = { ...was, ...o, at: r.data.at };
+    }
+    if (!st) {
+      const to = server();
+      const r = await call("POST", "/published", { body, to });
+      st = { id: r.data.id, key: r.data.key, at: r.data.at, ...o };
+      if (to !== SERVER) st.server = to;
+    }
+    pubs[trip.id] = st;
+    await pubKeep();
+    changed();
+    return S.publishedLink(st);
+  };
+  S.unpublish = async (tripId) => {
+    await pubLoad();
+    const st = S.published(tripId);
+    if (st) await call("DELETE", "/published/" + st.id, { key: st.key, to: pubAt(st) }).catch((e) => { if (e.status !== 401 && e.status !== 404) throw e; });
+    pubs[tripId] = { stopped: true, at: new Date().toISOString() };
+    await pubKeep();
+    changed();
+  };
+  // A published trip, from its link's id and host: { bundle, by, dates, at, copies }.
+  S.openPublished = async (id, host) => {
+    const to = host ? S.origin(host) : SERVER;
+    if (!to) throw new Error(i18n.t("This link is broken."));
+    return (await call("GET", "/published/" + id, { to })).data;
+  };
+  S.copiedPublished = (id, host) => call("POST", "/published/" + id + "/copied", { to: host ? S.origin(host) : SERVER }).catch(() => null);
+  S.pubKeys = async () => { await pubLoad(); return Object.fromEntries(Object.entries(pubs).sort()); };
+  S.adoptPubKeys = async (theirs) => {
+    await pubLoad();
+    let hit = false;
+    for (const [id, v] of Object.entries(theirs || {})) {
+      if (!/^[\w-]{1,40}$/.test(id) || !v || typeof v.at !== "string") continue;
+      if (!v.stopped && (typeof v.key !== "string" || !/^[\w-]{1,40}$/.test(v.id || "") || (v.server && !S.origin(v.server)))) continue;
+      if (pubs[id] && pubs[id].at >= v.at) continue;
+      pubs[id] = v.stopped ? { stopped: true, at: v.at } : { id: v.id, key: v.key, at: v.at, dates: v.dates !== false, notes: v.notes !== false, ...(v.server ? { server: S.origin(v.server) } : {}) };
+      hit = true;
+    }
+    if (hit) { await pubKeep(); changed(); }
+  };
+
   // One shared trip, synced with the server.
   async function once(id) {
     const st = state[id];
@@ -319,7 +386,7 @@
   S.start = (c) => {
     ctx = c;
     if (!S.enabled()) return;
-    load().then(changed);
+    Promise.all([load(), pubLoad()]).then(changed);
     if (!wired) {
       wired = true;
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") S.soon(500); });
