@@ -4,6 +4,34 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.7.1] - 2026-11-25
+
+### Added
+- Duplicate a trip: right-click or long-press it on Home (or Duplicate in Edit trip). Choose whether its places keep their locations, dates and attachments; with dates, pick a new start and every day moves with it. The copy is yours alone: ratings, been there, expenses and sharing stay with the original.
+- Adding a place is quicker: type its name and press Enter, and the matches show right under it. Pick one and its location and category are filled in, or keep just the name. Add another saves it and starts the next one.
+- Paste a list: in Add a place, paste names or Google Maps place links, one a line, from your notes, a blog or a chat. You see what it understood before adding, and can give them all one importance, category and day. They're found on the map one by one after adding.
+- To check: when finding places from a list or an import isn't sure (it found something with another name, or nothing), the place goes under a To check filter on the Plan until you set its location or tap Looks right.
+- A phone turned sideways gets a layout for it: the trip's tabs and + move to a rail at the side, the Plan's Time | Destination switch and filters sit in the top bar, the cover picture steps aside, and the Plan shows in columns with no folding, as on a computer.
+- A day's heading on the Plan (Time, and the days in Destination) opens that day on its own page, the way Today shows it, for any trip and any day. Arrows step to the day before and after, a swipe does the same on a phone, and while the trip is under way a Today button goes back to today. Next and Navigate show only on today.
+- A Rating filter in the Plan and on the map: 5 stars, 4 or 3 stars and up, or not rated yet. It shows once a place in the trip has a rating.
+
+### Changed
+- A hotel kept on while you sleep somewhere else (the Tokyo room on a Hakone night) shows under "Also booked" at the bottom of the day instead of in the day's plan, and the walk and drive guesses leave it out. get_day lists it as alsoBooked.
+- Phone: swiping on a trip's page no longer changes tabs; swipe on the bottom bar for that. Swiping on the Plan now switches between Time and Destination, mirrored in Hebrew.
+- The Plan goes by Time or Destination only. Category, Importance and Rating are filters next to them instead of views of their own, and the map uses the same filters.
+- Plan › Destination: Set the days for all with a range puts every place not already on one of those days on the range's first day, instead of leaving it with no day.
+- Plan › Destination on a computer: the "Drop here to give it a block of its own" strip is gone; drop a destination on empty space in the board instead.
+- On a computer, the side bar always shows the sync state when GitHub sync is on: "Synced" with a cloud and tick, turning arrows while it syncs, a crossed cloud when it couldn't.
+- Plan › Destination on a phone: when the board has only one block, it stays open and has no fold arrow.
+
+### Fixed
+- A saved place can be turned into a journey, and a journey back into a place: the Place / Journey switch now shows when editing too, not only when adding.
+- With a right-click menu open, right-clicking another place (or destination) opens its menu straight away, instead of needing a click somewhere first.
+
+### Removed
+- The Distance view. The Map's locate button shows what's near you.
+- The Plan has one look now, Expanded (each place's details and note under its name). The List look and the View sheet's Look choice are gone; a device that had List picks up Expanded by itself.
+
 ## [0.7.0] - 2026-11-24
 
 ### Added
