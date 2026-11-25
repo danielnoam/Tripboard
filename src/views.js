@@ -2473,7 +2473,7 @@
     $(journey ? "placeFromSlot" : "placeNameSlot").append(f.name);
     if (journey) $("leaveTimeSlot").append($("placeTime"));
     else $("placeTimeSlot").prepend($("placeTime"));
-    $("kindSeg").hidden = !!editingPlace;
+    $("kindSeg").hidden = !mayEdit(placeTrip);
     $("kindSeg").replaceChildren(...[[false, i18n.t("Place")], [true, i18n.t("Journey")]].map(([j, label]) =>
       el("button", { type: "button", role: "radio", "aria-checked": String(journey === j), text: label,
         onclick: () => { journey = j; paintKind(); paintUntilRow(); } })));
@@ -2599,8 +2599,8 @@
     Object.assign(p, { name: f.name.value, category: f.category.value, importance, day, time: f.time.value, endTime: f.endTime.value, note: f.note.value, updatedAt: stamp });
     if (journey) {
       const arrive = placeTrip.start ? $("arriveSelect").value : $("arriveInput").value;
-      // A new journey goes under Getting around, unless a category was picked.
-      if (!editingPlace && !categoryTouched) p.category = "transport";
+      // A new journey (or a place made one) goes under Getting around, unless a category was picked.
+      if (!(editingPlace && M.isJourney(JSON.parse(raw))) && !categoryTouched) p.category = "transport";
       delete p.endDay; delete p.endTime;
       Object.assign(p, { kind: "journey", mode, toName: f.toName.value.trim(), arriveTime: f.arriveTime.value, number: f.number.value.trim() });
       if (day && arrive > day) p.arriveDay = arrive; else delete p.arriveDay;
