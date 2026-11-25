@@ -761,4 +761,6 @@ Keel.i18n.strings("he", {
   "Day {n} of {total}": "יום {n} מתוך {total}",
   "Nothing planned for this day.": "אין תוכניות ליום הזה.",
   "Add a place for this day with +, or give one this day's date on the Plan.": "אפשר להוסיף מקום ליום הזה עם +, או לתת למקום את התאריך שלו בתוכנית.",
+  "Also booked": "הוזמן גם",
+  "{n} of {total} nights": "לילה {n} מתוך {total}",
 });

@@ -484,6 +484,14 @@
     for (const d of destsOf(trip)) if (d.start && d.start <= day && day <= d.end && (!best || d.start >= best.start)) best = d;
     return best ? best.name : null;
   }
+  // A stay kept on while you sleep somewhere else (a night of the Tokyo
+  // hotel on a Hakone day): booked, but not where the day happens, so the
+  // day lists it apart and leaves it out of the way between places.
+  function awayStay(trip, p, day) {
+    if (stayPart(p, day) !== "night") return false;
+    const here = dayDest(trip, day), at = destOf(trip, p);
+    return !!here && !!at && at !== here;
+  }
   // Puts a place in a destination (null: none chosen, the nearest): by
   // hand only when the nearest isn't already it.
   function setDest(trip, p, name) {
@@ -774,7 +782,7 @@
     sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, STAR_FILTERS, filterPlaces, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
-    slotOf, isStay, timeOn, stayPart, distanceKm, board, areas, REACH_KM, destsOf, hasDestDates, destOf, dayDest, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
+    slotOf, isStay, timeOn, stayPart, distanceKm, board, areas, REACH_KM, destsOf, hasDestDates, destOf, dayDest, awayStay, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,
     // Every field each record can hold, for cli/coverage.js's drift check.
     KNOWN: { trip: KNOWN_TRIP, place: KNOWN_PLACE, expense: KNOWN_EXPENSE, file: KNOWN_FILE },
   };

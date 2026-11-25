@@ -419,6 +419,13 @@ test("a day goes with the dated destination covering it that starts last", () =>
     ["Osaka", "Kyoto", "Kyoto", "Uji", "Kyoto", null]);
 });
 
+test("a stay's night on a day spent in another destination is booked elsewhere", () => {
+  const hotel = JP({ name: "Kyoto hotel", category: "stay", dest: "Kyoto", day: "2026-02-04", endDay: "2026-02-08" });
+  assert.deepStrictEqual(["2026-02-04", "2026-02-05", "2026-02-06", "2026-02-08"].map((d) => M.awayStay(J, hotel, d)), [false, false, true, false]);
+  assert.strictEqual(M.awayStay(J, JP({ name: "Somewhere", category: "stay", day: "2026-02-04", endDay: "2026-02-08" }), "2026-02-06"), false, "no destination: not away");
+  assert.strictEqual(M.awayStay(J, JP({ name: "Tour", dest: "Kyoto", day: "2026-02-04", endDay: "2026-02-08" }), "2026-02-06"), false, "only stays");
+});
+
 test("the plan by time: a heading per run of a destination's days, its places with no day, and No date by destination", () => {
   const places = [
     JP({ name: "Dotonbori", lat: 34.668, lng: 135.501, importance: "maybe" }), JP({ name: "Osaka Castle", lat: 34.687, lng: 135.526, importance: "must" }),

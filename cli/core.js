@@ -670,7 +670,8 @@ const queries = {
     const t = findTrip(st.doc, a.trip);
     const day = a.day || today();
     if (!M.isDay(day)) throw new Error("A day is YYYY-MM-DD.");
-    const plan = M.dayPlan(placesOf(st.doc, t), day);
+    const all = M.dayPlan(placesOf(st.doc, t), day);
+    const plan = all.filter((p) => !M.awayStay(t, p, day));
     const next = M.nextOf(plan);
     const expenses = (st.doc.expenses || []).filter((x) => x.trip === t.id && x.day === day);
     return {
@@ -680,6 +681,8 @@ const queries = {
         ...(i && M.connection(plan[i - 1], p) ? { change: M.connection(plan[i - 1], p), fromPrevious: null } : { fromPrevious: i ? M.leg(plan[i - 1], p) : null }) })),
       // Overnight journeys that land this day (they left on an earlier one).
       arrivals: M.arrivals(placesOf(st.doc, t), day).map((j) => ({ id: j.id, name: j.name, toName: j.toName, mode: j.mode, number: j.number, arriveTime: j.arriveTime, leftOn: j.day })),
+      // Stays booked for this night somewhere other than the day's destination.
+      alsoBooked: all.filter((p) => M.awayStay(t, p, day)).map((p) => ({ id: p.id, name: p.name, destination: M.destOf(t, p), day: p.day, endDay: p.endDay })),
       next: next ? { id: next.id, name: next.name } : null,
       expenses, totals: M.expenseTotals(expenses),
     };
