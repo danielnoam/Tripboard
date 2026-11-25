@@ -111,7 +111,7 @@
   const MAX_ORDER = 999;
   const KNOWN_TRIP = new Set(["id", "name", "start", "end", "destinations", "destInfo", "cover", "art", "owner", "members", "share", "cats", "by", "createdAt", "updatedAt"]);
   const KNOWN_PLACE = new Set(["id", "trip", "name", "category", "importance", "day", "endDay", "time", "endTime", "note",
-    "lat", "lng", "address", "placeId", "geoAt", "visited", "dest", "rating", "order", "by", "createdAt", "updatedAt",
+    "lat", "lng", "address", "placeId", "geoAt", "visited", "check", "dest", "rating", "order", "by", "createdAt", "updatedAt",
     "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]);
   // A journey's kinds of transport, as [id, name].
   const MODES = [["flight", i18n.t("Flight")], ["train", i18n.t("Train")], ["bus", i18n.t("Bus")], ["ferry", i18n.t("Ferry")], ["other", i18n.t("Other")]];
@@ -322,6 +322,9 @@
     // When a Google location was fetched: Google allows keeping it 30 days.
     if (out.lat != null && isDay(p.geoAt)) out.geoAt = p.geoAt;
     if (p.visited) out.visited = true;
+    // Found on the map by a bulk lookup (a pasted or imported list) that
+    // wasn't sure, or didn't find it: To check, until its location is set.
+    if (p.check === true) out.check = true;
     const dest = text(p.dest).slice(0, 80);
     if (dest) out.dest = dest;
     const rating = num(p.rating);
@@ -690,10 +693,11 @@
   const STAR_FILTERS = ["5", "4", "3", "none"];
   const rated = (p, stars) => isJourney(p) || (stars === "none" ? !p.rating : (p.rating || 0) >= +stars);
   // The places the Plan's and the map's filters keep.
-  function filterPlaces(places, { only, categories, stars } = {}) {
+  function filterPlaces(places, { only, categories, stars, check } = {}) {
     let shown = only && only.length ? places.filter((p) => only.includes(p.importance) || isJourney(p)) : places.slice();
     if (categories && categories.length) shown = shown.filter((p) => categories.includes(p.category));
     if (STAR_FILTERS.includes(String(stars))) shown = shown.filter((p) => rated(p, String(stars)));
+    if (check) shown = shown.filter((p) => p.check);
     return shown;
   }
   function board(trip, places, sort, filters) {

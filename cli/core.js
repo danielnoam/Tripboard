@@ -229,7 +229,7 @@ async function sharesServers(reading) {
 // The edits both front ends offer, on a doc. Each gives the record it made
 // or changed. Fields are the app's own (see src/model.js); unknown ones
 // are kept, as the app keeps them.
-const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "rating", "order",
+const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "check", "rating", "order",
   "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "arriveDay", "arriveTime", "number"];
 const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
 const TRIP_FIELDS = ["name", "start", "end", "destinations"];
@@ -382,6 +382,8 @@ const ops = {
     clear(p, a, PLACE_FIELDS);
     // A new location from anywhere but Google's id isn't Google's.
     if ((a.lat !== undefined || a.lng !== undefined) && a.placeId === undefined) delete p.geoAt;
+    // A location set by hand is checked.
+    if ((a.lat !== undefined || a.lng !== undefined) && a.check === undefined) delete p.check;
     if ((a.toLat !== undefined || a.toLng !== undefined) && a.toPlaceId === undefined) delete p.toGeoAt;
     // No longer a journey: its journey fields go, as in the app.
     if (p.kind !== "journey") for (const k of ["kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]) delete p[k];
@@ -439,16 +441,20 @@ const ops = {
   // one named after the list. Names already in the trip are skipped, as in the app.
   importPlaces(doc, a, ctx) {
     const src = a.bytes ? Buffer.from(a.bytes).toString("utf8") : "";
-    const items = a.list ? (a.list.places || []).filter((p) => p && typeof p.name === "string" && p.name.trim()) : LI.parse(src, a.fileName || "");
+    const items = a.list ? (a.list.places || []).filter((p) => p && typeof p.name === "string" && p.name.trim())
+      : a.lines ? LI.pasted(a.lines).places : LI.parse(src, a.fileName || "");
     if (!items.length) throw new Error("No places found in that.");
     const title = a.list ? String(a.list.title || "") : LI.title(src, a.fileName || "");
     const t = a.trip ? findTrip(doc, a.trip) : ops.createTrip(doc, { name: a.name || title || "Imported places" }, ctx);
     const have = new Set(placesOf(doc, t).map((p) => p.name.toLowerCase()));
+    const cat = a.category ? findCat(catsOf(ctx && ctx.cats).concat(Object.entries(t.cats || {})), a.category)[0] : null;
+    if (a.day && !M.isDay(a.day)) throw new Error("day is a date, YYYY-MM-DD.");
     const added = [];
     for (const it of items) {
       if (have.has(it.name.toLowerCase())) continue;
       have.add(it.name.toLowerCase());
-      const p = { id: M.newId(), trip: t.id, name: it.name, category: "other", importance: "want", createdAt: now() };
+      const p = { id: M.newId(), trip: t.id, name: it.name, category: cat || "other", importance: a.importance || "want", createdAt: now() };
+      if (a.day) p.day = a.day;
       if (it.note) p.note = it.note;
       if (typeof it.lat === "number" && typeof it.lng === "number") Object.assign(p, { lat: it.lat, lng: it.lng });
       added.push(M.sanitizePlace(p));
@@ -655,6 +661,7 @@ const queries = {
     if (a.category) { const [id] = findCat(cats.concat(Object.entries(t.cats || {})), a.category); list = list.filter((p) => p.category === id); }
     if (a.importance && a.importance.length) list = list.filter((p) => a.importance.includes(p.importance));
     if (a.visited !== undefined) list = list.filter((p) => !!p.visited === !!a.visited);
+    if (a.check !== undefined) list = list.filter((p) => !!p.check === !!a.check);
     if (a.rating && a.rating.length) list = list.filter((p) => a.rating.map(Number).includes(p.rating || 0));
     if (a.located !== undefined) list = list.filter((p) => (p.lat != null) === !!a.located);
     if (a.kind) list = list.filter((p) => (a.kind === "journey") === M.isJourney(p));

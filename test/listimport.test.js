@@ -48,4 +48,14 @@ test("the list's name: KML's Document name, a Takeout CSV's file name, none for 
   assert.strictEqual(L.title("{}", "Saved Places.json"), "");
 });
 
+test("a pasted list: names and place links a line, bullets dropped, Share's short link kept with its name", () => {
+  const got = L.pasted(["Pastéis de Belém", "https://maps.app.goo.gl/abc", "", "- Castelo de São Jorge", "2. A Cevicheria",
+    "https://www.google.com/maps/place/Ocean%C3%A1rio+de+Lisboa/@38.7635,-9.0937,17z", "https://maps.app.goo.gl/xyz",
+    "pastéis de belém", "Time Out Market: https://maps.app.goo.gl/q", "https://example.com/blog"].join("\r\n"));
+  assert.deepStrictEqual(got.places.map((p) => p.name), ["Pastéis de Belém", "Castelo de São Jorge", "A Cevicheria", "Oceanário de Lisboa", "Time Out Market"]);
+  assert.deepStrictEqual([got.places[3].lat, got.places[3].lng, got.places[3].from], [38.7635, -9.0937, "link"]);
+  assert.strictEqual(got.short, 1, "a short link on its own line after a link can't be read");
+  assert.deepStrictEqual(L.pasted(""), { places: [], short: 0 });
+});
+
 console.log(passed + " passed");

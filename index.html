@@ -381,11 +381,50 @@
     </form>
   </dialog>
 
+  <dialog class="sheet page" id="pasteSheet" aria-labelledby="pasteTitle">
+    <form class="sheet-body" id="pasteForm" novalidate>
+      <div class="page-bar">
+        <button class="icon-btn page-back" type="button" data-close aria-label="Back" data-t-attr="aria-label"></button>
+        <h2 id="pasteTitle" data-t>Paste a list</h2>
+      </div>
+      <section class="pcard">
+        <h3 class="pcard-head" data-icon="note"><label for="pasteText" data-t>One place a line</label></h3>
+        <textarea class="paste-text" id="pasteText" name="text" rows="7" spellcheck="false" placeholder="Pastéis de Belém
+Castelo de São Jorge
+https://www.google.com/maps/place/…"></textarea>
+        <p class="pcard-hint" data-t>Names or Google Maps links, from your notes, a blog or a chat.</p>
+      </section>
+      <section class="pcard" id="pasteFound" hidden>
+        <h3 class="pcard-head" data-icon="list"><span id="pasteCount"></span></h3>
+        <ul class="paste-list" id="pasteList"></ul>
+        <p class="pcard-hint" id="pasteHow"></p>
+      </section>
+      <section class="pcard">
+        <h3 class="pcard-head" data-icon="tag"><span data-t>All of them</span></h3>
+        <div class="prow">
+          <span class="prow-lab" id="pasteImpLabel" data-t>Importance</span>
+          <div class="prow-val"><div class="seg" id="pasteImp" role="radiogroup" aria-labelledby="pasteImpLabel"></div></div>
+        </div>
+        <div class="prow">
+          <label class="prow-lab" for="pasteCat" data-t>Category</label>
+          <div class="prow-val"><select name="category" id="pasteCat"></select></div>
+        </div>
+        <div class="prow">
+          <label class="prow-lab" for="pasteDay" data-t>Day</label>
+          <div class="prow-val"><select name="day" id="pasteDay"></select><input name="dayInput" id="pasteDayInput" type="date" hidden aria-label="Day" data-t-attr="aria-label"></div>
+        </div>
+      </section>
+      <div class="sheet-actions">
+        <button class="btn primary paste-go" id="pasteGo" type="submit" disabled data-icon="plus"><span id="pasteGoLabel" data-t>Add places</span></button>
+      </div>
+    </form>
+  </dialog>
   <dialog class="sheet page" id="placeSheet" aria-labelledby="placeSheetTitle">
     <form class="sheet-body" id="placeForm" novalidate>
       <div class="page-bar">
         <button class="icon-btn page-back" type="button" data-close aria-label="Back" data-t-attr="aria-label"></button>
         <h2 id="placeSheetTitle" data-t>Add a place</h2>
+        <button class="btn quiet place-paste" id="placePaste" type="button" hidden data-icon="note"><span data-t>Paste a list</span></button>
       </div>
       <div class="seg kind-seg" id="kindSeg" role="radiogroup" aria-label="Kind" data-t-attr="aria-label"></div>
       <div class="ptitle">
@@ -395,6 +434,7 @@
           <input name="name" type="text" autocomplete="off" maxlength="160" placeholder="Fushimi Inari" required>
         </label>
       </div>
+      <div class="place-found" id="placeFoundSlot"></div>
       <fieldset class="field j-only modes">
         <legend class="visually-hidden" data-t>Type</legend>
         <div class="seg" id="modeSeg" role="radiogroup"></div>
@@ -409,13 +449,17 @@
             <div class="j-only" id="placeFromSlot"></div>
             <div class="paddr" data-icon="pin"><p class="where" id="placeWhere" dir="auto"></p>
               <button class="icon-btn small" id="placeClear" type="button" hidden aria-label="Clear the location" data-t-attr="aria-label" data-icon="x"></button></div>
+            <div class="place-check" id="placeCheck" hidden>
+              <p class="hint" data-t>Found by a list's lookup, which wasn't sure. Is this the right place?</p>
+              <button class="btn" id="placeCheckOk" type="button" data-icon="check"><span data-t>Looks right</span></button>
+            </div>
             <div class="loc-actions">
               <button class="btn" id="placeFind" type="button" data-icon="search"><span id="placeFindLabel" data-t>Find by name</span></button>
               <button class="btn" id="placePin" type="button" data-icon="locate"><span id="placePinLabel" data-t>Pin on map</span></button>
               <details class="open-menu" id="placeOpenIn"></details>
             </div>
-            <p class="hint" id="placeFindNote" role="status"></p>
-            <ul class="results" id="placeResults"></ul>
+            <div id="placeFoundHome"><p class="hint" id="placeFindNote" role="status"></p>
+            <ul class="results" id="placeResults"></ul></div>
           </div>
         </div>
         <div class="pstop j-only">
@@ -496,6 +540,8 @@
 
       <div class="sheet-actions">
         <button class="btn quiet j-only" id="nextLeg" type="button" data-icon="plus"><span data-t>Add the next leg</span></button>
+        <button class="btn place-done" id="placeDone" type="button" hidden data-close data-icon="check"><span data-t>Done</span></button>
+        <button class="btn primary place-another" id="placeAnother" type="button" hidden data-icon="plus"><span data-t>Add another</span></button>
         <button class="btn danger" id="placeDelete" type="button" hidden data-icon="trash"><span class="p-only" data-t>Delete place</span><span class="j-only" data-t>Delete journey</span></button>
       </div>
     </form>

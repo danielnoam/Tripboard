@@ -36,7 +36,7 @@ const fields = {
     name: ["add_place", "update_place"], category: ["add_place", "update_place"], importance: ["add_place", "update_place"],
     day: ["add_place", "update_place"], endDay: ["add_place", "update_place"], time: ["add_place", "update_place"], endTime: ["add_place", "update_place"],
     note: ["add_place", "update_place"], lat: ["add_place", "update_place", "find_location"], lng: ["add_place", "update_place", "find_location"],
-    address: ["add_place", "update_place"], placeId: ["add_place", "update_place"], visited: ["add_place", "update_place"],
+    address: ["add_place", "update_place"], placeId: ["add_place", "update_place"], visited: ["add_place", "update_place"], check: ["update_place", "find_places", "import_places"],
     rating: ["add_place", "update_place", "find_places", "get_board"],
     dest: ["add_place", "update_place", "get_trip", "get_board"],
     order: ["add_place", "update_place", "order_day"],
@@ -71,6 +71,7 @@ const collections = {
 // index.html's sheets.
 const sheets = {
   dupSheet: ["duplicate_trip"],
+  pasteSheet: ["import_places", "find_location"],
   tripSheet: ["create_trip", "update_trip", "delete_trip", "set_trip_cover", "import_places"],
   placeSheet: ["add_place", "update_place", "delete_place", "find_location"],
   expenseSheet: ["add_expense", "update_expense", "delete_expense"],

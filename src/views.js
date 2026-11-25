@@ -102,13 +102,14 @@
 
   let doc, store, motion, saveDoc;
   const covers = new Map();
-  const view = { trip: null, sort: "time", only: [], mapCats: [], stars: "", unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, deskMap: true, split: 0 };
+  const view = { trip: null, sort: "time", only: [], mapCats: [], stars: "", check: false, unplacedOpen: false, destShut: [], from: null, mode: "board", pick: null, sel: null, deskMap: true, split: 0 };
   try { Object.assign(view, JSON.parse(localStorage.getItem("tripboard.view") || "{}"), { trip: null }); } catch (e) { /* first visit */ }
   // The Plan goes by time or destination; category, importance, rating and
   // distance were views of their own up to 0.7, and are filters (or gone) now.
   if (view.sort !== "area") view.sort = "time";
   if (!M.STAR_FILTERS.includes(view.stars)) view.stars = "";
-  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, stars: view.stars, unplacedOpen: view.unplacedOpen, destShut: view.destShut, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
+  view.check = view.check === true;
+  const remember = () => { try { localStorage.setItem("tripboard.view", JSON.stringify({ sort: view.sort, only: view.only, mapCats: view.mapCats, stars: view.stars, check: view.check, unplacedOpen: view.unplacedOpen, destShut: view.destShut, deskMap: view.deskMap, split: view.split })); } catch (e) { /* private window */ } };
 
   const findTrip = (id) => doc.trips.find((t) => t.id === id);
   const placesOf = (id) => doc.places.filter((p) => p.trip === id);
@@ -212,14 +213,16 @@
   // ---------- Importing a Google Maps list (src/listimport.js) ----------
   // The places come in at once (Undo takes them all back); the ones without
   // a location are then looked up by name with Find by name, one at a time.
-  async function importList(trip, items) {
+  // opts: { importance, category, day } for every new place (Paste a list).
+  async function importList(trip, items, opts = {}) {
     const have = new Set(placesOf(trip.id).map((p) => p.name.toLowerCase()));
     const stamp = new Date().toISOString();
     const fresh = [];
     for (const it of items) {
       if (have.has(it.name.toLowerCase())) continue;
       have.add(it.name.toLowerCase());
-      const p = { id: M.newId(), trip: trip.id, name: it.name, category: "other", importance: "want", createdAt: stamp, updatedAt: stamp };
+      const p = { id: M.newId(), trip: trip.id, name: it.name, category: opts.category || "other", importance: opts.importance || "want", createdAt: stamp, updatedAt: stamp };
+      if (opts.day) p.day = opts.day;
       if (it.note) p.note = it.note;
       if (it.lat != null) Object.assign(p, { lat: it.lat, lng: it.lng });
       fresh.push(p);
@@ -228,36 +231,109 @@
     undoable(i18n.tn(fresh.length, "Imported 1 place.", "Imported {n} places."), () => { doc.places.push(...fresh); });
     await locateImported(trip, fresh.filter((p) => p.lat == null).map((p) => p.id));
   }
+  // Two names for the same place: one holds the other, once accents, case
+  // and punctuation are set aside ("pasteis de belem" and "Pastéis de Belém").
+  const plainName = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const sameName = (a, b) => { const x = plainName(a), y = plainName(b); return !!x && !!y && (x.includes(y) || y.includes(x)); };
+  // Each one is looked up and takes the first answer. One it found under
+  // another name, or didn't find, is marked To check.
   async function locateImported(trip, ids) {
     if (!ids.length || navigator.onLine === false) return;
     const prov = SET.get().providers;
     const known = cats().map(([id]) => id);
-    let found = 0;
+    let found = 0, unsure = 0;
     for (const [i, id] of ids.entries()) {
       const p = doc.places.find((x) => x.id === id);
       if (!p) continue;
       toast(i18n.t("Finding {name} on the map ({at} of {total})…", { name: p.name, at: i + 1, total: ids.length }));
       const near = placesOf(trip.id).filter((x) => x.lat != null);
+      let r = null, asked = false;
       try {
         const got = await keyedSearch(p.name + (trip.destinations[0] && !near.length ? ", " + trip.destinations[0] : ""),
           { chain: SET.chain("search"), keys: { google: prov.google.key, maptiler: prov.maptiler.key }, near });
-        const r = got.results[0];
-        const cur = doc.places.find((x) => x.id === id);
-        if (r && cur && cur.lat == null) {
+        r = got.results[0];
+        asked = true;
+      } catch (e) { /* stays without a location */ }
+      const cur = doc.places.find((x) => x.id === id);
+      if (cur && cur.lat == null && asked) {
+        if (r) {
           Object.assign(cur, { lat: r.lat, lng: r.lng, updatedAt: new Date().toISOString() });
           if (r.source === "google") Object.assign(cur, { placeId: r.placeId, geoAt: new Date().toISOString().slice(0, 10) });
           else if (r.address) cur.address = r.address;
           if (r.category && known.includes(r.category) && cur.category === "other") cur.category = r.category;
           found++;
-          save();
         }
-      } catch (e) { /* stays without a location */ }
+        if (!r || !sameName(cur.name, r.name)) { cur.check = true; cur.updatedAt = new Date().toISOString(); unsure++; }
+        save();
+      }
       // OpenStreetMap asks for about one search a second.
       await new Promise((ok) => setTimeout(ok, 1100));
     }
-    toast(found === ids.length ? i18n.tn(found, "Found 1 place on the map.", "Found all {n} places on the map.")
+    toast(!unsure && found === ids.length ? i18n.tn(found, "Found 1 place on the map.", "Found all {n} places on the map.")
+      : unsure ? i18n.tn(unsure, "Found {found} of {total} on the map. 1 is under To check: see that it's the right one.", "Found {found} of {total} on the map. {n} are under To check: see that they're the right ones.", { found, total: ids.length })
       : i18n.t("Found {found} of {total} on the map. The rest have no location yet; Find by name or Pin on map in each one.", { found, total: ids.length }));
   }
+
+  // ---------- Paste a list ----------
+  // One place a line (listimport.js's pasted), what it understood shown as
+  // it's typed, and the same importance, category and day for all of them.
+  let pasteTrip = null, pasteImp = "want";
+  function openPaste(trip, from) {
+    pasteTrip = trip;
+    const f = $("pasteForm");
+    f.reset();
+    pasteImp = "want";
+    $("pasteImp").replaceChildren(...M.IMPORTANCE.map(([id, label]) =>
+      el("button.imp-" + id, { type: "button", role: "radio", "aria-checked": String(id === pasteImp), text: label,
+        onclick: () => { pasteImp = id; for (const b of $("pasteImp").children) b.setAttribute("aria-checked", String(b.classList.contains("imp-" + id))); } })));
+    $("pasteCat").replaceChildren(el("option", { value: "", text: i18n.t("From the search") }), ...cats().map(([id, label]) => el("option", { value: id, text: label })));
+    const days = M.tripDays(trip, placesOf(trip.id));
+    $("pasteDay").hidden = !trip.start;
+    $("pasteDayInput").hidden = !!trip.start;
+    $("pasteDay").replaceChildren(el("option", { value: "", text: i18n.t("No date") }),
+      ...days.map((d) => el("option", { value: d, text: trip.start ? i18n.t("Day {n} · {date}", { n: M.dayIndex(trip, d), date: dayLabel(d) }) : dayLabel(d) })));
+    paintPaste();
+    openSheet($("pasteSheet"), from);
+    $("pasteText").focus();
+  }
+  function pastedNow() {
+    const got = window.Tripboard.listImport.pasted($("pasteText").value);
+    const have = new Set(placesOf(pasteTrip.id).map((p) => p.name.toLowerCase()));
+    return { ...got, fresh: got.places.filter((p) => !have.has(p.name.toLowerCase())), dupes: got.places.filter((p) => have.has(p.name.toLowerCase())).length };
+  }
+  function paintPaste() {
+    const got = pastedNow(), n = got.fresh.length;
+    $("pasteFound").hidden = !got.places.length && !got.short;
+    $("pasteCount").textContent = i18n.tn(n, "1 place", "{n} places");
+    $("pasteList").replaceChildren(...got.fresh.map((p) => el("li", {},
+      el("span.paste-ic" + (p.lat != null ? ".on" : ""), {}, icon(p.lat != null ? "pin" : p.from === "link" ? "link" : "search")),
+      el("strong", { text: p.name, dir: "auto" }),
+      el("span.dim", { text: p.lat != null ? i18n.t("Has a location") : i18n.t("Found by name") }))));
+    const where = pasteTrip.destinations[0];
+    $("pasteHow").textContent = [
+      got.fresh.some((p) => p.lat == null) ? (where ? i18n.t("Names are looked up near {where} after adding, about one a second. Any it isn't sure of go under To check.", { where }) : i18n.t("Names are looked up after adding, about one a second. Any it isn't sure of go under To check.")) : "",
+      got.dupes ? i18n.tn(got.dupes, "1 is in this trip already.", "{n} are in this trip already.") : "",
+      got.short ? i18n.tn(got.short, "1 short link (maps.app.goo.gl) can't be read here: paste the place's name instead.", "{n} short links (maps.app.goo.gl) can't be read here: paste the places' names instead.") : "",
+    ].filter(Boolean).join(" ");
+    $("pasteGo").disabled = !n;
+    $("pasteGoLabel").textContent = n ? i18n.tn(n, "Add 1 place", "Add {n} places") : i18n.t("Add places");
+  }
+  $("pasteText").addEventListener("input", paintPaste);
+  $("pasteForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const got = pastedNow();
+    if (!got.fresh.length) return;
+    const trip = pasteTrip;
+    const day = trip.start ? $("pasteDay").value : $("pasteDayInput").value;
+    await closeSheet($("pasteSheet"));
+    await importList(trip, got.fresh, { importance: pasteImp, category: $("pasteCat").value, day: M.isDay(day) ? day : "" });
+  });
+  $("placePaste").addEventListener("click", async () => {
+    const trip = placeTrip;
+    await closeSheet($("placeSheet"));
+    openPaste(trip);
+  });
+
   // In New trip the list waits for Create (pendingList); in Edit trip its
   // places come in at once.
   let pendingList = null;
@@ -402,7 +478,7 @@
       main.append(el("div.empty", {}, el("p", { text: i18n.t("Nothing planned yet.") }), el("p.dim", { text: i18n.t("Add the first place with +.") })));
       return;
     }
-    const kept = M.filterPlaces(places, { only: view.only, categories: view.mapCats, stars: view.stars });
+    const kept = M.filterPlaces(places, { only: view.only, categories: view.mapCats, stars: view.stars, check: view.check });
     if (view.sort === "area") {
       const wrap = el("div.groups.areas");
       const blocks = M.board(trip, kept, "area");
@@ -2315,7 +2391,7 @@
   });
 
   // Place sheet
-  let editingPlace = null, placeTrip = null, importance = "want", rating = 0, loc, categoryTouched = false;
+  let editingPlace = null, placeTrip = null, importance = "want", rating = 0, loc, categoryTouched = false, checkedOk = false;
   // A journey in the sheet: its kind, mode and where it goes (toLoc as loc).
   let journey = false, mode = "flight", toLoc;
   // The place's location in the sheet: undefined unchanged, null cleared,
@@ -2335,6 +2411,9 @@
     $("placeWhere").classList.toggle("dim", !has);
     $("placeClear").hidden = !has;
     $("placeFindLabel").textContent = has ? i18n.t("Change") : i18n.t("Find by name");
+    $("placeFind").hidden = !has && !journey;
+    const unsure = !!(editingPlace && editingPlace.check) && loc === undefined && !checkedOk;
+    $("placeCheck").hidden = !unsure || !mayEdit(placeTrip);
     $("placePinLabel").textContent = has ? i18n.t("On map") : i18n.t("Pin on map");
   }
   // The Open menu opens toward whichever side has room for it.
@@ -2392,12 +2471,36 @@
   });
   $("placeClear").addEventListener("click", () => { loc = null; $("placeResults").replaceChildren(); $("placeFindNote").textContent = ""; paintWhere(); });
   let searching = 0;
-  $("placeFind").addEventListener("click", () => findPlace($("placeForm").name, $("placeFindNote"), $("placeResults"), (r, via) => {
-    loc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
+  function findThis() {
+    return findPlace($("placeForm").name, $("placeFindNote"), $("placeResults"), (r) => {
+      const f = $("placeForm");
+      // "Just this name": no location for now.
+      if (!r) { f.name.blur(); return; }
+      loc = { lat: r.lat, lng: r.lng, address: r.address, placeId: r.placeId, source: r.source };
+      // A place found by a shortened name takes the found one's name.
+      if (!journey && !editingPlace && r.name) f.name.value = r.name;
+      if (r.category && !journey && !categoryTouched && !editingPlace && cats().some(([id]) => id === r.category)) { f.category.value = r.category; paintTimes(); paintBadge(); paintUntilRow(); }
+      paintWhere();
+    }, !journey);
+  }
+  $("placeFind").addEventListener("click", findThis);
+  $("placeCheckOk").addEventListener("click", () => { checkedOk = true; paintWhere(); });
+  // Enter in a place's name searches for it, until it has a location.
+  $("placeForm").name.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing || journey) return;
+    const has = loc === undefined ? editingPlace && editingPlace.lat != null : !!loc;
+    if (has || !e.target.value.trim()) return;
+    e.preventDefault();
+    findThis();
+  });
+  // Add another: this one is kept, and an empty sheet takes the next.
+  $("placeAnother").addEventListener("click", async () => {
     const f = $("placeForm");
-    if (r.category && !journey && !categoryTouched && !editingPlace && cats().some(([id]) => id === r.category)) f.category.value = r.category;
-    paintWhere();
-  }));
+    if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
+    const p = await commitPlace();
+    openPlace(null, findTrip(p.trip) || placeTrip, p.day ? { day: p.day } : null);
+    $("placeForm").name.focus();
+  });
   // Where a journey goes: found by name like the place, under the same
   // Google rule (its id kept, its location 30 days, its address never).
   $("toFind").addEventListener("click", () => findPlace($("placeForm").toName, $("toFindNote"), $("toResults"), (r) => {
@@ -2412,7 +2515,7 @@
     $("toWhere").classList.toggle("dim", !has);
     $("toClear").hidden = !has;
   }
-  async function findPlace(input, note, out, onpick) {
+  async function findPlace(input, note, out, onpick, plain) {
     const q = input.value.trim();
     if (!q) { note.textContent = i18n.t("Type the place's name first."); input.focus(); return; }
     const me = ++searching;
@@ -2430,12 +2533,12 @@
       const list = got.results;
       const via = SET.PROVIDERS[got.by] ? SET.PROVIDERS[got.by].name : got.by;
       const fell = got.skipped.length ? " " + i18n.t("({why} Used {via}.)", { why: got.skipped.map((x) => x.reason).join(" "), via }) : "";
-      note.textContent = (list.length ? i18n.t("Pick the right one, from {via}:", { via }) : i18n.t("Nothing found on {via}. Try another spelling, or pin it on the map.", { via })) + fell;
-      out.replaceChildren(...list.map((r) => el("li", {}, el("button", { type: "button", onclick: () => {
-        out.replaceChildren();
-        note.textContent = i18n.t("From {via}.", { via: via });
-        onpick(r, via);
-      } }, el("strong", { text: r.name }), el("span.dim", { text: r.address })))));
+      note.textContent = (list.length ? i18n.t("From {via}", { via }) : i18n.t("Nothing found on {via}. Try another spelling, or pin it on the map.", { via })) + fell;
+      const done = () => { out.replaceChildren(); note.textContent = ""; };
+      out.replaceChildren(...list.map((r) => el("li", {}, el("button", { type: "button", onclick: () => { done(); onpick(r, via); } },
+        el("strong", { text: r.name }), el("span.dim", { text: r.address })))),
+        plain ? el("li.plain", {}, el("button", { type: "button", onclick: () => { done(); onpick(null); } },
+          el("strong", { text: i18n.t("Just “{name}”", { name: q }) }), el("span.dim", { text: i18n.t("No location for now") }))) : null);
     } catch (e) {
       if (me !== searching) return;
       window.Keel.errlog.note("search", String(e));
@@ -2474,6 +2577,11 @@
     if (journey) $("leaveTimeSlot").append($("placeTime"));
     else $("placeTimeSlot").prepend($("placeTime"));
     $("kindSeg").hidden = !mayEdit(placeTrip);
+    // A place's search answers show under its name; a journey's under where it leaves from.
+    (journey ? $("placeFoundHome") : $("placeFoundSlot")).append($("placeFindNote"), $("placeResults"));
+    const adding = !editingPlace && mayEdit(placeTrip);
+    $("placePaste").hidden = !adding;
+    $("placeDone").hidden = $("placeAnother").hidden = !adding || journey;
     $("kindSeg").replaceChildren(...[[false, i18n.t("Place")], [true, i18n.t("Journey")]].map(([j, label]) =>
       el("button", { type: "button", role: "radio", "aria-checked": String(journey === j), text: label,
         onclick: () => { journey = j; paintKind(); paintUntilRow(); } })));
@@ -2503,6 +2611,7 @@
     editingPlace = place;
     placeTrip = trip;
     untilWanted = false;
+    checkedOk = false;
     const f = $("placeForm");
     f.reset();
     const p = place || { category: cats()[0][0], importance: "want", ...(preset || {}) };
@@ -2615,6 +2724,8 @@
     } else {
       for (const k of ["kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]) delete p[k];
     }
+    // A location set here, or Looks right, settles To check.
+    if (loc !== undefined || checkedOk) delete p.check;
     if (loc === null) { for (const k of ["lat", "lng", "address", "placeId", "geoAt"]) delete p[k]; }
     else if (loc) {
       for (const k of ["address", "placeId", "geoAt"]) delete p[k];
@@ -2857,7 +2968,7 @@
   function shownPlaces(trip) {
     let all = placesOf(trip.id);
     if (view.mapDay) all = all.filter((p) => M.onDay(p, view.mapDay) || (M.isJourney(p) && M.landsOn(p) === view.mapDay));
-    return M.filterPlaces(all, { only: view.only, categories: view.mapCats, stars: view.stars });
+    return M.filterPlaces(all, { only: view.only, categories: view.mapCats, stars: view.stars, check: view.check });
   }
   // The trip's categories, in the app's order, each with how many places.
   function tripCats(trip) {
@@ -2901,7 +3012,12 @@
     };
     // Rating only once a place has one (or the filter is on).
     const rated = view.stars || placesOf(trip.id).some((p) => p.rating);
-    return [facets.cat.items.length > 1 ? chip("cat") : null, chip("imp"), rated ? chip("stars") : null].filter(Boolean);
+    // To check only while a place is (a list's lookup wasn't sure of it).
+    const unsure = placesOf(trip.id).filter((p) => p.check).length;
+    if (!unsure && view.check) { view.check = false; remember(); }
+    const check = unsure ? el("button.chip.pick.check-pick", { type: "button", "aria-pressed": String(!!view.check),
+      onclick: () => { view.check = !view.check; remember(); render(); } }, icon("info"), i18n.t("To check · {n}", { n: unsure })) : null;
+    return [check, facets.cat.items.length > 1 ? chip("cat") : null, chip("imp"), rated ? chip("stars") : null].filter(Boolean);
   }
   // A filter's drop-down, under its chip: All, then a box for each choice.
   // It stays open while boxes are ticked; the last ticked box can't be
@@ -3063,7 +3179,7 @@
   // A place moved on the map, by a tap or by dragging its pin. It stays
   // movable until Done, which opens the place again.
   function movePlace(p, { lat, lng }) {
-    for (const k of ["address", "placeId", "geoAt"]) delete p[k];
+    for (const k of ["address", "placeId", "geoAt", "check"]) delete p[k];
     Object.assign(p, { lat, lng, updatedAt: new Date().toISOString() });
     save();
   }
