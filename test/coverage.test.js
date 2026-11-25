@@ -94,7 +94,7 @@ test("CLI and MCP are the same list: every tool has both names, all unique, each
     assert.match(t.cmd, /^[a-z]+(-[a-z]+)*$/, t.cmd);
     assert.ok(t.description && t.description.length > 20, t.tool + " needs a description");
     if (t.kind === "write") assert.strictEqual(typeof core.ops[t.op], "function", t.tool + ": no core.ops." + t.op);
-    else assert.ok(t.run || typeof core.queries[t.query] === "function", t.tool + ": no core.queries." + t.query);
+    else assert.ok(t.run || t.act || typeof core.queries[t.query] === "function", t.tool + ": no core.queries." + t.query);
     for (const [k, s, o = {}] of t.args) {
       assert.ok(s && s.type, t.tool + "." + k + " needs a type");
       if (o.req) assert.ok(o.mcp !== false && o.cli !== false, t.tool + "." + k + " is required, so both sides take it");

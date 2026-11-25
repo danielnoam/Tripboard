@@ -297,6 +297,59 @@
     return { trip: sanitizeTrip(t), places, files, fileIds };
   }
 
+  // A trip as it's published (server/published.js): a read-only copy for
+  // anyone with its link, which they can copy into their own trips. Only
+  // the plan goes: the trip's name, destinations, drawn cover and
+  // categories; each place's name, category, importance, location, day and
+  // time, and (opts.notes) its description and the trip's links and notes.
+  // Never ratings, been there, expenses, files, a cover photo or who is on
+  // the trip. Fields are picked by name, so a field added later stays home
+  // until it's listed here. opts.dates false: the days move to start on
+  // HIDDEN_START, so the plan shows Day 1, Day 2… and no real dates.
+  const HIDDEN_START = "2001-01-01";
+  const TRIP_PUBLIC = ["id", "name", "start", "end", "destinations", "destInfo", "art", "cats", "createdAt", "updatedAt"];
+  const PLACE_PUBLIC = ["id", "trip", "name", "category", "importance", "note", "dest", "kind", "mode", "number", "createdAt", "updatedAt",
+    ...PLACE_WHERE, ...PLACE_WHEN];
+  const FILE_PUBLIC = ["id", "trip", "place", "name", "kind", "url", "text", "note", "type", "size", "createdAt", "updatedAt"];
+  const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
+  function publishedOf(doc, trip, opts = {}) {
+    const o = { dates: opts.dates !== false, notes: opts.notes !== false };
+    const t = pick(trip, TRIP_PUBLIC);
+    const shift = !o.dates && isDay(trip.start) ? dayNum(HIDDEN_START) - dayNum(trip.start) : 0;
+    const move = (d) => (isDay(d) ? addDays(d, shift) : d);
+    if (!o.dates && !isDay(trip.start)) delete t.end;
+    if (shift) { t.start = move(t.start); if (t.end) t.end = move(t.end); }
+    if (t.destInfo) {
+      t.destInfo = Object.fromEntries(Object.entries(t.destInfo).map(([name, v]) => {
+        const r = { ...v };
+        if (!o.dates && !shift) { delete r.start; delete r.end; } else if (shift) { r.start = move(r.start); r.end = move(r.end); }
+        return [name, r];
+      }));
+    }
+    const places = (doc.places || []).filter((p) => p.trip === trip.id).map((p) => {
+      const c = pick(p, PLACE_PUBLIC);
+      if (!o.notes) delete c.note;
+      if (!o.dates && !shift) for (const k of PLACE_WHEN) delete c[k];
+      else if (shift) for (const k of ["day", "endDay", "arriveDay"]) if (c[k]) c[k] = move(c[k]);
+      return c;
+    });
+    const ids = new Set(places.map((p) => p.id));
+    const files = !o.notes ? [] : (doc.files || []).filter((f) => f.trip === trip.id && (f.kind === "link" || f.kind === "note") && (!f.place || ids.has(f.place)))
+      .map((f) => pick(f, FILE_PUBLIC));
+    return { format: 1, trip: t, places, expenses: [], files, deleted: {} };
+  }
+  // A published trip (publishedOf's bundle, as the server gives it back) as
+  // a doc of its own, cleaned the way any trip is, for the read-only page
+  // and for copying it with duplicateTrip.
+  function publishedDoc(bundle) {
+    const b = bundle && typeof bundle === "object" ? bundle : {};
+    const trip = sanitizeTrip(pick(b.trip || {}, TRIP_PUBLIC));
+    const places = (Array.isArray(b.places) ? b.places : []).map((p) => sanitizePlace({ ...pick(p || {}, PLACE_PUBLIC), trip: trip.id }));
+    const files = (Array.isArray(b.files) ? b.files : []).filter((f) => f && (f.kind === "link" || f.kind === "note"))
+      .map((f) => sanitizeFile({ ...pick(f, FILE_PUBLIC), trip: trip.id }));
+    return { trips: [trip], places, expenses: [], files, deleted: {} };
+  }
+
   function sanitizePlace(p) {
     p = p || {};
     const out = {
@@ -833,7 +886,7 @@
   }
 
   const api = {
-    sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, duplicateTrip, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
+    sanitizeFile, MAX_FILE_MB, MAX_NOTE, hasBytes, linkUrl, linkHost, ROLES, SECTIONS, access, can, join, renamePerson, ownTrip, duplicateTrip, publishedOf, publishedDoc, HIDDEN_START, EXPENSE_CATEGORIES, EXPENSE_CATEGORY, CURRENCIES, sanitizeExpense, expenseTotals, expensesByCategory, expenseDays,
     placeDays, onDay, addDays, MODES, MODE, isJourney, landsOn, endOf, arrivals, connection, nextLeg, daySpan, catList, catName, carryCats, isCatId, CATEGORIES, CATEGORY, IMPORTANCE, IMPORTANCE_LABEL, RATINGS, STAR_FILTERS, filterPlaces, COVER_ART, SLOTS, newId, isDay, isTime,
     sanitizeTrip, sanitizePlace, sanitizeDoc, stamp, tripDays, dayIndex, tripStatus, sortTrips, daysUntil,
     slotOf, isStay, timeOn, stayPart, distanceKm, board, areas, REACH_KM, destsOf, hasDestDates, destOf, dayDest, awayStay, setDest, datesFromStays, backupOf, mergeBackup, staleGoogle, staleGoogleTo, dayRoute, dayPlan, leg, nextOf, GOOGLE_DAYS, swipeStep,

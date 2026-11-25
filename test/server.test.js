@@ -14,7 +14,8 @@ async function test(name, fn) {
 
 function fakeEnv() {
   const sql = new DatabaseSync(":memory:");
-  sql.exec(fs.readFileSync(path.join(__dirname, "../server/migrations/0001_start.sql"), "utf8"));
+  const dir = path.join(__dirname, "../server/migrations");
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) sql.exec(fs.readFileSync(path.join(dir, f), "utf8"));
   const stmt = (q, args = []) => ({
     bind: (...a) => stmt(q, a),
     first: async () => sql.prepare(q).get(...args) || null,
@@ -196,6 +197,34 @@ function fakeEnv() {
     assert.strictEqual(bad.status, 400);
     assert.strictEqual(GL.listId("https://www.google.com/maps/placelists/list/ZZ99yyXX11"), "ZZ99yyXX11");
     delete env.FETCH;
+  });
+
+  await test("publishing: anyone with the link reads it; only the key changes or removes it; only the plan is kept", async () => {
+    const b = bundle();
+    b.trip.share = { role: "viewer" };
+    b.places[0].rating = 5; b.places[0].visited = true; b.places[0].secret = "x";
+    b.files.push({ id: "l1", trip: "kyoto", kind: "link", url: "https://example.com", name: "Guide" });
+    const r = await call("POST", "/published", { bundle: b, by: "Ana", dates: false });
+    assert.strictEqual(r.status, 201);
+    const { id, key } = r.body;
+    assert.ok(id.length >= 16 && key.length >= 40);
+    const g = await call("GET", "/published/" + id);
+    assert.deepStrictEqual([g.status, g.body.by, g.body.dates, g.body.copies], [200, "Ana", false, 0]);
+    assert.deepStrictEqual(Object.keys(g.body.bundle.trip).sort(), ["id", "name", "updatedAt"]);
+    assert.deepStrictEqual(g.body.bundle.places, [{ id: "p1", trip: "kyoto", name: "Fushimi Inari" }]);
+    assert.deepStrictEqual([g.body.bundle.expenses, g.body.bundle.files.map((f) => f.id)], [[], ["l1"]]);
+    assert.strictEqual((await call("PUT", "/published/" + id, { bundle: b, by: "Eve" })).status, 401);
+    assert.strictEqual((await call("PUT", "/published/" + id, { bundle: b, by: "Eve" }, "wrong")).status, 401);
+    assert.strictEqual((await call("DELETE", "/published/" + id, null, "wrong")).status, 401);
+    b.trip.name = "Kyoto again";
+    assert.strictEqual((await call("PUT", "/published/" + id, { bundle: b, by: "Ana", dates: true }, key)).status, 200);
+    const g2 = (await call("GET", "/published/" + id)).body;
+    assert.deepStrictEqual([g2.bundle.trip.name, g2.dates], ["Kyoto again", true]);
+    assert.deepStrictEqual((await call("POST", "/published/" + id + "/copied")).body, { copies: 1 });
+    assert.strictEqual((await call("POST", "/published", { bundle: { trip: { id: "../x" } } })).status, 400);
+    assert.strictEqual((await call("DELETE", "/published/" + id, null, key)).status, 200);
+    assert.strictEqual((await call("GET", "/published/" + id)).status, 404);
+    assert.strictEqual((await call("POST", "/published/" + id + "/copied")).status, 404);
   });
 
   console.log(passed + " passed");

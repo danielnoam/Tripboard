@@ -774,7 +774,7 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(hash);
     if (sm) { let d = 1; for (let pg = sm[1]; pg; pg = settingsParent(pg)) d++; return d; }
     if (/^#\/trip\/[\w-]+\/share/.test(hash)) return 2;
-    return /^#\/(trip|join)\//.test(hash) ? 1 : 0;
+    return /^#\/(trip|join|p)\//.test(hash) ? 1 : 0;
   }
   function tabBefore() {
     const main = $("app"), map = $("mapView");
@@ -2331,22 +2331,29 @@
   }
 
   // Duplicate trip: a copy that's yours alone, with what the sheet keeps.
-  let dupOf = null;
-  function openDup(trip, from) {
+  // pub: a published trip being copied ({ doc, id, host, dates }), whose
+  // plan comes from its own doc instead of this device's.
+  let dupOf = null, dupPub = null;
+  function openDup(trip, from, pub) {
     dupOf = trip;
+    dupPub = pub || null;
     const f = $("dupForm");
     f.reset();
-    $("dupTitle").textContent = i18n.t("Duplicate {name}", { name: trip.name });
-    f.name.value = i18n.t("{name} (copy)", { name: trip.name });
-    const n = placesOf(trip.id).length;
+    const src = pub ? pub.doc : doc;
+    $("dupTitle").textContent = pub ? i18n.t("Copy {name} to my trips", { name: trip.name }) : i18n.t("Duplicate {name}", { name: trip.name });
+    f.name.value = pub ? trip.name : i18n.t("{name} (copy)", { name: trip.name });
+    const n = src.places.filter((p) => p.trip === trip.id).length;
     $("dupWhat").textContent = i18n.tn(n, "Copy its 1 place, with", "Copy its {n} places, with");
-    const files = filesOf(trip.id), bytes = files.filter(M.hasBytes);
+    f.querySelector("button[type=submit]").textContent = pub ? i18n.t("Copy") : i18n.t("Duplicate");
+    $("dupNever").textContent = pub ? i18n.t("The copy is yours alone: change anything. Whoever published it never sees it or who copied it.")
+      : i18n.t("Names, categories, importance, descriptions and destinations always come along. Ratings, been there, expenses and the people it's shared with never do: the copy is yours alone.");
+    const files = (src.files || []).filter((x) => x.trip === trip.id), bytes = files.filter(M.hasBytes);
     const size = bytes.reduce((a, x) => a + (x.size || 0), 0);
     $("dupFilesRow").hidden = !files.length;
     $("dupFilesHint").textContent = !bytes.length ? i18n.tn(files.length, "1 link or note.", "{n} links and notes.")
       : files.length === bytes.length ? i18n.tn(bytes.length, "1 file ({size}).", "{n} files ({size}).", { size: sizeLabel(size) })
       : i18n.t("{links} links and notes, {files} files ({size}).", { links: files.length - bytes.length, files: bytes.length, size: sizeLabel(size) });
-    f.start.value = trip.start || "";
+    f.start.value = pub && !pub.dates ? "" : trip.start || "";
     paintDup();
     openSheet($("dupSheet"), from);
     f.name.select();
@@ -2355,6 +2362,9 @@
   function paintDup() {
     const f = $("dupForm"), trip = dupOf;
     $("dupStartRow").hidden = !(trip.start && f.dates.checked);
+    // A trip published without its dates has no start to keep: pick one.
+    const hidden = dupPub && !dupPub.dates;
+    if (hidden && !M.isDay(f.start.value)) { if (trip.start) $("dupStartHint").textContent = i18n.t("Pick its first day. Without one, every place goes to No date."); return; }
     if (!f.start.value) f.start.value = trip.start || "";
     if (!trip.start) return;
     const start = M.isDay(f.start.value) ? f.start.value : trip.start;
@@ -2368,10 +2378,13 @@
     const f = e.target, trip = dupOf;
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
     f.name.removeAttribute("aria-invalid");
-    const got = M.duplicateTrip(doc, trip, { name: f.name.value, start: f.start.value, locations: f.locations.checked, dates: f.dates.checked, attachments: f.attachments.checked }, SET.get().me);
+    const pub = dupPub;
+    const dates = f.dates.checked && !(pub && !pub.dates && !M.isDay(f.start.value));
+    const got = M.duplicateTrip(pub ? pub.doc : doc, trip, { name: f.name.value, start: f.start.value, locations: f.locations.checked, dates, attachments: f.attachments.checked }, SET.get().me);
+    if (pub) SHARE.copiedPublished(pub.id, pub.host);
     // A cover photo and each file's bytes are copied on this device; a file
     // that hasn't come here yet stays behind.
-    const blob = got.trip.cover ? await store.cover(trip.id) : null;
+    const blob = got.trip.cover && !pub ? await store.cover(trip.id) : null;
     if (got.trip.cover && blob) await store.setCover(got.trip.id, blob);
     else if (got.trip.cover) { got.trip.cover = false; delete got.trip.coverAt; }
     const missing = new Set();
@@ -2905,6 +2918,7 @@
       people.length < 2 ? el("p.hint.dim", { text: i18n.t("No one else is on this trip yet. Invite people with a link.") }) : null,
       !manage ? el("p.hint.dim", { text: i18n.t("Only the trip's owner can change these.") }) : null));
 
+    if (SHARE.enabled() && manage) main.append(publishPanel(trip));
     const shared = SHARE.shared(trip.id);
     if (!SHARE.enabled()) {
       main.prepend(el("section.panel.share-note", {}, el("p", { text: i18n.t("Inviting people needs the sharing server, which isn't set up yet. You can choose the settings now; they apply once it is.") })));
@@ -2980,6 +2994,114 @@
           try { await SHARE.stopLink(trip.id); delete invites[trip.id]; toast(i18n.t("The link doesn't work any more.")); render(); } catch (e) { toast(e.message); } } })),
       el("p.hint.dim", { text: i18n.t("Anyone with the link can join until {date}. Send it only to people you want on the trip.", { date: i18n.date(new Date(inv.expires)) }) }));
     return box;
+  }
+
+  // ---------- Publishing ----------
+  // A read-only copy of the plan that anyone with its link can open and
+  // copy (src/share.js, server/published.js). The checks are kept for the
+  // next Publish again.
+  const pubOpts = {};
+  function publishPanel(trip) {
+    const st = SHARE.published(trip.id);
+    const o = pubOpts[trip.id] || (pubOpts[trip.id] = { dates: st ? st.dates !== false : true, notes: st ? st.notes !== false : true });
+    const box = el("section.panel.publish");
+    const check = (k, title, hint) => el("label.check.dup-check", {},
+      el("input", { type: "checkbox", checked: o[k], onchange: (e) => { o[k] = e.target.checked; } }),
+      el("span", {}, el("strong", { text: title }), el("span.hint.dim", { text: hint })));
+    const go = async (btn) => {
+      btn.disabled = true;
+      try { await SHARE.publish(trip, o); toast(st ? i18n.t("Published again.") : i18n.t("Published. Copy the link and send it.")); }
+      catch (e) { toast(e.message); }
+      render();
+    };
+    const name = SET.get().me.name;
+    box.append(el("h2", { text: i18n.t("Publish") }),
+      el("p.hint.dim", { text: i18n.t("A read-only copy of the plan that anyone with its link can open and copy into their own trips. It doesn't follow your changes: publish again to update it.") }));
+    if (st) {
+      const link = SHARE.publishedLink(st);
+      const field = el("input.link-field", { readOnly: true, value: link, "aria-label": i18n.t("Published link"), onfocus: (e) => e.target.select() });
+      const copy = async () => {
+        try { await navigator.clipboard.writeText(link); toast(i18n.t("Link copied.")); } catch (e) { field.select(); }
+      };
+      const when = el("p.hint.dim", { text: i18n.t("Published {date}.", { date: i18n.date(new Date(st.at)) }) });
+      SHARE.openPublished(st.id, st.server ? SHARE.host(st.server) : "").then((got) => {
+        when.textContent = i18n.t("Published {date}.", { date: i18n.date(new Date(got.at)) }) + " " + (got.copies ? i18n.tn(got.copies, "Copied once.", "Copied {n} times.") : i18n.t("Not copied yet."));
+      }).catch((e) => { if (e.status === 404) when.textContent = i18n.t("The server doesn't have it any more. Publish again to make a new link."); });
+      box.append(field,
+        el("div.loc-actions", {},
+          navigator.share ? el("button.btn.primary", { type: "button", text: i18n.t("Send…"), onclick: () => navigator.share({ title: trip.name, url: link }).catch(() => {}) }) : null,
+          el("button.btn", { type: "button", text: i18n.t("Copy link"), onclick: copy })),
+        when);
+    }
+    const stop = el("button.btn.quiet.danger-text", { type: "button" });
+    if (st) armConfirm(stop, i18n.t("Stop publishing"), async () => {
+      try { await SHARE.unpublish(trip.id); toast(i18n.t("The published link doesn't work any more.")); }
+      catch (e) { toast(e.message); }
+      render();
+    });
+    box.append(el("fieldset.field.dup-what", {},
+        check("dates", i18n.t("Dates"), i18n.t("Off: Day 1, Day 2 and so on, without your dates.")),
+        check("notes", i18n.t("Descriptions, links and notes"), i18n.t("Each place's description, and the trip's links and notes. Never its files."))),
+      el("p.hint.dim", { text: i18n.t("Never published: expenses, files, ratings, been there, a cover photo and who is on the trip.") + " " +
+        (name ? i18n.t("It says it's by {name}.", { name }) : i18n.t("It shows no name; set yours in Settings › Sharing.")) }),
+      el("div.loc-actions", {},
+        el("button.btn" + (st ? "" : ".primary"), { type: "button", text: st ? i18n.t("Publish again") : i18n.t("Publish"), onclick: (e) => go(e.currentTarget) }),
+        st ? stop : null));
+    return box;
+  }
+
+  // A published trip, opened from its link: the plan, read only, and Copy
+  // to my trips. Fetched once a visit; host is the server the link names.
+  const pubCache = {};
+  function renderPublished(main, id, host) {
+    const key = id + "/" + (host || "");
+    const got = pubCache[key];
+    $("title").textContent = got && got.doc ? got.doc.trips[0].name : i18n.t("A published trip");
+    if (!got) {
+      pubCache[key] = { loading: true };
+      SHARE.openPublished(id, host).then((r) => { pubCache[key] = { ...r, doc: M.publishedDoc(r.bundle) }; })
+        .catch((e) => { pubCache[key] = { error: e.status === 404 ? i18n.t("This trip isn't published any more.") : e.message }; })
+        .then(() => { if (location.hash.startsWith("#/p/" + id)) render(); });
+    }
+    if (!got || got.loading) { main.append(el("div.empty", {}, el("p.dim", { text: i18n.t("Opening…") }))); return; }
+    if (got.error) { main.append(el("div.empty", {}, el("p", { text: got.error }))); return; }
+    const pdoc = got.doc, trip = pdoc.trips[0], places = pdoc.places;
+    const days = trip.start ? M.tripDays(trip, places).length : 0;
+    const hero = coverBox(trip, "hero");
+    hero.append(el("div.hero-text", {},
+      el("span", { text: got.dates ? rangeLabel(trip) : days ? i18n.tn(days, "1 day", "{n} days") : "" }),
+      trip.destinations.length ? el("ul.chips", {}, trip.destinations.map((d) => el("li", { text: d }))) : null));
+    main.append(hero);
+    const copyBtn = el("button.btn.primary", { type: "button", onclick: (e) => openDup(trip, e.currentTarget, { doc: pdoc, id, host, dates: got.dates }) }, icon("copy"), el("span", { text: i18n.t("Copy to my trips") }));
+    main.append(el("section.panel.published-by", {},
+      el("h2", {}, icon("globe"), el("span", { text: got.by ? i18n.t("Published by {name}", { name: got.by }) : i18n.t("A published trip") })),
+      el("p.hint.dim", { text: [i18n.tn(places.length, "1 place", "{n} places"), i18n.t("Updated {date}", { date: i18n.date(new Date(got.at)) }), got.copies ? i18n.tn(got.copies, "Copied once", "Copied {n} times") : ""].filter(Boolean).join(" · ") }),
+      el("p.hint.dim", { text: i18n.t("Read only. Copy it to make it yours: change anything, and it stays yours alone.") }),
+      el("div", {}, copyBtn)));
+    const label = (day) => (got.dates ? dayLabel(day) : i18n.t("Day {dayIndex}", { dayIndex: M.dayIndex(trip, day) }));
+    const row = (p) => {
+      const links = (pdoc.files || []).filter((f) => f.place === p.id && f.kind === "link");
+      return el("li.pub-place", {}, el("details", {},
+        el("summary", {}, icon(M.isJourney(p) ? "route" : catIcon(p.category)), el("span.grow", { text: M.isJourney(p) ? p.name + " → " + (p.toName || "") : p.name }), p.time ? el("span.dim", { text: p.time }) : null),
+        p.note ? el("p.pub-note", { text: p.note }) : null,
+        links.length ? el("p", {}, links.map((f, i) => [i ? " · " : null, el("a", { href: f.url, target: "_blank", rel: "noopener noreferrer nofollow", text: f.name })])) : null,
+        p.lat != null ? openIn(p) : null));
+    };
+    const wrap = el("div.groups.pub-plan");
+    for (const g of M.board(trip, places, "time")) {
+      if (!g.places || !g.places.length) continue;
+      const title = g.day ? label(g.day) : g.title;
+      wrap.append(el("section.group", {}, el("div.group-head", {}, el("h2", { text: title }), el("span.count", { text: String(g.places.length) })),
+        el("ul.pub-places", {}, g.places.map(row))));
+    }
+    main.append(wrap);
+    const loose = (pdoc.files || []).filter((f) => !f.place);
+    if (loose.length) {
+      main.append(el("section.panel", {}, el("h2", { text: i18n.t("Links and notes") }),
+        el("ul.pub-places", {}, loose.map((f) => el("li.pub-place", {}, f.kind === "link"
+          ? el("a", { href: f.url, target: "_blank", rel: "noopener noreferrer nofollow", text: f.name })
+          : el("details", {}, el("summary", { text: f.name }), el("p.pub-note", { text: f.text })))))));
+    }
   }
 
   // ---------- Joining from a link ----------
@@ -4283,9 +4405,10 @@
     const sm = /^#\/settings(?:\/(.+))?$/.exec(location.hash);
     const settings = !!sm;
     const jm = /^#\/join\/([\w-]+)\/([\w-]+)(?:\/([\w.:-]+))?/.exec(location.hash);
+    const pm = /^#\/p\/([\w-]+)(?:\/([\w.:-]+))?/.exec(location.hash);
     const m = /^#\/trip\/([\w-]+)(?:\/(map|expenses|files|share|today)(?:\/(\d{4}-\d\d-\d\d))?)?/.exec(location.hash);
     const trip = m ? findTrip(m[1]) : null;
-    $("settingsBtn").hidden = settings || !!m;
+    $("settingsBtn").hidden = settings || !!m || /^#\/p\//.test(location.hash);
     if (m && !trip) { go("#/", true); return; }
     if (trip && (m[2] === "expenses" || m[2] === "files") && !sees(trip, m[2])) { go("#/trip/" + trip.id, true); return; }
     if (trip && m[2] === "today" && !(m[3] && M.isDay(m[3])) && !underWay(trip)) { go("#/trip/" + trip.id, true); return; }
@@ -4324,13 +4447,14 @@
     main.dataset.trip = view.trip + view.mode;
     main.replaceChildren();
     document.body.classList.toggle("on-board", !!trip);
-    document.body.classList.toggle("on-home", !trip && !settings && !jm);
+    document.body.classList.toggle("on-home", !trip && !settings && !jm && !pm);
     document.body.classList.toggle("on-settings", settings);
-    $("newTrip").hidden = !!(trip || settings || jm);
+    $("newTrip").hidden = !!(trip || settings || jm || pm);
     $("back").hidden = !trip;
     $("editTrip").hidden = !trip || !mayEdit(trip) || view.mode === "share";
     $("fab").hidden = !trip || !mayEdit(trip) || view.mode === "share";
     if (jm) { $("back").hidden = false; renderJoin(main, jm[1], jm[2], jm[3]); }
+    else if (pm) { $("back").hidden = false; renderPublished(main, pm[1], pm[2]); }
     else if (settings) { $("back").hidden = false; renderSettings(main, sm[1] || ""); }
     else if (trip && view.mode === "expenses") renderExpenses(main, trip);
     else if (trip && view.mode === "files") renderFiles(main, trip);

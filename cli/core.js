@@ -24,6 +24,9 @@ const LI = require("../src/listimport.js");
 const K = globalThis.Keel;
 
 const AI_FILE = "ai.json";
+const PUB_FILE = "published.json";
+const APP_URL = "https://danielnoam.github.io/Tripboard/";
+const SERVER = "https://tripboard.danielnoam1999.workers.dev";
 const empty = () => ({ trips: [], places: [], expenses: [], files: [], deleted: {} });
 const text = (b) => JSON.stringify(b, null, 1);
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -77,7 +80,8 @@ function open({ token, repo, branch, fetch } = {}) {
   const rawOk = (path) => /^(covers\/[\w-]+\.jpg|files\/[\w-]+\/[^/]+)$/.test(path) && !path.split("/").some((x) => x === "." || x === "..");
   async function snapshot() {
     const st = await load();
-    return { ...st, raw: (path) => rawOk(path) ? gh.getRaw(path, { ref: st.head, as: "bytes" }) : Promise.reject(new Error("Not a trip's file: " + path)), servers: () => sharesServers(st.paths.has("shares.json") ? gh.getJson("shares.json", { ref: st.head }) : null) };
+    return { ...st, raw: (path) => rawOk(path) ? gh.getRaw(path, { ref: st.head, as: "bytes" }) : Promise.reject(new Error("Not a trip's file: " + path)), servers: () => sharesServers(st.paths.has("shares.json") ? gh.getJson("shares.json", { ref: st.head }) : null),
+      pubs: async () => (st.paths.has(PUB_FILE) ? ((await gh.getJson(PUB_FILE, { ref: st.head })) || {}).data || {} : {}) };
   }
 
   // fn(doc, ctx) changes the doc in place and gives a result. ctx: me,
@@ -97,6 +101,7 @@ function open({ token, repo, branch, fetch } = {}) {
         // A file already in the repo, under a new path too (no download: the same blob).
         copy(from, to) { if (!st.paths.has(from)) return false; copies.set(to, st.paths.get(from)); return true; },
         raw: (path) => gh.getRaw(path, { ref: head, as: "bytes" }),
+        json: async (path) => (st.paths.has(path) ? ((await gh.getJson(path, { ref: head })) || {}).data : null),
       };
       const result = await fn(doc, ctx);
       const clean = M.sanitizeDoc(doc);
@@ -337,6 +342,21 @@ const ops = {
     doc.places.push(...got.places);
     doc.files = (doc.files || []).concat(got.files.filter((f) => !left.has(f.id)));
     return left.size ? { ...got.trip, note: left.size + " file(s) weren't in the repo yet, so they stayed behind." } : got.trip;
+  },
+  // A published trip (a.pub, fetched by tools.js from its link) copied in,
+  // as the app's Copy to my trips: duplicateTrip on the published plan.
+  copyPublished(doc, a, ctx) {
+    const pdoc = M.publishedDoc(a.pub.bundle);
+    const t = pdoc.trips[0];
+    if (a.start !== undefined && a.start !== "" && !M.isDay(a.start)) throw new Error("start is a date, YYYY-MM-DD.");
+    // Published without its dates: its days are kept only from a new start.
+    const dates = a.dates !== false && (a.pub.dates !== false || M.isDay(a.start));
+    const got = M.duplicateTrip(pdoc, t, { name: a.name || t.name, start: a.start, locations: a.locations, dates, attachments: a.attachments },
+      ctx.me ? { id: ctx.me, name: "" } : null);
+    doc.trips.push(got.trip);
+    doc.places.push(...got.places);
+    doc.files = (doc.files || []).concat(got.files);
+    return a.pub.dates === false && !dates ? { ...got.trip, note: "It was published without dates; give start to keep its days." } : got.trip;
   },
   // A cover photo (JPEG, PNG or WebP bytes), or none.
   setCover(doc, a, ctx) {
@@ -649,6 +669,8 @@ const queries = {
   async getTrip(st, a) {
     const v = tripView(st.doc, findTrip(st.doc, a.trip), st.cats);
     if (st.servers) v.server = (await st.servers())[v.trip.id] || null;
+    const pub = st.pubs ? (await st.pubs())[v.trip.id] : null;
+    if (pub && !pub.stopped && pub.id) v.published = { link: pubLink(pub), at: pub.at, dates: pub.dates !== false, notes: pub.notes !== false };
     return v;
   },
   // Places that match every filter given; with near, nearest first.
@@ -755,5 +777,52 @@ function nearOf(doc, t, near) {
   return p;
 }
 
+// ---------- Publishing (server/published.js) ----------
+// P: the server's calls ({ create, get, update, remove, copied }), over
+// HTTP from the CLI, direct in the cloud connector. Each published trip's
+// key is kept in the sync repo's published.json, as the app keeps it, so
+// the app and a chat can each publish it again or stop it.
+const pubLink = (st) => APP_URL + "#/p/" + st.id + (st.server ? "/" + String(st.server).replace(/^https:\/\//, "") : "");
+// A published link (or its bare id) → { id, host }.
+function pubFromLink(link) {
+  const m = /(?:#\/p\/)?([\w-]{8,40})(?:\/([\w.:-]+))?\s*$/.exec(String(link || "").trim());
+  if (!m) throw new Error("That isn't a published trip's link; it looks like " + APP_URL + "#/p/<id>.");
+  return { id: m[1], host: m[2] || "" };
+}
+async function writePub(tb, tripId, entry) {
+  await tb.change(async (doc, ctx) => {
+    const all = (await ctx.json(PUB_FILE)) || {};
+    if (all[tripId] && all[tripId].at > entry.at) return;
+    all[tripId] = entry;
+    ctx.put(PUB_FILE, Buffer.from(text(Object.fromEntries(Object.entries(all).sort()))));
+  }, "Tripboard: " + (entry.stopped ? "stop publishing " : "publish ") + tripId);
+}
+async function publishTrip(tb, a, P) {
+  const st = await tb.snapshot();
+  const t = findTrip(st.doc, a.trip);
+  if (st.me && t.members && t.members.length && !M.can(t, st.me, "manage")) throw new Error("Only the owner of " + t.name + " can publish it.");
+  const o = { dates: a.dates !== false, notes: a.notes !== false };
+  const mine = (t.members || []).find((m) => m.id === st.me);
+  const body = { bundle: M.publishedOf(st.doc, t, o), by: a.name !== undefined ? String(a.name) : (mine && mine.name) || "", dates: o.dates };
+  const was = (await st.pubs())[t.id];
+  let entry = null;
+  if (was && !was.stopped && was.id && !was.server) {
+    const r = await P.update(was.id, was.key, body).catch((e) => { if (e.status === 404 || e.status === 401) return null; throw e; });
+    if (r) entry = { ...was, ...o, at: r.at };
+  }
+  if (!entry) { const r = await P.create(body); entry = { id: r.id, key: r.key, at: r.at, ...o }; }
+  await writePub(tb, t.id, entry);
+  return { trip: t.name, link: pubLink(entry), again: !!(was && !was.stopped), dates: o.dates, notes: o.notes, by: body.by };
+}
+async function unpublishTrip(tb, a, P) {
+  const st = await tb.snapshot();
+  const t = findTrip(st.doc, a.trip);
+  const was = (await st.pubs())[t.id];
+  if (!was || was.stopped) throw new Error(t.name + " isn't published.");
+  if (!was.server) await P.remove(was.id, was.key).catch((e) => { if (e.status !== 404 && e.status !== 401) throw e; });
+  await writePub(tb, t.id, { stopped: true, at: new Date().toISOString() });
+  return { trip: t.name, stopped: true };
+}
+
 module.exports = { open, findTrip, findIn, findPlace, findCat, catsOf, tripView, ops, queries, today, isText, typeOf, imageType,
-  M, G, LI, PLACE_FIELDS, EXPENSE_FIELDS, TRIP_FIELDS, FILE_FIELDS };
+  publishTrip, unpublishTrip, pubFromLink, pubLink, SERVER, M, G, LI, PLACE_FIELDS, EXPENSE_FIELDS, TRIP_FIELDS, FILE_FIELDS };

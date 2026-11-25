@@ -59,6 +59,17 @@ and nothing could keep a hidden section from a peer.
 - Not end-to-end encrypted: the server (and whoever runs the Cloudflare
   account) can read shared trips. A later step if it ever goes public.
 
+## Publishing a trip (2026-11-25)
+
+Sharing is one trip that everyone on it edits. Publishing is a handout:
+a read-only snapshot of the plan at a link (`#/p/<id>`), which anyone who
+opens it can copy into their own trips (the Duplicate sheet). The copy
+is theirs alone and nothing ties it back. Publish again updates the
+snapshot at the same link; Stop publishing deletes it from the server.
+What's in it, and what never is, is in ARCHITECTURE.md's Trade-offs.
+Community trips (a searchable list of published trips) wait until
+Tripboard has public users.
+
 ## The options that were weighed
 
 The missing piece is a place that every member's device can read and

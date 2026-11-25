@@ -43,6 +43,9 @@ they always match.
 | Make a trip | `new-trip` | `create_trip` |
 | Change a trip's name, dates or destinations (and each destination's dates and location, or dates from its stays) | `edit-trip` | `update_trip` |
 | Duplicate a trip: a copy that's yours alone, with or without locations, dates (moved to a new start) and attachments | `duplicate-trip` | `duplicate_trip` |
+| Publish a trip: a read-only copy of its plan that anyone with the link can open and copy (again to update it, same link) | `publish` | `publish_trip` |
+| Stop publishing a trip | `unpublish` | `unpublish_trip` |
+| Copy a published trip from its link into your trips | `copy-published` | `copy_published` |
 | Delete a trip with its places, expenses, files and cover | `delete-trip` | `delete_trip` |
 | Set or remove a trip's cover photo | `cover` | `set_trip_cover` |
 | Add a place, or a journey (a flight or train leg: `kind` journey, `mode`, `toName`, `arriveDay`, `arriveTime`, `number`) | `add-place` | `add_place` |

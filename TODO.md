@@ -24,12 +24,17 @@ moves to DROPPED.md with his reason.
   button only takes public repos. server/README.md "Running your own".
 - **Your own sharing server in the phone and desktop apps.** Today only
   the web app (sw.js widens the CSP); the bundled apps need their own way.
-- **Publishing a trip.** A read-only copy others can open (and later
-  copy, which is where community trips start).
+- **A map on a published trip's page.** Today it shows the plan by day
+  and each place's Open in links; the map comes with the copy.
+- **Published links open the phone app.** On Android a published link
+  opens the browser, even with the app installed (App Links).
 
 ## From the scope (docs/SCOPE.md)
 
-- Community trips.
+- Community trips: published trips anyone can find by searching
+  (Daniel, 2026-11-25: not until Tripboard has real public users; it
+  needs reporting, taking trips down and spam limits first). Publishing
+  and copying by link are built (2026-11-25).
 - Ratings pulled in for places (likely Google).
 
 ## Ideas

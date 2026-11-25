@@ -529,4 +529,24 @@ test("To check: kept only as true, and a filter of its own", () => {
   assert.strictEqual(M.filterPlaces([a, b], {}).length, 2);
 });
 
+test("publishedOf keeps only the plan; without dates it shows Day 1, Day 2; publishedDoc reads it back for copying", () => {
+  const at = "2026-11-01T00:00:00.000Z";
+  const trip = M.sanitizeTrip({ id: "t1", name: "Kyoto", start: "2027-04-03", end: "2027-04-05", destinations: ["Kyoto"], destInfo: { Kyoto: { start: "2027-04-03", end: "2027-04-05" } },
+    cover: true, art: "city", owner: "me", members: [{ id: "me", name: "Dana", role: "owner" }], share: { role: "viewer" }, createdAt: at, updatedAt: at });
+  const doc = { trips: [trip],
+    places: [{ id: "p1", trip: "t1", name: "Fushimi Inari", day: "2027-04-04", time: "07:00", note: "Go early", rating: 5, visited: true, by: "me", check: true, someday: "a field added later", lat: 34.96, lng: 135.77 }],
+    files: [{ id: "f1", trip: "t1", kind: "link", url: "https://example.com", name: "Guide", by: "me" }, { id: "f2", trip: "t1", name: "pass.pdf", size: 10 }, { id: "f3", trip: "t1", kind: "note", text: "Hi", name: "Note" }],
+    expenses: [{ id: "x1", trip: "t1", amount: 1, currency: "JPY" }] };
+  const b = M.publishedOf(doc, trip, {});
+  assert.deepStrictEqual(Object.keys(b.trip).sort(), ["art", "createdAt", "destInfo", "destinations", "end", "id", "name", "start", "updatedAt"]);
+  assert.deepStrictEqual(Object.keys(b.places[0]).sort(), ["day", "id", "lat", "lng", "name", "note", "time", "trip"]);
+  assert.deepStrictEqual([b.expenses, b.files.map((f) => f.id), b.files[0].by], [[], ["f1", "f3"], undefined]);
+  const hid = M.publishedOf(doc, trip, { dates: false, notes: false });
+  assert.deepStrictEqual([hid.trip.start, hid.trip.end, hid.trip.destInfo.Kyoto.start, hid.places[0].day, hid.places[0].time, hid.places[0].note, hid.files.length],
+    [M.HIDDEN_START, "2001-01-03", M.HIDDEN_START, "2001-01-02", "07:00", undefined, 0]);
+  const pd = M.publishedDoc(JSON.parse(JSON.stringify(hid)));
+  const copy = M.duplicateTrip(pd, pd.trips[0], { start: "2027-10-12" }, { id: "you", name: "You" });
+  assert.deepStrictEqual([copy.trip.start, copy.trip.end, copy.places[0].day, copy.trip.owner, copy.trip.cover], ["2027-10-12", "2027-10-14", "2027-10-13", "you", undefined]);
+});
+
 console.log(passed + " passed");
