@@ -46,6 +46,7 @@ function fakeGitHub() {
       for (const e of b.tree) { if (e.content != null) map.set(e.path, putBlob(Buffer.from(e.content))); else if (e.sha === null) map.delete(e.path); else map.set(e.path, e.sha); }
       return res(201, { sha: putTree(map) });
     }
+    if (p === "git/blobs" && method === "POST") return res(201, { sha: putBlob(Buffer.from(b.content, b.encoding === "base64" ? "base64" : "utf8")) });
     if (p === "git/commits") return res(201, { sha: putCommit(b.tree, b.parents) });
     if (p === "git/refs/heads/main") {
       if (commits.get(b.sha).parents[0] !== g.head) return res(422, { message: "Update is not a fast forward" });
@@ -255,6 +256,41 @@ const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
     const over = await rpc(env, t.access_token, "tools/call", { name: "import_places", arguments: { link: "https://maps.app.goo.gl/rome123" } });
     assert.ok(over.body.result.isError);
     assert.match(over.body.result.content[0].text, /Too many lists today/);
+  });
+
+  await test("publishing from the connector: its links name this server, and a trip the app published on another server is changed there", async () => {
+    const { DatabaseSync } = require("node:sqlite");
+    const db = () => {
+      const sql = new DatabaseSync(":memory:");
+      const dir = require("path").join(__dirname, "../server/migrations");
+      for (const f of require("fs").readdirSync(dir).sort()) sql.exec(require("fs").readFileSync(require("path").join(dir, f), "utf8"));
+      const stmt = (q, args = []) => ({ bind: (...a) => stmt(q, a), first: async () => sql.prepare(q).get(...args) || null, run: async () => ({ meta: { changes: sql.prepare(q).run(...args).changes } }) });
+      return { sql, DB: { prepare: (q) => stmt(q), batch: async (l) => { for (const x of l) await x.run(); } } };
+    };
+    const here = db(), other = db();
+    const otherEnv = { DB: other.DB, FILES: { get: async () => null, put: async () => {}, delete: async () => {} } };
+    const g = fakeGitHub();
+    const env = fakeEnv(g, { DB: here.DB, FETCH: (u, init) => (new URL(u).host === "own.test" ? W.handle(new Request(u, init), otherEnv) : g.fetch(u, init)) });
+    const t = await tokens(env, await signIn(env));
+    const tool = async (name, args) => { const r = (await rpc(env, t.access_token, "tools/call", { name, arguments: args })).body.result; assert.ok(!r.isError, r.content[0].text); return JSON.parse(r.content[0].text); };
+    await tool("create_trip", { name: "Kyoto", start: "2026-12-01", end: "2026-12-02" });
+    const porto = await tool("create_trip", { name: "Porto", start: "2026-12-01", end: "2026-12-02" });
+    const r = await tool("publish_trip", { trip: "Kyoto" });
+    assert.match(r.link, /#\/p\/[\w-]{16}\/tb\.test$/);
+    const id = /#\/p\/([\w-]+)/.exec(r.link)[1];
+    assert.ok(here.sql.prepare("SELECT 1 AS x FROM published WHERE id = ?").get(id));
+    // Porto was published from the app on another server.
+    const made = await (await W.handle(new Request("https://own.test/published", { method: "POST", body: JSON.stringify({ bundle: { trip: { id: porto.id, name: "Porto" } } }) }), otherEnv)).json();
+    const pubs = g.read("published.json");
+    pubs[porto.id] = { id: made.id, key: made.key, at: made.at, dates: true, notes: true, server: "https://own.test" };
+    g.put("published.json", JSON.stringify(pubs));
+    const again = await tool("publish_trip", { trip: "Porto" });
+    assert.match(again.link, new RegExp(made.id + "/own\\.test$"));
+    assert.strictEqual(here.sql.prepare("SELECT COUNT(*) AS n FROM published").get().n, 1, "nothing new here");
+    await tool("unpublish_trip", { trip: "Porto" });
+    assert.strictEqual(other.sql.prepare("SELECT 1 AS x FROM published WHERE id = ?").get(made.id), undefined);
+    await tool("unpublish_trip", { trip: "Kyoto" });
+    assert.strictEqual(here.sql.prepare("SELECT 1 AS x FROM published WHERE id = ?").get(id), undefined);
   });
 
   await test("a wrong or expired token is refused, and taking someone off MCP_USERS locks them out", async () => {

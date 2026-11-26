@@ -779,6 +779,39 @@ const env = { TRIPBOARD_TOKEN: "tok", TRIPBOARD_REPO: "me/data" };
     await assert.rejects(q("unpublish_trip", { trip: "Kyoto" }), /isn't published/);
   });
 
+  await test("publish_trip and unpublish_trip on a trip the app published on another server work on that server", async () => {
+    const g = fakeGitHub();
+    const { DatabaseSync } = require("node:sqlite");
+    const W = await import("../server/worker.js");
+    const serverEnv = () => {
+      const sql = new DatabaseSync(":memory:");
+      const dir = require("path").join(__dirname, "../server/migrations");
+      for (const f of fs.readdirSync(dir).sort()) sql.exec(fs.readFileSync(require("path").join(dir, f), "utf8"));
+      const stmt = (q, args = []) => ({ bind: (...a) => stmt(q, a), first: async () => sql.prepare(q).get(...args) || null, run: async () => ({ meta: { changes: sql.prepare(q).run(...args).changes } }) });
+      return { sql, DB: { prepare: (q) => stmt(q), batch: async (l) => { for (const x of l) await x.run(); } }, FILES: { get: async () => null, put: async () => {}, delete: async () => {} } };
+    };
+    const main = serverEnv(), own = serverEnv();
+    const both = (u, init) => (String(u).startsWith("https://share.test") ? W.handle(new Request(u, init), main)
+      : String(u).startsWith("https://own.test") ? W.handle(new Request(u, init), own) : g.fetch(u, init));
+    globalThis.fetch = both;
+    const env2 = { ...env, TRIPBOARD_SERVER: "https://share.test" };
+    await cli.main(["new-trip", "--name", "Porto", "--start", "2026-12-01", "--end", "2026-12-02"], env2, () => {});
+    const tb = core.open({ token: "tok", repo: "me/data", fetch: both });
+    const tripId = (await tb.read()).trips[0].id;
+    // As the app's Publish on Settings › Sharing server's own server leaves it.
+    const made = await (await W.handle(new Request("https://own.test/published", { method: "POST", body: JSON.stringify({ bundle: { trip: { id: tripId, name: "Porto" } }, by: "Dana" }) }), own)).json();
+    await tb.change((doc, ctx) => { ctx.put("published.json", Buffer.from(JSON.stringify({ [tripId]: { id: made.id, key: made.key, at: made.at, dates: true, notes: true, server: "https://own.test" } }))); });
+    const T = require("../cli/tools.js");
+    const q = (n, a) => T.run(tb, T.TOOLS.find((t) => t.tool === n), a, "mcp", env2);
+    const r = await q("publish_trip", { trip: "Porto" });
+    assert.deepStrictEqual([r.link, r.again], ["https://danielnoam.github.io/Tripboard/#/p/" + made.id + "/own.test", true]);
+    assert.strictEqual(main.sql.prepare("SELECT COUNT(*) AS n FROM published").get().n, 0, "nothing new on Tripboard's server");
+    assert.strictEqual(g.read("published.json")[tripId].server, "https://own.test");
+    await q("unpublish_trip", { trip: "Porto" });
+    assert.strictEqual(own.sql.prepare("SELECT 1 AS x FROM published WHERE id = ?").get(made.id), undefined, "gone from the server it was on");
+    assert.strictEqual(g.read("published.json")[tripId].stopped, true);
+  });
+
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(passed + " passed");
 })();
