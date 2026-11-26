@@ -65,6 +65,7 @@ test/cli.test.js     cli/, against a fake GitHub
 test/coverage.test.js  the drift guard: reads the app and fails when something in it has no CLI/MCP tool or reason in cli/coverage.js
 server/              the sharing server: a Cloudflare Worker (worker.js) with D1 and KV, Google Maps list links (googlelist.js), published trips (published.js); not deployed yet (server/README.md)
 test/server.test.js  server/, in Node against SQLite (as D1) and an in-memory KV
+server/app/          copies of cli/'s tools and the src/ files they load (tools/server-copy.js), so server/ stands alone for the Deploy to Cloudflare button
 server/mcp.js        the cloud connector: the same Worker as a remote MCP server for AI apps (Claude, ChatGPT, …), OAuth 2.1 sign-in with GitHub behind it, serving cli/mcp.js's tools minus deleting
 test/cloud-mcp.test.js  server/mcp.js's sign-in and MCP over HTTP, against a fake GitHub and KV
 docs/                SCOPE.md (v1), SHARING.md, DRIVE.md (turning on Drive backups), mockup/ (the first screens)
@@ -72,6 +73,7 @@ from-lifelog/        LifeLog's old Travel tab, for reference only; not loaded
 changes/             notes for the next release (changes/README.md)
 server.js            the local server: this computer only (from keel)
 tools/               release.js, keel-sync.js, keel-checks.js, android-version.js (from keel)
+tools/server-copy.js copies the app files the sharing server's bundle takes in to server/app/ (test/server.test.js checks they match)
 tools/build-www.js   copies sw.js's ASSETS into www/ (phones) or www-desktop/ (desktop), with app-build.json
 tools/android-manifest.js  what the app adds to Capacitor's AndroidManifest.xml, and the MainActivity it writes for Share → Tripboard (a SEND of text becomes a tripboard-share: address the App plugin passes on; views.js takeShares → the Add to a trip sheet → Add a place, the link attached once it's saved)
 tools/ios-project.js the iOS project's Info.plist keys and version

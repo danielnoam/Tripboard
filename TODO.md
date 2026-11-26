@@ -19,9 +19,6 @@ moves to DROPPED.md with his reason.
 - **End-to-end encrypted sharing**, if Tripboard ever goes public. The
   real fix for "the server's owner can read shared trips", for every
   user; your own server (2026-11-21) only helps people who run one.
-- **A Deploy to Cloudflare button** for your own sharing server, instead
-  of forking. Needs server/ self-contained (mcp.js imports cli/), and the
-  button only takes public repos. server/README.md "Running your own".
 - **A map on a published trip's page.** Today it shows the plan by day
   and each place's Open in links; the map comes with the copy.
 - **Published links open the phone app.** On Android a published link

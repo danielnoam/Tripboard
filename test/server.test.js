@@ -227,5 +227,14 @@ function fakeEnv() {
     assert.strictEqual((await call("POST", "/published/" + id + "/copied")).status, 404);
   });
 
+  await test("server/ stands on its own: server/app/ holds the app files the bundle takes in, as they are", async () => {
+    const { stale } = require("../tools/server-copy.js");
+    assert.deepStrictEqual(stale(), [], "server/app/ is out of date. Run node tools/server-copy.js.");
+    for (const f of fs.readdirSync(path.join(__dirname, "..", "server")).filter((n) => n.endsWith(".js"))) {
+      const text = fs.readFileSync(path.join(__dirname, "..", "server", f), "utf8");
+      assert.ok(!/from "\.\.\//.test(text) && !/require\("\.\.\//.test(text), "server/" + f + " reaches outside server/");
+    }
+  });
+
   console.log(passed + " passed");
 })();

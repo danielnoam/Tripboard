@@ -1,0 +1,828 @@
+// The trips in a GitHub sync repo, read and changed from Node, for the CLI
+// (cli/tripboard.js) and the MCP server (cli/mcp.js), whose commands both
+// come from cli/tools.js. It acts as one more device: it reads every
+// trip's bundle (and me.json, categories.json, ai.json), changes the doc, stamps
+// what changed (updatedAt, by, tombstones) with the app's own model.js,
+// and writes what differs in one commit: trip bundles, categories.json,
+// covers/<trip>.jpg and files/<trip>/<file>. The apps then merge that like
+// any other device's change. No dependencies: Node 18+ and the app's files.
+//
+// ai.json is the app's Settings › AI tools switch: whether these tools may
+// delete. They read it and never write it (writes to it are refused here),
+// so a chat can't turn deleting on for itself. Whoever holds the token can
+// still change the repo by other means: it is a safety catch for chats, not
+// a lock against the token's holder.
+//
+//   const tb = require("./core").open({ token, repo: "owner/name", branch });
+//   const doc = await tb.read();
+//   const out = await tb.change((doc, ctx) => { ...; return result; });
+globalThis.window = globalThis.window || globalThis;
+require("../src/keel/github.js");
+const M = require("../src/model.js");
+const G = require("../src/merge.js");
+const LI = require("../src/listimport.js");
+const K = globalThis.Keel;
+
+const AI_FILE = "ai.json";
+const PUB_FILE = "published.json";
+const APP_URL = "https://danielnoam.github.io/Tripboard/";
+const SERVER = "https://tripboard.danielnoam1999.workers.dev";
+const empty = () => ({ trips: [], places: [], expenses: [], files: [], deleted: {} });
+const text = (b) => JSON.stringify(b, null, 1);
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+function open({ token, repo, branch, fetch } = {}) {
+  const [owner, name] = String(repo || "").split("/");
+  if (!token) throw new Error("No token: set TRIPBOARD_TOKEN to a fine-grained token for the sync repo (Contents: read and write).");
+  if (!owner || !name) throw new Error("No repo: set TRIPBOARD_REPO to owner/name, the repo GitHub sync uses.");
+  const cfg = { token, owner, repo: name, branch: branch || "" };
+  const gh = K.github.client(() => cfg, fetch ? { fetch } : {});
+
+  async function whichBranch() {
+    if (cfg.branch) return cfg.branch;
+    const info = await gh.repoInfo();
+    if (!info) { const e = new Error("GitHub can't find " + repo + " with this token."); e.status = 404; throw e; }
+    return (cfg.branch = info.default_branch || "main");
+  }
+
+  // The repo as one doc, the head it was read at, every path in it, your
+  // person id (me.json) and your categories (categories.json).
+  async function load() {
+    const branch = await whichBranch();
+    const head = await gh.json("GET", "git/ref/heads/" + encodeURIComponent(branch));
+    if (!head) return { doc: empty(), head: null, bundles: {}, paths: new Map(), me: null, cats: null, ai: { deleting: false } };
+    const tree = await gh.json("GET", "git/trees/" + head.object.sha + "?recursive=1");
+    const paths = new Map((tree.tree || []).filter((f) => f.type !== "tree").map((f) => [f.path, f.sha]));
+    const ids = [...paths.keys()].map((p) => (/^trips\/([\w-]+)\.json$/.exec(p) || [])[1]).filter(Boolean);
+    let doc = empty();
+    const bundles = {};
+    for (const id of ids) {
+      const got = await gh.getJson("trips/" + id + ".json", { ref: head.object.sha });
+      if (!got) continue;
+      bundles[id] = got.data;
+      doc = G.applyBundle(doc, got.data);
+    }
+    const json = async (p) => (paths.has(p) ? ((await gh.getJson(p, { ref: head.object.sha })) || {}).data : null);
+    const meData = await json("me.json");
+    const me = meData && M.isCatId(meData.id) ? meData.id : null;
+    const c = await json("categories.json");
+    const cats = c && Array.isArray(c.list) && typeof c.at === "string" ? c : null;
+    const a = await json("ai.json");
+    const ai = { deleting: !!(a && a.deleting === true) };
+    return { doc: M.sanitizeDoc(doc), head: head.object.sha, bundles, paths, me, cats, ai };
+  }
+
+  async function read() { return (await load()).doc; }
+  // Everything a read-only command may want: the doc, your id, your
+  // categories, the repo's paths, and a way to fetch a file's bytes.
+  // Only a cover or a trip's file: an id like "../keys.json" in a trip
+  // can't reach the rest of the repo (keys.json holds the map keys).
+  const rawOk = (path) => /^(covers\/[\w-]+\.jpg|files\/[\w-]+\/[^/]+)$/.test(path) && !path.split("/").some((x) => x === "." || x === "..");
+  async function snapshot() {
+    const st = await load();
+    return { ...st, raw: (path) => rawOk(path) ? gh.getRaw(path, { ref: st.head, as: "bytes" }) : Promise.reject(new Error("Not a trip's file: " + path)), servers: () => sharesServers(st.paths.has("shares.json") ? gh.getJson("shares.json", { ref: st.head }) : null),
+      pubs: async () => (st.paths.has(PUB_FILE) ? ((await gh.getJson(PUB_FILE, { ref: st.head })) || {}).data || {} : {}) };
+  }
+
+  // fn(doc, ctx) changes the doc in place and gives a result. ctx: me,
+  // cats, ai, setCats(list), put(path, bytes), drop(path), raw(path). Retried
+  // on a fresh read if the repo moved meanwhile.
+  async function change(fn, message) {
+    for (let n = 1; ; n++) {
+      const st = await load();
+      const { doc, head, bundles } = st;
+      const before = clone(doc);
+      const puts = new Map(), drops = new Set(), copies = new Map();
+      const ctx = {
+        me: st.me, cats: st.cats, ai: st.ai, paths: st.paths, catsChanged: false,
+        setCats(list) { ctx.cats = { list, at: new Date().toISOString() }; ctx.catsChanged = true; },
+        put(path, bytes) { puts.set(path, bytes); drops.delete(path); },
+        drop(path) { puts.delete(path); if (st.paths.has(path)) drops.add(path); },
+        // A file already in the repo, under a new path too (no download: the same blob).
+        copy(from, to) { if (!st.paths.has(from)) return false; copies.set(to, st.paths.get(from)); return true; },
+        raw: (path) => gh.getRaw(path, { ref: head, as: "bytes" }),
+        json: async (path) => (st.paths.has(path) ? ((await gh.getJson(path, { ref: head })) || {}).data : null),
+      };
+      const result = await fn(doc, ctx);
+      const clean = M.sanitizeDoc(doc);
+      // Trip names for your own categories, as the app carries them; never
+      // on a trip you may only view.
+      const carried = M.carryCats(clean, M.catList(ctx.cats ? ctx.cats.list : null));
+      carried.trips = carried.trips.map((t, i) => (mayEdit(before, t.id, st.me) ? t : clean.trips[i]));
+      const next = M.stamp(before, carried, undefined, st.me);
+      // The record a tool gives back is the one written, with its new updatedAt.
+      const records = next.trips.concat(next.places, next.expenses, next.files);
+      const fresh = (r) => { const w = r && r.id && records.find((x) => x.id === r.id); return w ? clone(w) : r; };
+      const answer = result && Array.isArray(result.results) ? { ...result, results: result.results.map(fresh) } : fresh(result);
+      const writes = [];
+      for (const id of new Set(G.tripIds(next).concat(Object.keys(bundles)))) {
+        const b = G.bundleOf(next, id);
+        if (!b || JSON.stringify(b) === JSON.stringify(bundles[id])) continue;
+        guard(before, next, id, st.me);
+        writes.push({ path: "trips/" + id + ".json", text: text(b) });
+      }
+      // What a deletion leaves behind in the repo goes with it.
+      for (const [id, t] of Object.entries(next.deleted)) {
+        if (before.deleted[id]) continue;
+        if (t.trip === id) { ctx.drop("covers/" + id + ".jpg"); for (const p of st.paths.keys()) if (p.startsWith("files/" + id + "/")) ctx.drop(p); }
+        else ctx.drop("files/" + t.trip + "/" + id);
+      }
+      if (ctx.catsChanged) writes.push({ path: "categories.json", text: text(ctx.cats) });
+      for (const p of drops) writes.push({ path: p, sha: null });
+      if (writes.concat([...puts.keys()].map((path) => ({ path }))).some((w) => w.path === AI_FILE)) throw new Error("Only the app changes " + AI_FILE + " (Settings › AI tools).");
+      for (const [p, sha] of copies) writes.push({ path: p, sha });
+      if (!writes.length && !puts.size) return answer;
+      try {
+        for (const [p, bytes] of puts) writes.push({ path: p, sha: await gh.createBlob(new Uint8Array(bytes)) });
+        await gh.commitFiles(writes, message || "Tripboard CLI: " + writes.length + (writes.length === 1 ? " file" : " files"), {
+          branch: cfg.branch,
+          root: async () => [],
+          tries: 1,
+          beforeTry: async () => {
+            const now = await gh.json("GET", "git/ref/heads/" + encodeURIComponent(cfg.branch));
+            if ((now && now.object.sha) !== head) { const e = new Error("moved"); e.moved = true; throw e; }
+          },
+        });
+        return answer;
+      } catch (e) {
+        if (!(e.moved || e.status === 422) || n >= 4) throw e;
+      }
+    }
+  }
+
+  return { read, snapshot, change, gh };
+}
+
+// The app's roles, kept here too: with your id known (me.json), a trip
+// shared with you as a viewer can't be changed, and only its owner deletes
+// it or changes who's on it. Without me.json there's no one to check.
+function mayEdit(doc, tripId, me) {
+  const t = doc.trips.find((x) => x.id === tripId);
+  return !me || !t || M.can(t, me, "edit");
+}
+function guard(before, next, id, me) {
+  if (!me) return;
+  const was = before.trips.find((x) => x.id === id);
+  if (!was || !was.members || !was.members.length) return;
+  const now = next.trips.find((x) => x.id === id);
+  if (!M.can(was, me, "edit")) throw new Error("You can only view " + was.name + ", so it can't be changed.");
+  const people = (t) => JSON.stringify([t.owner, t.members, t.share]);
+  if ((!now || people(now) !== people(was)) && !M.can(was, me, "manage")) throw new Error("Only the owner of " + was.name + " can " + (now ? "change who's on it." : "delete it."));
+}
+
+// A trip by id, or by name (whole name first, then a part of it), any case.
+function findTrip(doc, key) {
+  const k = String(key || "").trim().toLowerCase();
+  const t = doc.trips.find((x) => x.id === key) || doc.trips.find((x) => x.name.toLowerCase() === k)
+    || doc.trips.filter((x) => x.name.toLowerCase().includes(k)).sort((a, b) => a.name.length - b.name.length)[0];
+  if (!k || !t) throw new Error("No trip " + JSON.stringify(key) + ". Trips: " + (doc.trips.map((x) => x.name).join(", ") || "none"));
+  return t;
+}
+function findIn(list, key, what) {
+  const k = String(key || "").trim().toLowerCase();
+  const r = list.find((x) => x.id === key) || list.find((x) => (x.name || x.title || "").toLowerCase() === k)
+    || list.find((x) => (x.name || x.title || "").toLowerCase().includes(k));
+  if (!k || !r) throw new Error("No " + what + " " + JSON.stringify(key) + " in this trip.");
+  return r;
+}
+const placesOf = (doc, t) => doc.places.filter((p) => p.trip === t.id);
+const findPlace = (doc, t, key) => findIn(placesOf(doc, t), key, "place");
+
+// Your categories as [[id, name]], and one by id or name.
+const catsOf = (cats) => M.catList(cats ? cats.list : null);
+function findCat(cats, key) {
+  const k = String(key || "").trim().toLowerCase();
+  const c = cats.find(([id]) => id === key) || cats.find(([, n]) => n.toLowerCase() === k) || cats.find(([id]) => id.toLowerCase() === k);
+  if (!k || !c) throw new Error("No category " + JSON.stringify(key) + ". Categories: " + cats.map(([id, n]) => n + " (" + id + ")").join(", ") + ".");
+  return c;
+}
+const asSaved = (l) => l.map(([id, name]) => (M.CATEGORY.get(id) === name ? { id } : { id, name }));
+
+// What a trip looks like to a person or a model: the trip, its places by
+// day, its expenses with totals, its people and its files (names only).
+function tripView(doc, trip, cats) {
+  const places = placesOf(doc, trip);
+  const expenses = (doc.expenses || []).filter((x) => x.trip === trip.id);
+  const list = catsOf(cats);
+  const used = [...new Set(places.map((p) => p.category))];
+  return {
+    trip,
+    places: places.slice().sort((a, b) => String(a.day || "9999").localeCompare(String(b.day || "9999")) || String(a.time || "").localeCompare(String(b.time || "")))
+      .map((p) => { const d = M.destOf(trip, p); return d ? { ...p, destination: d } : p; }),
+    categories: Object.fromEntries(used.map((id) => [id, M.catName(list, trip, id)])),
+    days: M.tripDays(trip, places),
+    expenses, totals: M.expenseTotals(expenses),
+    byCategory: M.expensesByCategory(expenses).map(({ id, totals }) => ({ category: id, totals })),
+    people: (trip.members || []).map((m) => { const a = M.access(trip, m.id); return { id: m.id, name: m.name, role: a.role, hidden: a.hide, own: a.own }; }),
+    files: (doc.files || []).filter((f) => f.trip === trip.id).map(({ id, name, type, size, place, note, kind, url, text }) => ({ id, kind: kind || "file", name, type, size, place, note, url, text })),
+  };
+}
+
+// Which sharing server each shared trip is on, from the app's shares.json
+// (src/share.js): a key alone is Tripboard's server, { key, server } one
+// someone runs. Only the servers come out; the keys stay here.
+async function sharesServers(reading) {
+  const got = reading ? await reading : null;
+  const out = {};
+  for (const [id, v] of Object.entries((got && got.data) || {})) {
+    if (typeof v === "string") out[id] = "Tripboard's server";
+    else if (v && typeof v.server === "string" && /^https:\/\/[a-z0-9.:-]+$/.test(v.server)) out[id] = v.server.slice(8);
+  }
+  return out;
+}
+
+// The edits both front ends offer, on a doc. Each gives the record it made
+// or changed. Fields are the app's own (see src/model.js); unknown ones
+// are kept, as the app keeps them.
+const PLACE_FIELDS = ["name", "category", "importance", "day", "endDay", "time", "endTime", "note", "lat", "lng", "address", "placeId", "visited", "check", "rating", "order",
+  "kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "arriveDay", "arriveTime", "number"];
+const EXPENSE_FIELDS = ["title", "amount", "currency", "category", "day", "place", "note", "paidBy"];
+const TRIP_FIELDS = ["name", "start", "end", "destinations"];
+// destInfo: [{ name, start, end, lat, lng, in }], each merged into the
+// trip's destInfo (an empty start clears the dates); a name not among the
+// destinations joins them. Names dropped from destinations lose their info
+// (sanitizeTrip), and places put in them by hand go back to the nearest.
+function setDestinations(doc, t, a) {
+  for (const d of a.destInfo || []) {
+    const name = String((d && d.name) || "").trim();
+    if (!name) throw new Error("Each of destInfo needs a name.");
+    if (!t.destinations.includes(name)) t.destinations.push(name);
+    const r = { ...((t.destInfo || {})[name] || {}) };
+    if (d.start === "" || d.start === null) { delete r.start; delete r.end; }
+    else if (d.start !== undefined) {
+      if (!M.isDay(d.start) || (d.end && !M.isDay(d.end))) throw new Error("Dates are YYYY-MM-DD.");
+      Object.assign(r, { start: d.start, end: d.end || d.start });
+    }
+    if (d.lat !== undefined || d.lng !== undefined) Object.assign(r, { lat: d.lat, lng: d.lng });
+    if (d.in === null) delete r.in;
+    else if (d.in !== undefined) {
+      const up = String(d.in).trim();
+      if (up && (up === name || !t.destinations.includes(up))) throw new Error("\"in\" is another of the trip's destinations, \"\" for its own block, or null for by its dates.");
+      r.in = up;
+    }
+    t.destInfo = { ...(t.destInfo || {}), [name]: r };
+  }
+  // As Edit trip's "Dates from your stays".
+  if (a.datesFromStays) {
+    const got = M.datesFromStays(t, doc.places.filter((p) => p.trip === t.id));
+    if (!Object.keys(got).length) throw new Error("No stay with a day is near one of " + t.name + "'s destinations (they need lat and lng: destInfo).");
+    for (const [name, r] of Object.entries(got)) t.destInfo = { ...(t.destInfo || {}), [name]: { ...((t.destInfo || {})[name] || {}), ...r } };
+  }
+  const clean = M.sanitizeTrip(t);
+  if (!clean.destInfo) delete t.destInfo;
+  Object.assign(t, clean);
+}
+const dropLostDests = (doc, t) => { for (const p of doc.places) if (p.trip === t.id && p.dest && !t.destinations.includes(p.dest)) { delete p.dest; p.updatedAt = now(); } };
+// A place's destination (dest): a trip destination's name, or
+// empty for the nearest.
+function placeDest(t, p, a) {
+  if (a.dest === undefined) return;
+  if (a.dest && !t.destinations.includes(a.dest)) throw new Error(t.name + " has no destination " + JSON.stringify(a.dest) + ". Its destinations: " + (t.destinations.join(", ") || "none") + ".");
+  M.setDest(t, p, a.dest || null);
+}
+const FILE_FIELDS = ["name", "place", "note"];
+const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
+const clear = (r, a, keys) => { for (const k of keys) if (a[k] === null || a[k] === "") delete r[k]; };
+const now = () => new Date().toISOString();
+const MB = 1024 * 1024;
+const MAX_COVER_MB = 5;
+
+// A file's type from its first bytes or its name's ending.
+const TYPES = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic",
+  txt: "text/plain", md: "text/markdown", html: "text/html", csv: "text/csv", json: "application/json", kml: "application/vnd.google-earth.kml+xml",
+  ics: "text/calendar", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pkpass: "application/vnd.apple.pkpass", zip: "application/zip" };
+const typeOf = (name) => TYPES[(/\.(\w+)$/.exec(String(name).toLowerCase()) || [])[1]] || "application/octet-stream";
+function imageType(b) {
+  if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (String.fromCharCode(...b.slice(0, 4)) === "RIFF" && String.fromCharCode(...b.slice(8, 12)) === "WEBP") return "image/webp";
+  return "";
+}
+const isText = (type) => /^text\/|json|xml|csv|calendar/.test(type);
+const dataUrl = (type, bytes) => "data:" + type + ";base64," + Buffer.from(bytes).toString("base64");
+const fromDataUrl = (url) => { const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(String(url || "")); return m ? (m[2] ? Buffer.from(m[3], "base64") : Buffer.from(decodeURIComponent(m[3]))) : null; };
+
+// Today on this computer, YYYY-MM-DD.
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+
+const ops = {
+  createTrip(doc, a, ctx) {
+    const t = M.sanitizeTrip({ id: M.newId(), createdAt: now(), ...pick(a, TRIP_FIELDS) });
+    setDestinations(doc, t, a);
+    if (ctx && ctx.me) M.ownTrip(t, { id: ctx.me, name: "" });
+    doc.trips.push(t);
+    return t;
+  },
+  updateTrip(doc, a) {
+    const t = findTrip(doc, a.trip);
+    Object.assign(t, pick(a, TRIP_FIELDS));
+    clear(t, a, ["start", "end"]);
+    setDestinations(doc, t, a);
+    dropLostDests(doc, t);
+    return t;
+  },
+  deleteTrip(doc, a) {
+    const t = findTrip(doc, a.trip);
+    doc.trips = doc.trips.filter((x) => x !== t);
+    return { deleted: t.name };
+  },
+  // A copy of a trip that's yours alone, with what the app's Duplicate keeps
+  // (M.duplicateTrip): locations, dates (moved to start) and attachments.
+  // The cover and files are copied in the repo; one not synced yet stays behind.
+  duplicateTrip(doc, a, ctx) {
+    const t = findTrip(doc, a.trip);
+    if (a.start !== undefined && a.start !== "" && !M.isDay(a.start)) throw new Error("start is a date, YYYY-MM-DD.");
+    const got = M.duplicateTrip(doc, t, { name: a.name || t.name + " (copy)", start: a.start, locations: a.locations, dates: a.dates, attachments: a.attachments },
+      ctx.me ? { id: ctx.me, name: "" } : null);
+    if (got.trip.cover && !ctx.copy("covers/" + t.id + ".jpg", "covers/" + got.trip.id + ".jpg")) { got.trip.cover = false; delete got.trip.coverAt; }
+    const left = new Set();
+    for (const [from, to] of got.fileIds) if (!ctx.copy("files/" + t.id + "/" + from, "files/" + got.trip.id + "/" + to)) left.add(to);
+    doc.trips.push(got.trip);
+    doc.places.push(...got.places);
+    doc.files = (doc.files || []).concat(got.files.filter((f) => !left.has(f.id)));
+    return left.size ? { ...got.trip, note: left.size + " file(s) weren't in the repo yet, so they stayed behind." } : got.trip;
+  },
+  // A published trip (a.pub, fetched by tools.js from its link) copied in,
+  // as the app's Copy to my trips: duplicateTrip on the published plan.
+  copyPublished(doc, a, ctx) {
+    const pdoc = M.publishedDoc(a.pub.bundle);
+    const t = pdoc.trips[0];
+    if (a.start !== undefined && a.start !== "" && !M.isDay(a.start)) throw new Error("start is a date, YYYY-MM-DD.");
+    // Published without its dates: its days are kept only from a new start.
+    const dates = a.dates !== false && (a.pub.dates !== false || M.isDay(a.start));
+    const got = M.duplicateTrip(pdoc, t, { name: a.name || t.name, start: a.start, locations: a.locations, dates, attachments: a.attachments },
+      ctx.me ? { id: ctx.me, name: "" } : null);
+    doc.trips.push(got.trip);
+    doc.places.push(...got.places);
+    doc.files = (doc.files || []).concat(got.files);
+    return a.pub.dates === false && !dates ? { ...got.trip, note: "It was published without dates; give start to keep its days." } : got.trip;
+  },
+  // A cover photo (JPEG, PNG or WebP bytes), or none.
+  setCover(doc, a, ctx) {
+    const t = findTrip(doc, a.trip);
+    if (a.art !== undefined && a.art !== "") {
+      if (!M.COVER_ART.includes(a.art)) throw new Error("A drawn cover is one of: " + M.COVER_ART.join(", ") + ".");
+      t.art = a.art;
+      if (t.cover) { t.cover = false; t.coverAt = now(); ctx.drop("covers/" + t.id + ".jpg"); }
+      return { trip: t.name, cover: a.art };
+    }
+    if (a.remove) {
+      delete t.art;
+      t.cover = false;
+      t.coverAt = now();
+      ctx.drop("covers/" + t.id + ".jpg");
+      return { trip: t.name, cover: false };
+    }
+    const b = a.bytes;
+    if (!b || !b.length) throw new Error("A cover needs an image, or remove.");
+    if (!imageType(b)) throw new Error("A cover is a JPEG, PNG or WebP image.");
+    if (b.length > MAX_COVER_MB * MB) throw new Error("A cover can be up to " + MAX_COVER_MB + " MB.");
+    t.cover = true;
+    t.coverAt = now();
+    delete t.art;
+    ctx.put("covers/" + t.id + ".jpg", b);
+    return { trip: t.name, cover: true, size: b.length };
+  },
+  addPlace(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (!a.name) throw new Error("A place needs a name.");
+    // A journey goes under Getting around, as in the app.
+    const p = M.sanitizePlace({ id: M.newId(), trip: t.id, createdAt: now(), category: a.kind === "journey" ? "transport" : "sight", ...pick(a, PLACE_FIELDS) });
+    placeDest(t, p, a);
+    doc.places.push(p);
+    return p;
+  },
+  updatePlace(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const p = findPlace(doc, t, a.place);
+    // A new day starts without the old day's order, as in the app.
+    if (a.day !== undefined && a.day !== p.day && a.order === undefined) delete p.order;
+    Object.assign(p, pick(a, PLACE_FIELDS));
+    clear(p, a, PLACE_FIELDS);
+    // A new location from anywhere but Google's id isn't Google's.
+    if ((a.lat !== undefined || a.lng !== undefined) && a.placeId === undefined) delete p.geoAt;
+    // A location set by hand is checked.
+    if ((a.lat !== undefined || a.lng !== undefined) && a.check === undefined) delete p.check;
+    if ((a.toLat !== undefined || a.toLng !== undefined) && a.toPlaceId === undefined) delete p.toGeoAt;
+    // No longer a journey: its journey fields go, as in the app.
+    if (p.kind !== "journey") for (const k of ["kind", "mode", "toName", "toLat", "toLng", "toAddress", "toPlaceId", "toGeoAt", "arriveDay", "arriveTime", "number"]) delete p[k];
+    else {
+      // A journey's fields checked as the app does (an arrival before it leaves goes).
+      const clean = M.sanitizePlace(p);
+      for (const k of Object.keys(p)) if (!(k in clean)) delete p[k];
+      Object.assign(p, clean);
+    }
+    placeDest(t, p, a);
+    return p;
+  },
+  // A day's places in the order given: they get order 1, 2, 3…, and the
+  // day's other places follow in their current order. Times still come
+  // first, so a timed place stays at its time.
+  orderDay(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (!M.isDay(a.day)) throw new Error("A day is YYYY-MM-DD.");
+    const keys = a.places || [];
+    if (!keys.length) throw new Error("Give the day's places in the order you want them.");
+    const listed = keys.map((k) => findPlace(doc, t, k));
+    for (const p of listed) if (!M.onDay(p, a.day)) throw new Error(p.name + " isn't on " + a.day + ". Set its day first.");
+    const twice = listed.find((p, i) => listed.indexOf(p) !== i);
+    if (twice) throw new Error(twice.name + " is listed twice.");
+    const rest = M.dayPlan(placesOf(doc, t), a.day).filter((p) => !listed.includes(p));
+    listed.concat(rest).forEach((p, i) => { p.order = i + 1; });
+    // Numbered again as the plan now runs, timed places included, so each
+    // order is its place in the day.
+    const plan = M.dayPlan(placesOf(doc, t), a.day);
+    plan.forEach((p, i) => { p.order = i + 1; });
+    const out = { trip: t.name, day: a.day, plan: plan.map((p) => ({ id: p.id, name: p.name, ...(M.timeOn(p, a.day) ? { time: M.timeOn(p, a.day) } : {}), order: p.order })) };
+    const got = plan.filter((p) => listed.includes(p));
+    if (got.some((p, i) => p !== listed[i])) out.note = "Places with a time go by their time first, so the plan isn't exactly the order given. Change or clear their times to move them.";
+    return out;
+  },
+  // Several changes in one commit: each step is a write tool's op with its
+  // arguments, run in turn on the same doc, so a step sees the ones before
+  // it. If one fails nothing is written.
+  async batch(doc, a, ctx) {
+    const results = [];
+    for (const [i, s] of (a.steps || []).entries()) {
+      try { results.push(await ops[s.op](doc, s.args, ctx)); }
+      catch (e) { throw new Error("Step " + (i + 1) + " (" + s.tool + "): " + (e.message || e) + " Nothing was changed."); }
+    }
+    return { changes: results.length, results };
+  },
+  deletePlace(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const p = findPlace(doc, t, a.place);
+    doc.places = doc.places.filter((x) => x !== p);
+    return { deleted: p.name };
+  },
+  // A Google Maps list (Takeout CSV, My Maps KML, Saved Places JSON, or
+  // a.list: one already read from a shared link) into a trip, or into a new
+  // one named after the list. Names already in the trip are skipped, as in the app.
+  importPlaces(doc, a, ctx) {
+    const src = a.bytes ? Buffer.from(a.bytes).toString("utf8") : "";
+    const items = a.list ? (a.list.places || []).filter((p) => p && typeof p.name === "string" && p.name.trim())
+      : a.lines ? LI.pasted(a.lines).places : LI.parse(src, a.fileName || "");
+    if (!items.length) throw new Error("No places found in that.");
+    const title = a.list ? String(a.list.title || "") : LI.title(src, a.fileName || "");
+    const t = a.trip ? findTrip(doc, a.trip) : ops.createTrip(doc, { name: a.name || title || "Imported places" }, ctx);
+    const have = new Set(placesOf(doc, t).map((p) => p.name.toLowerCase()));
+    const cat = a.category ? findCat(catsOf(ctx && ctx.cats).concat(Object.entries(t.cats || {})), a.category)[0] : null;
+    if (a.day && !M.isDay(a.day)) throw new Error("day is a date, YYYY-MM-DD.");
+    const added = [];
+    for (const it of items) {
+      if (have.has(it.name.toLowerCase())) continue;
+      have.add(it.name.toLowerCase());
+      const p = { id: M.newId(), trip: t.id, name: it.name, category: cat || "other", importance: a.importance || "want", createdAt: now() };
+      if (a.day) p.day = a.day;
+      if (it.note) p.note = it.note;
+      if (typeof it.lat === "number" && typeof it.lng === "number") Object.assign(p, { lat: it.lat, lng: it.lng });
+      added.push(M.sanitizePlace(p));
+    }
+    doc.places.push(...added);
+    return { trip: t.name, tripId: t.id, added: added.length, skipped: items.length - added.length, places: added.map((p) => ({ id: p.id, name: p.name, located: p.lat != null })) };
+  },
+  addExpense(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (a.amount == null || isNaN(+a.amount)) throw new Error("An expense needs an amount.");
+    if (a.place) a = { ...a, place: findPlace(doc, t, a.place).id };
+    const x = M.sanitizeExpense({ id: M.newId(), trip: t.id, createdAt: now(), ...pick(a, EXPENSE_FIELDS), amount: +a.amount });
+    doc.expenses = (doc.expenses || []).concat(x);
+    return x;
+  },
+  updateExpense(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const x = findIn((doc.expenses || []).filter((e) => e.trip === t.id), a.expense, "expense");
+    if (a.place) a = { ...a, place: findPlace(doc, t, a.place).id };
+    Object.assign(x, pick(a, EXPENSE_FIELDS));
+    clear(x, a, ["day", "place", "note", "paidBy"]);
+    if (a.amount != null && a.amount !== "") x.amount = +a.amount;
+    return x;
+  },
+  deleteExpense(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const x = findIn((doc.expenses || []).filter((e) => e.trip === t.id), a.expense, "expense");
+    doc.expenses = doc.expenses.filter((e) => e !== x);
+    return { deleted: x.title };
+  },
+  // A file kept with the trip (a ticket, a booking), synced like the app's.
+  addFile(doc, a, ctx) {
+    const t = findTrip(doc, a.trip);
+    const b = a.bytes;
+    if (!b || !b.length) throw new Error("A file needs its contents.");
+    if (b.length > M.MAX_FILE_MB * MB) throw new Error("A file can be up to " + M.MAX_FILE_MB + " MB.");
+    const name = a.name || "Untitled file";
+    const f = M.sanitizeFile({ id: M.newId(), trip: t.id, name, type: a.type || imageType(b) || typeOf(name), size: b.length, createdAt: now(),
+      place: a.place ? findPlace(doc, t, a.place).id : undefined, note: a.note });
+    doc.files = (doc.files || []).concat(f);
+    ctx.put("files/" + t.id + "/" + f.id, b);
+    return f;
+  },
+  // A link kept in the trip's Attachments (http or https only).
+  addLink(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const url = M.linkUrl(a.url);
+    if (!url) throw new Error("A link needs a web address starting with http:// or https://.");
+    const f = M.sanitizeFile({ id: M.newId(), trip: t.id, kind: "link", url, name: a.name, createdAt: now(),
+      place: a.place ? findPlace(doc, t, a.place).id : undefined, note: a.note });
+    doc.files = (doc.files || []).concat(f);
+    return f;
+  },
+  // A note kept in the trip's Attachments: a title and its text.
+  addNote(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (!String(a.text || "").trim()) throw new Error("A note needs its text.");
+    if (String(a.text).length > M.MAX_NOTE) throw new Error("A note can be up to " + M.MAX_NOTE + " characters.");
+    const f = M.sanitizeFile({ id: M.newId(), trip: t.id, kind: "note", text: a.text, name: a.name, createdAt: now(),
+      place: a.place ? findPlace(doc, t, a.place).id : undefined });
+    doc.files = (doc.files || []).concat(f);
+    return f;
+  },
+  updateFile(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const f = findIn((doc.files || []).filter((x) => x.trip === t.id), a.file, "file");
+    if (a.place) a = { ...a, place: findPlace(doc, t, a.place).id };
+    if (a.url !== undefined) {
+      if (f.kind !== "link") throw new Error(f.name + " isn't a link, so it has no web address.");
+      if (!M.linkUrl(a.url)) throw new Error("A link needs a web address starting with http:// or https://.");
+      f.url = M.linkUrl(a.url);
+    }
+    if (a.text !== undefined) {
+      if (f.kind !== "note") throw new Error(f.name + " isn't a note. A file's contents change by adding it again.");
+      if (String(a.text).length > M.MAX_NOTE) throw new Error("A note can be up to " + M.MAX_NOTE + " characters.");
+      f.text = M.sanitizeFile({ kind: "note", text: a.text }).text;
+    }
+    Object.assign(f, pick(a, FILE_FIELDS));
+    clear(f, a, ["place", "note"]);
+    return f;
+  },
+  deleteFile(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const f = findIn((doc.files || []).filter((x) => x.trip === t.id), a.file, "file");
+    doc.files = doc.files.filter((x) => x !== f);
+    return { deleted: f.name };
+  },
+  // Who may do what: with no person, what everyone gets; with one, that
+  // person's own (role "default" or hide "default" go back to everyone's).
+  updateSharing(doc, a) {
+    const t = findTrip(doc, a.trip);
+    if (Array.isArray(a.hide) && a.hide.length === 1 && a.hide[0] === "default") a = { ...a, hide: "default" };
+    const hide = (v) => (Array.isArray(v) ? v : String(v).split(",")).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+    for (const x of a.hide && a.hide !== "default" ? hide(a.hide) : []) if (!M.SECTIONS.includes(x)) throw new Error("No section " + JSON.stringify(x) + ". Sections: " + M.SECTIONS.join(", ") + ".");
+    if (a.role !== undefined && !["editor", "viewer", "default"].includes(a.role)) throw new Error("A role is editor or viewer" + (a.person ? ", or default." : "."));
+    if (!a.person) {
+      if (a.role === "default") throw new Error("Everyone's role is editor or viewer.");
+      const d = t.share || { role: "editor", hide: [] };
+      t.share = { role: a.role || d.role, hide: a.hide !== undefined && a.hide !== "default" ? hide(a.hide) : a.hide === "default" ? [] : d.hide };
+      return { trip: t.name, everyone: t.share };
+    }
+    const m = findIn(t.members || [], a.person, "person");
+    if (m.id === t.owner) throw new Error("The owner always has everything.");
+    if (a.role === "default") delete m.role; else if (a.role) m.role = a.role;
+    if (a.hide === "default") delete m.hide; else if (a.hide !== undefined) m.hide = hide(a.hide);
+    return { trip: t.name, person: m.name || m.id, access: M.access(t, m.id) };
+  },
+  // Someone off a shared trip; the sharing server ends their key at the
+  // owner's next sync, as when the app removes them.
+  removePerson(doc, a) {
+    const t = findTrip(doc, a.trip);
+    const m = findIn(t.members || [], a.person, "person");
+    if (m.id === t.owner) throw new Error("The owner can't be removed. Delete the trip, or stop sharing it in the app.");
+    t.members = t.members.filter((x) => x !== m);
+    return { trip: t.name, removed: m.name || m.id };
+  },
+  // Your categories, one list for all trips (categories.json).
+  addCategory(doc, a, ctx) {
+    const name = String(a.name || "").trim().slice(0, 40);
+    if (!name) throw new Error("A category needs a name.");
+    const l = catsOf(ctx.cats);
+    if (l.some(([, n]) => n.toLowerCase() === name.toLowerCase())) throw new Error("There's already a category called " + name + ".");
+    const id = "c" + M.newId();
+    const at = l.findIndex(([x]) => x === "other");
+    l.splice(at < 0 ? l.length : at, 0, [id, name]);
+    ctx.setCats(asSaved(l));
+    return { id, name };
+  },
+  updateCategory(doc, a, ctx) {
+    const l = catsOf(ctx.cats);
+    const [id] = findCat(l, a.category);
+    let i = l.findIndex(([x]) => x === id);
+    if (a.name) {
+      const name = String(a.name).trim().slice(0, 40);
+      if (l.some(([x, n]) => x !== id && n.toLowerCase() === name.toLowerCase())) throw new Error("There's already a category called " + name + ".");
+      l[i] = [id, name];
+    }
+    if (a.position != null && a.position !== "") {
+      const to = Math.max(0, Math.min(l.length - 1, Math.round(+a.position) - 1));
+      const [c] = l.splice(i, 1);
+      l.splice(to, 0, c);
+      i = to;
+    }
+    ctx.setCats(asSaved(l));
+    return { id, name: l[i][1], position: i + 1 };
+  },
+  // Its places, in every trip you may edit, move to Other, as in the app.
+  deleteCategory(doc, a, ctx) {
+    const l = catsOf(ctx.cats);
+    const [id, name] = findCat(l, a.category);
+    if (id === "other") throw new Error("Other is always there.");
+    let moved = 0;
+    for (const p of doc.places) if (p.category === id && mayEdit(doc, p.trip, ctx.me)) { p.category = "other"; moved++; }
+    ctx.setCats(asSaved(l.filter(([x]) => x !== id)));
+    return { deleted: name, movedToOther: moved };
+  },
+  resetCategories(doc, a, ctx) {
+    const keep = new Set(M.CATEGORIES.map(([id]) => id));
+    let moved = 0;
+    for (const p of doc.places) if (!keep.has(p.category) && mayEdit(doc, p.trip, ctx.me)) { p.category = "other"; moved++; }
+    ctx.setCats(M.CATEGORIES.map(([id]) => ({ id })));
+    return { categories: M.CATEGORIES.map(([id, name]) => ({ id, name })), movedToOther: moved };
+  },
+  // A backup file's trips join the repo, replacing ones with the same id,
+  // with their covers and files when the backup holds them.
+  async importBackup(doc, a, ctx) {
+    let data = a.backup;
+    if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { throw new Error("That file isn't a Tripboard backup."); } }
+    if (!data && a.bytes) { try { data = JSON.parse(Buffer.from(a.bytes).toString("utf8")); } catch (e) { throw new Error("That file isn't a Tripboard backup."); } }
+    const r = M.mergeBackup(doc, data);
+    Object.assign(doc, r.doc);
+    let covers = 0, files = 0;
+    for (const id of r.ids) {
+      const b = fromDataUrl(data.covers && data.covers[id]);
+      const t = doc.trips.find((x) => x.id === id);
+      if (b && t) { ctx.put("covers/" + id + ".jpg", b); t.cover = true; t.coverAt = now(); covers++; }
+    }
+    for (const f of doc.files || []) {
+      const b = r.ids.includes(f.trip) && fromDataUrl(data.blobs && data.blobs[f.id]);
+      if (b) { ctx.put("files/" + f.trip + "/" + f.id, b); files++; }
+    }
+    return { added: r.added, replaced: r.replaced, trips: doc.trips.filter((t) => r.ids.includes(t.id)).map((t) => t.name), covers, files };
+  },
+};
+
+// Read-only answers, on a snapshot (see open().snapshot).
+const queries = {
+  listTrips(st) {
+    const d = st.doc;
+    return M.sortTrips(d.trips, today()).map((t) => ({ ...t, status: M.tripStatus(t, today()), places: d.places.filter((p) => p.trip === t.id).length }));
+  },
+  async getTrip(st, a) {
+    const v = tripView(st.doc, findTrip(st.doc, a.trip), st.cats);
+    if (st.servers) v.server = (await st.servers())[v.trip.id] || null;
+    const pub = st.pubs ? (await st.pubs())[v.trip.id] : null;
+    if (pub && !pub.stopped && pub.id) v.published = { link: pubLink(pub), at: pub.at, dates: pub.dates !== false, notes: pub.notes !== false };
+    return v;
+  },
+  // Places that match every filter given; with near, nearest first.
+  findPlaces(st, a) {
+    const t = findTrip(st.doc, a.trip);
+    const cats = catsOf(st.cats);
+    let list = placesOf(st.doc, t);
+    if (a.day === "none") list = list.filter((p) => !p.day);
+    else if (a.day) list = list.filter((p) => M.onDay(p, a.day));
+    if (a.category) { const [id] = findCat(cats.concat(Object.entries(t.cats || {})), a.category); list = list.filter((p) => p.category === id); }
+    if (a.importance && a.importance.length) list = list.filter((p) => a.importance.includes(p.importance));
+    if (a.visited !== undefined) list = list.filter((p) => !!p.visited === !!a.visited);
+    if (a.check !== undefined) list = list.filter((p) => !!p.check === !!a.check);
+    if (a.rating && a.rating.length) list = list.filter((p) => a.rating.map(Number).includes(p.rating || 0));
+    if (a.located !== undefined) list = list.filter((p) => (p.lat != null) === !!a.located);
+    if (a.kind) list = list.filter((p) => (a.kind === "journey") === M.isJourney(p));
+    if (a.text) { const q = String(a.text).toLowerCase(); list = list.filter((p) => [p.name, p.note, p.address, p.toName, p.number].some((v) => v && v.toLowerCase().includes(q))); }
+    const from = nearOf(st.doc, t, a.near);
+    const out = list.map((p) => ({ ...p, categoryName: M.catName(cats, t, p.category), ...(from && p.lat != null ? { km: Math.round(M.distanceKm(from, p) * 100) / 100 } : {}) }));
+    if (from) out.sort((x, y) => (x.km ?? Infinity) - (y.km ?? Infinity));
+    return a.limit ? out.slice(0, +a.limit) : out;
+  },
+  // The Plan as the app groups it: by day and time slot, or by destination.
+  getBoard(st, a) {
+    const t = findTrip(st.doc, a.trip);
+    const cats = catsOf(st.cats);
+    const brief = (p) => ({ id: p.id, name: p.name, day: p.day, endDay: p.endDay, time: p.time, endTime: p.endTime, importance: p.importance, category: p.category, visited: !!p.visited, ...(p.rating ? { rating: p.rating } : {}),
+      ...(M.isJourney(p) ? { kind: "journey", mode: p.mode, toName: p.toName, arriveDay: p.arriveDay, arriveTime: p.arriveTime, number: p.number } : {}) });
+    if (a.sort && !["time", "area"].includes(a.sort)) throw new Error("The Plan goes by time or area. For places by category, importance, rating or distance, use find_places.");
+    const all = cats.concat(Object.entries(t.cats || {}));
+    const categories = (a.categories || []).map((c) => findCat(all, c)[0]);
+    const groups = M.board(t, placesOf(st.doc, t), a.sort || "time", { only: a.only, categories, stars: a.rating });
+    const area = (g) => ({ id: g.id, kind: g.kind || "none", title: g.title, ...(g.dest ? { destination: g.dest } : {}), start: g.start || null, end: g.end || null,
+      ...(g.stays ? { stays: g.stays.map(brief) } : {}), places: g.places.map(brief), ...(g.side && g.side.length ? { side: g.side.map(area) } : {}) });
+    if (a.sort === "area") return groups.map(area);
+    return groups.map((g) => g.kind === "dest" ? { id: g.id, kind: "destination", title: g.title, start: g.start, end: g.end, ...(g.again ? { again: true } : {}) } : ({ id: g.id, title: g.title,
+      ...(g.kind === "any" ? { kind: "anyDay", destination: g.dest } : {}), ...(g.day ? { dayNumber: M.dayIndex(t, g.day), ...(g.dest ? { destination: g.dest } : {}) } : {}),
+      ...(g.parts ? { parts: g.parts.map((x) => ({ destination: x.dest, places: x.places.map(brief) })) } : {}),
+      ...(g.slots ? { slots: g.slots.map((s) => ({ id: s.id, title: s.title, places: s.places.map(brief) })) } : { places: g.places.map(brief) }) }));
+  },
+  // One day as the Today view shows it: the plan in order, the guessed
+  // time between places, the next one not yet visited, and that day's
+  // expenses.
+  getDay(st, a) {
+    const t = findTrip(st.doc, a.trip);
+    const day = a.day || today();
+    if (!M.isDay(day)) throw new Error("A day is YYYY-MM-DD.");
+    const all = M.dayPlan(placesOf(st.doc, t), day);
+    const plan = all.filter((p) => !M.awayStay(t, p, day));
+    const next = M.nextOf(plan);
+    const expenses = (st.doc.expenses || []).filter((x) => x.trip === t.id && x.day === day);
+    return {
+      trip: t.name, day, dayNumber: M.dayIndex(t, day), destination: M.dayDest(t, day), status: M.tripStatus(t, today()),
+      when: day < today() ? "past" : day > today() ? "upcoming" : "today",
+      plan: plan.map((p, i) => ({ ...p, slot: M.slotOf(p, day), ...(M.stayPart(p, day) ? { stay: M.stayPart(p, day) } : {}),
+        ...(i && M.connection(plan[i - 1], p) ? { change: M.connection(plan[i - 1], p), fromPrevious: null } : { fromPrevious: i ? M.leg(plan[i - 1], p) : null }) })),
+      // Overnight journeys that land this day (they left on an earlier one).
+      arrivals: M.arrivals(placesOf(st.doc, t), day).map((j) => ({ id: j.id, name: j.name, toName: j.toName, mode: j.mode, number: j.number, arriveTime: j.arriveTime, leftOn: j.day })),
+      // Stays booked for this night somewhere other than the day's destination.
+      alsoBooked: all.filter((p) => M.awayStay(t, p, day)).map((p) => ({ id: p.id, name: p.name, destination: M.destOf(t, p), day: p.day, endDay: p.endDay })),
+      next: next ? { id: next.id, name: next.name } : null,
+      expenses, totals: M.expenseTotals(expenses),
+    };
+  },
+  listCategories(st) {
+    const counts = new Map();
+    for (const p of st.doc.places) counts.set(p.category, (counts.get(p.category) || 0) + 1);
+    return catsOf(st.cats).map(([id, name], i) => ({ id, name, position: i + 1, builtIn: M.CATEGORY.has(id), places: counts.get(id) || 0 }));
+  },
+  // A file's record and bytes (null when its bytes aren't in the repo).
+  async getFile(st, a) {
+    const t = findTrip(st.doc, a.trip);
+    const f = findIn((st.doc.files || []).filter((x) => x.trip === t.id), a.file, "file");
+    if (!M.hasBytes(f)) return { file: f, bytes: null };
+    const bytes = await st.raw("files/" + t.id + "/" + f.id);
+    return { file: f, bytes };
+  },
+  // A backup like the app's Save a backup: the trips asked for (all when
+  // none), with covers and files' bytes when `bytes` is true.
+  async exportBackup(st, a) {
+    const ids = (a.trips || []).map((k) => findTrip(st.doc, k).id);
+    const data = M.backupOf(st.doc, ids);
+    if (a.bytes) {
+      for (const t of data.trips) {
+        const b = t.cover && (await st.raw("covers/" + t.id + ".jpg"));
+        if (b) data.covers[t.id] = dataUrl(imageType(b) || "image/jpeg", b);
+      }
+      for (const f of data.files.filter(M.hasBytes)) {
+        const b = await st.raw("files/" + f.trip + "/" + f.id);
+        if (b) data.blobs[f.id] = dataUrl(f.type, b);
+      }
+    }
+    return data;
+  },
+};
+
+// A point to measure from: "lat,lng", or a place in the trip by name or id.
+function nearOf(doc, t, near) {
+  if (!near) return null;
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(String(near));
+  if (m) return { lat: +m[1], lng: +m[2] };
+  const p = findPlace(doc, t, near);
+  if (p.lat == null) throw new Error(p.name + " has no location to measure from.");
+  return p;
+}
+
+// ---------- Publishing (server/published.js) ----------
+// P: the server's calls ({ create, get, update, remove, copied }), over
+// HTTP from the CLI, direct in the cloud connector. Each published trip's
+// key is kept in the sync repo's published.json, as the app keeps it, so
+// the app and a chat can each publish it again or stop it.
+const pubLink = (st) => APP_URL + "#/p/" + st.id + (st.server ? "/" + String(st.server).replace(/^https:\/\//, "") : "");
+// A published link (or its bare id) → { id, host }.
+function pubFromLink(link) {
+  const m = /(?:#\/p\/)?([\w-]{8,40})(?:\/([\w.:-]+))?\s*$/.exec(String(link || "").trim());
+  if (!m) throw new Error("That isn't a published trip's link; it looks like " + APP_URL + "#/p/<id>.");
+  return { id: m[1], host: m[2] || "" };
+}
+async function writePub(tb, tripId, entry) {
+  await tb.change(async (doc, ctx) => {
+    const all = (await ctx.json(PUB_FILE)) || {};
+    if (all[tripId] && all[tripId].at > entry.at) return;
+    all[tripId] = entry;
+    ctx.put(PUB_FILE, Buffer.from(text(Object.fromEntries(Object.entries(all).sort()))));
+  }, "Tripboard: " + (entry.stopped ? "stop publishing " : "publish ") + tripId);
+}
+async function publishTrip(tb, a, P) {
+  const st = await tb.snapshot();
+  const t = findTrip(st.doc, a.trip);
+  if (st.me && t.members && t.members.length && !M.can(t, st.me, "manage")) throw new Error("Only the owner of " + t.name + " can publish it.");
+  const o = { dates: a.dates !== false, notes: a.notes !== false };
+  const mine = (t.members || []).find((m) => m.id === st.me);
+  const body = { bundle: M.publishedOf(st.doc, t, o), by: a.name !== undefined ? String(a.name) : (mine && mine.name) || "", dates: o.dates };
+  const was = (await st.pubs())[t.id];
+  let entry = null;
+  if (was && !was.stopped && was.id && !was.server) {
+    const r = await P.update(was.id, was.key, body).catch((e) => { if (e.status === 404 || e.status === 401) return null; throw e; });
+    if (r) entry = { ...was, ...o, at: r.at };
+  }
+  if (!entry) { const r = await P.create(body); entry = { id: r.id, key: r.key, at: r.at, ...o }; }
+  await writePub(tb, t.id, entry);
+  return { trip: t.name, link: pubLink(entry), again: !!(was && !was.stopped), dates: o.dates, notes: o.notes, by: body.by };
+}
+async function unpublishTrip(tb, a, P) {
+  const st = await tb.snapshot();
+  const t = findTrip(st.doc, a.trip);
+  const was = (await st.pubs())[t.id];
+  if (!was || was.stopped) throw new Error(t.name + " isn't published.");
+  if (!was.server) await P.remove(was.id, was.key).catch((e) => { if (e.status !== 404 && e.status !== 401) throw e; });
+  await writePub(tb, t.id, { stopped: true, at: new Date().toISOString() });
+  return { trip: t.name, stopped: true };
+}
+
+module.exports = { open, findTrip, findIn, findPlace, findCat, catsOf, tripView, ops, queries, today, isText, typeOf, imageType,
+  publishTrip, unpublishTrip, pubFromLink, pubLink, SERVER, M, G, LI, PLACE_FIELDS, EXPENSE_FIELDS, TRIP_FIELDS, FILE_FIELDS };

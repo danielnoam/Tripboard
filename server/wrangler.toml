@@ -1,9 +1,11 @@
 # The sharing server (server/worker.js). Deployed by .github/workflows/server.yml,
-# which fills in the two ids from the repo's Actions variables.
+# which fills in the two ids from the repo's Actions variables, or by the
+# Deploy to Cloudflare button (README.md), which makes its own and puts
+# theirs here.
 name = "tripboard"
 main = "worker.js"
 compatibility_date = "2026-11-01"
-# cli/ (the MCP tools, server/mcp.js) uses Node's Buffer.
+# app/cli/ (the MCP tools, server/mcp.js) uses Node's Buffer.
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 

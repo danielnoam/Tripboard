@@ -1,1 +1,7 @@
-{ "type": "module", "private": true }
+{
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "deploy": "npx --yes wrangler@4 d1 migrations apply DB --remote && npx --yes wrangler@4 deploy"
+  }
+}
