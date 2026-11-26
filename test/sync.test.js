@@ -132,6 +132,29 @@ const names = (list) => J(list.map((t) => t.name));
     assert.deepStrictEqual(tripsIn(g).sort(), ["trips/j.json", "trips/k.json"]);
   });
 
+  await test("another writer's commit landing just before this sync commits is never overwritten", async () => {
+    const g = fakeGitHub();
+    const a = device(g);
+    a.edit((doc) => doc.trips.push({ id: "k", name: "Kyoto" }));
+    await a.sync();
+    a.edit((doc) => doc.places.push({ id: "pa", trip: "k", name: "Nishiki" }));
+    // The AI connector adds a place to the same trip after this sync read
+    // the repo and checked it, at the moment a commit would be made.
+    const connector = () => {
+      const theirs = J(g.read("trips/k.json"));
+      theirs.places.push({ id: "pc", trip: "k", name: "Gion", createdAt: at(2), updatedAt: at(2) });
+      g.put("trips/k.json", JSON.stringify(theirs));
+    };
+    g.refReads = 0;
+    g.moveOnRefRead = { n: 3, fn: connector };
+    await a.sync();
+    // A sync that reads the head once leaves no such moment: the connector writes after it.
+    if (g.moveOnRefRead) { g.moveOnRefRead = null; connector(); }
+    await a.sync();
+    assert.deepStrictEqual(g.read("trips/k.json").places.map((p) => p.id).sort(), ["pa", "pc"]);
+    assert.deepStrictEqual(J(a.doc.places.map((p) => p.id).sort()), ["pa", "pc"]);
+  });
+
   await test("an edit made while a sync runs is kept, and synced next time", async () => {
     const g = fakeGitHub();
     const a = device(g);

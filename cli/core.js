@@ -137,11 +137,8 @@ function open({ token, repo, branch, fetch } = {}) {
         await gh.commitFiles(writes, message || "Tripboard CLI: " + writes.length + (writes.length === 1 ? " file" : " files"), {
           branch: cfg.branch,
           root: async () => [],
-          tries: 1,
-          beforeTry: async () => {
-            const now = await gh.json("GET", "git/ref/heads/" + encodeURIComponent(cfg.branch));
-            if ((now && now.object.sha) !== head) { const e = new Error("moved"); e.moved = true; throw e; }
-          },
+          // On the head this read, or not at all (moved: read again).
+          parent: head,
         });
         return answer;
       } catch (e) {

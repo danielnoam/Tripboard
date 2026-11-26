@@ -230,10 +230,8 @@
       await gh.commitFiles(writes, "Tripboard: sync " + writes.length + (writes.length === 1 ? " file" : " files"), {
         branch,
         root: async () => [],
-        beforeTry: async () => {
-          const now = await gh.json("GET", "git/ref/heads/" + encodeURIComponent(branch));
-          if ((now && now.object.sha) !== (head && head.object.sha)) { const e = new Error("moved"); e.moved = true; throw e; }
-        },
+        // On the head this merged against, or not at all (moved: start over).
+        parent: head ? head.object.sha : null,
       });
     }
     for (const t of coverPulls) {
