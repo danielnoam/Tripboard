@@ -137,7 +137,9 @@
   };
   const changed = () => { if (S.onChange) S.onChange(); };
 
-  async function call(method, path, { key, body, raw, to } = {}) {
+  // conflict: a 409 is an answer (PUT /trips/:id gives the current copy
+  // with it), not an error.
+  async function call(method, path, { key, body, raw, to, conflict } = {}) {
     const base = to || server();
     if (!S.allowed(base)) throw Object.assign(new Error(i18n.t("Open Tripboard again to reach {host}.", { host: S.host(base) })), { kind: "reload" });
     const headers = {};
@@ -148,7 +150,7 @@
     catch (e) { throw Object.assign(new Error("No connection."), { kind: "offline" }); }
     const isJson = (r.headers.get("Content-Type") || "").includes("json");
     const data = isJson ? await r.json().catch(() => ({})) : r.ok ? await r.blob() : null;
-    if (!r.ok && r.status !== 409) throw Object.assign(new Error((data && data.error) || "The sharing server said no (" + r.status + ")."), { status: r.status, data });
+    if (!r.ok && !(conflict && r.status === 409)) throw Object.assign(new Error((data && data.error) || "The sharing server said no (" + r.status + ")."), { status: r.status, data });
     return { status: r.status, data };
   }
 
@@ -311,11 +313,11 @@
       }
       const mine = strip(mineFull, st.hidden);
       const base = strip(st.base, st.hidden);
-      const merged = st.role === "viewer" ? theirs : strip(base ? G.mergeBundles(base, mine, theirs) : G.mergeBundles(theirs, mine, theirs), st.hidden);
+      const merged = st.role === "viewer" ? theirs : strip(base ? G.mergeBundles(base, mine, theirs) : first(mine, theirs), st.hidden);
       let version = r.same ? st.version : r.version;
       if (st.role !== "viewer" && JSON.stringify(merged) !== JSON.stringify(theirs)) {
         if (ctx.version() !== startVersion) return { again: true };
-        const put = await call("PUT", "/trips/" + id, { key: st.key, to: at(id), body: { version, bundle: merged } });
+        const put = await call("PUT", "/trips/" + id, { key: st.key, to: at(id), body: { version, bundle: merged }, conflict: true });
         if (put.status === 409) { got = put.data.bundle ? { data: put.data } : await call("GET", "/trips/" + id, { key: st.key, to: at(id) }); continue; }
         if (put.data.deleted) { await drop(id, "stopped"); return {}; }
         version = put.data.version;
@@ -330,6 +332,19 @@
       return {};
     }
     return { again: true };
+  }
+
+  // A device's first sync of a trip it took the key for from shares.json:
+  // its copy came through GitHub sync and may be older than the server's,
+  // and there's no copy both agreed on yet. So nothing it lacks counts as
+  // deleted, each record goes by its newer copy, and who's on the trip is
+  // the server's (an older list here would take people off it).
+  function first(mine, theirs) {
+    const m = G.mergeBundles(null, mine, theirs);
+    if (m.trip.deletedAt) return m;
+    const trip = { ...m.trip, owner: theirs.trip.owner, members: theirs.trip.members, share: theirs.trip.share };
+    for (const k of ["owner", "members", "share"]) if (trip[k] === undefined) delete trip[k];
+    return { ...m, trip };
   }
 
   // File bytes go up once and come down once, as in GitHub sync; the cover
