@@ -93,6 +93,20 @@ function desktopIndexHtml(html) {
   return out;
 }
 
+// The phone and desktop apps have no service worker to add someone's own
+// sharing servers to connect-src (sw.js does it for the web app), so their
+// copy carries the policy for src/csp.js to write with those servers in it,
+// as the first script, and keeps its own with "https:" added to connect-src
+// in case that script never ran. Both policies apply, so connect-src is
+// csp.js's list.
+function bundledIndexHtml(html) {
+  const m = /<meta http-equiv="Content-Security-Policy" content="([^"]*)">/.exec(html);
+  if (!m || !/connect-src 'self'/.test(m[1])) throw new Error("couldn't find index.html's CSP and its connect-src 'self' for the app's copy");
+  const wide = m[1].replace(/(connect-src [^;]*)/, "$1 https:");
+  return html.replace(m[0], '<meta http-equiv="Content-Security-Policy" content="' + wide + '">\n' +
+    '  <meta name="tripboard-csp" content="' + m[1] + '">\n  <script src="src/csp.js"></script>');
+}
+
 function build(out = OUT, root = ROOT, desktop = DESKTOP) {
   const assets = assetList(root);
   const missing = referencedByIndex(root).filter((f) => !assets.includes(f));
@@ -108,7 +122,7 @@ function build(out = OUT, root = ROOT, desktop = DESKTOP) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     if (rel === "index.html") {
       const html = fs.readFileSync(from, "utf8");
-      fs.writeFileSync(to, desktop ? desktopIndexHtml(html) : appIndexHtml(html));
+      fs.writeFileSync(to, bundledIndexHtml(desktop ? desktopIndexHtml(html) : appIndexHtml(html)));
     }
     else fs.copyFileSync(from, to);
   }
@@ -135,4 +149,4 @@ if (require.main === module) {
   const r = build();
   console.log("www: " + r.files + " files → " + path.relative(ROOT, r.out) + " (" + r.info.version + ", " + (r.info.repo || "no repo") + ")");
 }
-module.exports = { build, siteMeta, assetList, referencedByIndex, appVersion, appIndexHtml, desktopIndexHtml };
+module.exports = { build, siteMeta, assetList, referencedByIndex, appVersion, appIndexHtml, desktopIndexHtml, bundledIndexHtml };

@@ -20,14 +20,20 @@ const MAIN = "https://tripboard.danielnoam1999.workers.dev";
 const OWN = "https://tripboard.maya.workers.dev";
 const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(read("index.html"))[1];
 
-function browser({ allowed = [] } = {}) {
+// bundled: the phone and desktop apps' page (tools/build-www.js): a policy
+// with "https:" in connect-src, and src/csp.js's with the allowed servers.
+function browser({ allowed = [], bundled = false } = {}) {
   const store = new Map(), cache = new Map(), calls = [];
   const meta = { content: csp.replace("connect-src 'self'", "connect-src 'self' " + allowed.join(" ")) };
+  const metas = bundled ? [{ content: csp.replace("connect-src 'self'", "connect-src 'self' https:") }, meta] : [meta];
   const metaDb = new Map();
   const w = {
     localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) },
     caches: { open: async () => ({ put: async (k, r) => cache.set(k, await r.text()), match: async (k) => cache.get(k) }) },
-    document: { querySelector: () => meta, addEventListener() {} },
+    document: {
+      querySelector: (sel) => (sel.includes("tripboard-csp") ? (bundled ? { content: csp } : null) : metas[0]),
+      querySelectorAll: () => metas, addEventListener() {},
+    },
     navigator: {},
     location: { hostname: "danielnoam.github.io", origin: "https://danielnoam.github.io", pathname: "/Tripboard/" },
     fetch: async (url, opt = {}) => {
@@ -122,6 +128,51 @@ function browser({ allowed = [] } = {}) {
     const out = ctx.allowServers(html, [OWN, "https://a.example.com:8443", "http://plain.example.com", "https://x.dev; script-src *", "*", 5]);
     const got = /content="([^"]*)"/.exec(out.match(/<meta http-equiv="Content-Security-Policy"[^>]*>/)[0])[1];
     assert.strictEqual(got, csp.replace("connect-src 'self'", "connect-src 'self' " + OWN + " https://a.example.com:8443"));
+  });
+
+  await test("the phone and desktop apps can use your own server: share.js keeps the list src/csp.js reads", async () => {
+    assert.strictEqual(browser().S.canUseOwn(), false);
+    const { S, store } = browser({ bundled: true });
+    assert.strictEqual(S.canUseOwn(), true);
+    assert.strictEqual(S.allowed(OWN), false, "the wide policy alone doesn't let it through");
+    const r = await S.setServer(OWN);
+    assert.strictEqual(r.reload, true);
+    assert.deepStrictEqual(JSON.parse(store.get("tripboard.servers")), [OWN]);
+    await S.setServer(null);
+    assert.strictEqual(store.get("tripboard.servers"), undefined);
+    assert.strictEqual(browser({ bundled: true, allowed: [OWN] }).S.allowed(OWN), true);
+  });
+
+  await test("the apps' index.html: the policy with https: added, then csp.js writing the exact one first", async () => {
+    const { bundledIndexHtml, appIndexHtml, desktopIndexHtml } = require("../tools/build-www.js");
+    const html = read("index.html");
+    for (const page of [appIndexHtml(html), desktopIndexHtml(html)]) {
+      const out = bundledIndexHtml(page);
+      const own = /<meta http-equiv="Content-Security-Policy" content="([^"]*)">/.exec(page)[1];
+      const wide = /<meta http-equiv="Content-Security-Policy" content="([^"]*)">/.exec(out)[1];
+      assert.ok(/connect-src [^;]* https:;/.test(wide));
+      assert.strictEqual(wide.replace(" https:;", ";"), own, "nothing else in the policy changes");
+      assert.strictEqual(/<meta name="tripboard-csp" content="([^"]*)">/.exec(out)[1], own);
+      assert.ok(out.indexOf('<script src="src/csp.js">') < out.indexOf("<script src=\"src/keel/errlog.js"), "csp.js is the first script");
+    }
+  });
+
+  await test("src/csp.js writes the page's policy with this device's https servers, and only those", async () => {
+    const run = (saved) => {
+      const added = [];
+      const base = { content: csp, after: (m) => added.push(m) };
+      const ctx = {
+        document: { querySelector: () => base, createElement: () => ({}) },
+        localStorage: { getItem: () => saved },
+      };
+      vm.createContext(ctx);
+      vm.runInContext(read("src/csp.js"), ctx);
+      return added;
+    };
+    assert.strictEqual(run(null)[0].content, csp);
+    assert.strictEqual(run("not json")[0].content, csp, "a broken list still writes the policy");
+    const [m] = run(JSON.stringify([OWN, "http://plain.example.com", "https://x.dev; script-src *", "*", 5]));
+    assert.deepStrictEqual([m.httpEquiv, m.content], ["Content-Security-Policy", csp.replace("connect-src 'self'", "connect-src 'self' " + OWN)]);
   });
 
   console.log(passed + " passed");

@@ -66,8 +66,8 @@ before stay on the server they started on. Whoever runs a server can read
 the trips shared through it, so a trip is as private as the server it's
 on.
 
-Your own server works in the web app (it uses the service worker; see
-ARCHITECTURE.md's Trade-offs), not yet in the phone or desktop apps.
+Your own server works in the web app and in the phone and desktop apps
+(see ARCHITECTURE.md's Trade-offs for how the app is let reach it).
 
 To update your server later, **Sync fork** on GitHub, then run the
 Sharing server workflow again. The cloud connector for AI apps (below)

@@ -17,6 +17,7 @@ src/store.js         IndexedDB on this device: the data ("doc"), each trip's cov
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
 src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
+src/csp.js           the phone and desktop apps' CSP with this device's own sharing servers in connect-src (sw.js does it for the web app)
 src/share.js         shared trips: each device on one syncs that trip with its sharing server (server/: Tripboard's, or one the person runs), beside GitHub sync; invite links, joining, leaving; publishing a trip (Sharing › Publish: a read-only snapshot of model.publishedOf, its key in "meta:published" and published.json) and opening a published one (#/p/<id>[/<host>], views.js renderPublished; Copy to my trips is the Duplicate sheet on model.publishedDoc)
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
 src/listimport.js    a Google Maps list from Google's exports (Takeout CSV, My Maps KML, Saved Places.json) and its name, and a pasted list (pasted: a name or Google Maps place link a line), what another app shared (shared: a name, an address, a link); New trip can start from one, Edit trip imports into the trip (Node-tested)
@@ -53,7 +54,7 @@ test/listimport.test.js  src/listimport.js
 test/settings.test.js  src/settings.js
 test/sync.test.js    src/sync.js end to end: two devices in vms syncing through the fake GitHub (merges, deletions, covers and files, a repo that moves mid-sync, errors)
 test/fakegithub.js   an in-memory GitHub for cli.test.js and sync.test.js
-test/share.test.js   src/share.js's sharing servers and invite links, and sw.js adding them to the CSP
+test/share.test.js   src/share.js's sharing servers and invite links, and sw.js (web) and src/csp.js (phone and desktop apps) adding them to the CSP
 test/i18n.test.js    every language table has every word the code uses, nothing stale or broken (keel's check)
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
@@ -158,8 +159,15 @@ adds a line here.
   (strict script-src still blocks inline and outside scripts). Allowing
   every *.workers.dev instead was turned down (2026-11-21): anyone can
   make one for free, so it would let such a script send trips anywhere.
-  Works only with the service worker (the web app over https), not in
-  the bundled phone and desktop apps yet.
+  The bundled phone and desktop apps have no service worker, so
+  tools/build-www.js gives their index.html the policy twice: once with
+  `https:` added to connect-src, and once as `<meta name="tripboard-csp">`,
+  which src/csp.js, the first script, writes as a second policy with this
+  device's servers (localStorage `tripboard.servers`, https only). Both
+  policies apply, so connect-src is that exact list. The same trade-off
+  as the web app's, plus one: if csp.js never ran, connect-src would be
+  any https site (everything else stays strict). It's a file in the app
+  itself, so it only fails to run if the app is broken.
 - Whoever runs a sharing server reads the trips shared through it.
   Joining from an invite link to a server that isn't Tripboard's asks
   first and says so. A trip's server travels in shares.json next to its

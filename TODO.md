@@ -22,8 +22,6 @@ moves to DROPPED.md with his reason.
 - **A Deploy to Cloudflare button** for your own sharing server, instead
   of forking. Needs server/ self-contained (mcp.js imports cli/), and the
   button only takes public repos. server/README.md "Running your own".
-- **Your own sharing server in the phone and desktop apps.** Today only
-  the web app (sw.js widens the CSP); the bundled apps need their own way.
 - **A map on a published trip's page.** Today it shows the plan by day
   and each place's Open in links; the map comes with the copy.
 - **Published links open the phone app.** On Android a published link
