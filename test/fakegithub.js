@@ -12,7 +12,7 @@ function fakeGitHub({ deleting = true } = {}) {
   const putCommit = (tree, parents) => { const s = sha(tree + parents.join() + Math.random()); commits.set(s, { tree, parents }); return s; };
   const start = new Map([["README.md", putBlob(Buffer.from("# data\n"))]]);
   if (deleting) start.set("ai.json", putBlob(Buffer.from(JSON.stringify({ deleting: true, at: "2026-11-21T00:00:00.000Z" }))));
-  const g = { head: putCommit(putTree(start), []), commits: 0, moveBeforeNextPatch: null };
+  const g = { head: putCommit(putTree(start), []), commits: 0, moveBeforeNextPatch: null, refReads: 0, moveOnRefRead: null };
   g.files = () => trees.get(commits.get(g.head).tree);
   g.read = (path) => JSON.parse(blobs.get(g.files().get(path)).toString());
   g.raw = (path) => blobs.get(g.files().get(path));
@@ -37,7 +37,12 @@ function fakeGitHub({ deleting = true } = {}) {
     if (u.pathname === "/repos/me/data") return res(200, { private: true, default_branch: "main" });
     const p = u.pathname.replace("/repos/me/data/", "");
     let x;
-    if (p === "git/ref/heads/main") return res(200, { object: { sha: g.head } });
+    if (p === "git/ref/heads/main") {
+      // moveOnRefRead: { n, fn }, another writer's commit just before the n-th read of the head.
+      g.refReads++;
+      if (g.moveOnRefRead && g.refReads === g.moveOnRefRead.n) { const f = g.moveOnRefRead.fn; g.moveOnRefRead = null; f(); }
+      return res(200, { object: { sha: g.head } });
+    }
     if ((x = /^git\/trees\/(\w+)$/.exec(p)) && method === "GET") return res(200, { tree: [...trees.get(commits.get(x[1]).tree)].map(([path, s]) => ({ path, sha: s, type: "blob" })) });
     if ((x = /^git\/commits\/(\w+)$/.exec(p))) return res(200, { tree: { sha: commits.get(x[1]).tree } });
     if (p === "git/trees") {
