@@ -1795,7 +1795,10 @@
   // Names kept apart from the words around them (Unicode isolates), so in
   // Hebrew an English name doesn't take the arrow or a number into its run.
   const iso = (s) => "\u2068" + s + "\u2069";
-  const fromTo = (p) => i18n.t("{from} → {to}", { from: iso(p.name), to: iso(p.toName || "?") });
+  // It starts with the language's own direction mark: both names are
+  // isolated, so the card's plaintext title would otherwise read as
+  // left-to-right and turn Hebrew's arrow round.
+  const fromTo = (p) => (i18n.dir === "rtl" ? "\u200f" : "\u200e") + i18n.t("{from} → {to}", { from: iso(p.name), to: iso(p.toName || "?") });
   const durLabel = (min) => (min < 60 ? i18n.t("{n} min", { n: min }) : i18n.t("{h} h {m} min", { h: Math.floor(min / 60), m: min % 60 }));
   function journeyParts(p) {
     const plus = p.arriveDay ? M.daySpan({ day: p.day, endDay: p.arriveDay }) : 0;
