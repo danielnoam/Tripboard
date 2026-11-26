@@ -1964,6 +1964,14 @@
     stepOut(d);
     await (narrow() && d.classList.contains("page") ? slideSheet(d, false)
       : narrow() ? sinkSheet(d) : fadeSheet(d));
+    // A tap beside the sheet while it was leaving reaches the page once it's
+    // closed (after its close event has taken its history step off).
+    const at = d.passOn;
+    d.passOn = null;
+    if (at) d.addEventListener("close", () => {
+      const n = document.elementFromPoint(at.x, at.y);
+      if (n && !n.closest("dialog")) n.click();
+    }, { once: true });
     d.close();
     d.classList.remove("leaving");
   }
@@ -1994,8 +2002,18 @@
   }
   // Leaving a sheet (Back, Escape, its back arrow, a tap outside) goes
   // through its onLeave when it has one: the place sheet saves on the way out.
-  const leaveSheet = (d) => (d.onLeave ? d.onLeave() : closeSheet(d));
+  const leaveSheet = (d) => (d.classList.contains("leaving") ? null : d.onLeave ? d.onLeave() : closeSheet(d));
   for (const d of document.querySelectorAll("dialog.sheet")) {
+    // A sheet on its way out still holds the page, so a second tap on its
+    // Save or Done would save twice and a tap beside it would be lost: a tap
+    // in it is dropped, and one beside it is passed on once it's gone.
+    d.addEventListener("click", (e) => {
+      if (!d.classList.contains("leaving")) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.target === d && e.isTrusted) d.passOn = { x: e.clientX, y: e.clientY };
+    }, true);
+    d.addEventListener("submit", (e) => { if (d.classList.contains("leaving")) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
     d.addEventListener("cancel", (e) => { e.preventDefault(); leaveSheet(d); });
     d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-close]")) leaveSheet(d); });
     d.addEventListener("close", () => stepOut(d));
@@ -2053,6 +2071,7 @@
     pendingCover = pendingArt = undefined;
     const f = $("tripForm");
     f.reset();
+    delete f.dataset.busy;
     $("tripSheetTitle").textContent = trip ? i18n.t("Edit trip") : i18n.t("New trip");
     if (trip) {
       f.name.value = trip.name;
@@ -2297,6 +2316,9 @@
     const f = e.target;
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
     f.name.removeAttribute("aria-invalid");
+    // Saving a cover photo waits on the device's storage: a second tap meanwhile isn't a second trip.
+    if (f.dataset.busy) return;
+    f.dataset.busy = "1";
     const stamp = new Date().toISOString();
     const trip = editingTrip || M.ownTrip({ id: M.newId(), createdAt: stamp }, SET.get().me);
     Object.assign(trip, { name: f.name.value, start: f.start.value, end: f.end.value, updatedAt: stamp });
@@ -2339,6 +2361,7 @@
     dupPub = pub || null;
     const f = $("dupForm");
     f.reset();
+    delete f.dataset.busy;
     const src = pub ? pub.doc : doc;
     $("dupTitle").textContent = pub ? i18n.t("Copy {name} to my trips", { name: trip.name }) : i18n.t("Duplicate {name}", { name: trip.name });
     f.name.value = pub ? trip.name : i18n.t("{name} (copy)", { name: trip.name });
@@ -2378,6 +2401,9 @@
     const f = e.target, trip = dupOf;
     if (!f.name.value.trim()) { f.name.focus(); f.name.setAttribute("aria-invalid", "true"); return; }
     f.name.removeAttribute("aria-invalid");
+    // Copying covers and files takes a moment: a second tap meanwhile isn't a second copy.
+    if (f.dataset.busy) return;
+    f.dataset.busy = "1";
     const pub = dupPub;
     const dates = f.dates.checked && !(pub && !pub.dates && !M.isDay(f.start.value));
     const got = M.duplicateTrip(pub ? pub.doc : doc, trip, { name: f.name.value, start: f.start.value, locations: f.locations.checked, dates, attachments: f.attachments.checked }, SET.get().me);
@@ -4572,13 +4598,16 @@
     const at = (n) => n && n.closest && n.closest(sel);
     const cancel = () => { clearTimeout(timer); timer = 0; };
     document.addEventListener("pointerdown", (e) => {
+      // A long press that Android ended with its own menu has no click to
+      // swallow, so the swallow ends with it, not on the next tap.
+      if (swallow === "hold") swallow = false;
       const node = at(e.target);
       if (!node || e.pointerType === "mouse") return;
       cancel();
       const x0 = e.clientX, y0 = e.clientY;
       timer = setTimeout(() => {
         timer = 0;
-        if (hold(node, x0, y0, false, true)) { swallow = true; if (navigator.vibrate) navigator.vibrate(10); }
+        if (hold(node, x0, y0, false, true)) { swallow = "hold"; if (navigator.vibrate) navigator.vibrate(10); }
       }, LONG_PRESS);
       const move = (m) => { if (Math.hypot(m.clientX - x0, m.clientY - y0) > 10) cancel(); };
       node.addEventListener("pointermove", move);
