@@ -55,6 +55,7 @@ test/settings.test.js  src/settings.js
 test/sync.test.js    src/sync.js end to end: two devices in vms syncing through the fake GitHub (merges, deletions, covers and files, a repo that moves mid-sync, errors)
 test/fakegithub.js   an in-memory GitHub for cli.test.js and sync.test.js
 test/share.test.js   src/share.js's sharing servers and invite links, and sw.js (web) and src/csp.js (phone and desktop apps) adding them to the CSP
+test/share-sync.test.js  src/share.js syncing shared trips end to end: devices in vms against server/worker.js on SQLite (a device's first sync, refused joins, two editors)
 test/i18n.test.js    every language table has every word the code uses, nothing stale or broken (keel's check)
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
