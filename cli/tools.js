@@ -104,8 +104,9 @@ function publisher(env) {
   return {
     create: (body) => call("POST", "/published", body),
     get: (id, host) => call("GET", "/published/" + id, null, null, host ? "https://" + host : null),
-    update: (id, key, body) => call("PUT", "/published/" + id, body, key),
-    remove: (id, key) => call("DELETE", "/published/" + id, null, key),
+    // server: the one it was published on, when it isn't Tripboard's.
+    update: (id, key, body, server) => call("PUT", "/published/" + id, body, key, server),
+    remove: (id, key, server) => call("DELETE", "/published/" + id, null, key, server),
     copied: (id, host) => call("POST", "/published/" + id + "/copied", null, null, host ? "https://" + host : null),
   };
 }

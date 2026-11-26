@@ -806,11 +806,12 @@ async function publishTrip(tb, a, P) {
   const body = { bundle: M.publishedOf(st.doc, t, o), by: a.name !== undefined ? String(a.name) : (mine && mine.name) || "", dates: o.dates };
   const was = (await st.pubs())[t.id];
   let entry = null;
-  if (was && !was.stopped && was.id && !was.server) {
-    const r = await P.update(was.id, was.key, body).catch((e) => { if (e.status === 404 || e.status === 401) return null; throw e; });
+  // Published from the app on a server someone runs: updated there, as the app does.
+  if (was && !was.stopped && was.id) {
+    const r = await P.update(was.id, was.key, body, was.server).catch((e) => { if (e.status === 404 || e.status === 401) return null; throw e; });
     if (r) entry = { ...was, ...o, at: r.at };
   }
-  if (!entry) { const r = await P.create(body); entry = { id: r.id, key: r.key, at: r.at, ...o }; }
+  if (!entry) { const r = await P.create(body); entry = { id: r.id, key: r.key, at: r.at, ...o, ...(r.server ? { server: r.server } : {}) }; }
   await writePub(tb, t.id, entry);
   return { trip: t.name, link: pubLink(entry), again: !!(was && !was.stopped), dates: o.dates, notes: o.notes, by: body.by };
 }
@@ -819,7 +820,7 @@ async function unpublishTrip(tb, a, P) {
   const t = findTrip(st.doc, a.trip);
   const was = (await st.pubs())[t.id];
   if (!was || was.stopped) throw new Error(t.name + " isn't published.");
-  if (!was.server) await P.remove(was.id, was.key).catch((e) => { if (e.status !== 404 && e.status !== 401) throw e; });
+  await P.remove(was.id, was.key, was.server).catch((e) => { if (e.status !== 404 && e.status !== 401) throw e; });
   await writePub(tb, t.id, { stopped: true, at: new Date().toISOString() });
   return { trip: t.name, stopped: true };
 }

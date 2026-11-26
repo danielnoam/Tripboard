@@ -34,6 +34,8 @@ import mcpCli from "./app/cli/mcp.js";
 import * as GL from "./googlelist.js";
 import * as PUB from "./published.js";
 
+// Tripboard's own sharing server: a published link names any other.
+const TRIPBOARD = "https://tripboard.danielnoam1999.workers.dev";
 const GH_LOGIN = "https://github.com/login/oauth";
 const GH_API = "https://api.github.com";
 const ACCESS_TTL = 3600;
@@ -345,8 +347,20 @@ async function mcp(req, env, origin) {
         if (!r.ok) throw Object.assign(new Error((out && out.error) || host + " said no (" + r.status + ")."), { status: r.status });
         return out;
       };
+      // A trip published on another server (its `server`, from the app) is
+      // updated and removed there; this Worker's own are kept here, and
+      // their links name it unless it is Tripboard's server.
+      const elsewhere = (server) => server && new URL(server).host !== new URL(origin).host;
+      const send = async (method, server, p, key, body) => {
+        const r = await (env.FETCH || fetch)(server + p, { method, headers: { "User-Agent": "Tripboard-MCP", Authorization: "Bearer " + key, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+        const out = await r.json().catch(() => null);
+        if (!r.ok) throw Object.assign(new Error((out && out.error) || new URL(server).host + " said no (" + r.status + ")."), { status: r.status });
+        return out;
+      };
       return {
-        create: (body) => P.create(body, "mcp:" + g.user), update: P.update, remove: P.remove,
+        create: async (body) => ({ ...(await P.create(body, "mcp:" + g.user)), ...(origin !== TRIPBOARD ? { server: origin } : {}) }),
+        update: (id, key, body, server) => (elsewhere(server) ? send("PUT", server, "/published/" + id, key, body) : P.update(id, key, body)),
+        remove: (id, key, server) => (elsewhere(server) ? send("DELETE", server, "/published/" + id, key) : P.remove(id, key)),
         get: (id, host) => (away(host) ? other("GET", "/published/" + id, host) : P.get(id)),
         copied: (id, host) => (away(host) ? other("POST", "/published/" + id + "/copied", host) : P.copied(id)),
       };
