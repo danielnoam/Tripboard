@@ -7,7 +7,7 @@ alike. CLAUDE.md adds only what is specific to Claude.
 
 ```sh
 node server.js          # http://localhost:5173
-node test/run-all.js    # the whole test suite
+node test/run-all.js    # the whole test suite (npm test); ui.test.js needs Playwright
 ```
 
 Read ARCHITECTURE.md (the map), TODO.md (what's planned), DROPPED.md (what was turned down) and
@@ -85,6 +85,9 @@ run `node tools/server-copy.js` (`test/server.test.js` fails until then).
 ## Versions and releases
 
 - `main` takes pull requests only, merged when the Tests check is green.
+- Daniel's own pull requests that open ready turn on auto-merge
+  (`auto-merge.yml`, needs the `AUTOMERGE_TOKEN` secret), so unfinished
+  work, or a new look waiting for his OK, opens as a draft.
 - A merge is a release only when it bumps the version:
   `node tools/release.js x.y.z` changes APP_VERSION in `src/app.js`, every
   `?v=` in `index.html` and `CACHE` in `sw.js`, and folds `changes/` into
