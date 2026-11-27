@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url }}
     steps:
       - name: Check Pages deploys from Actions
         id: source
@@ -98,6 +98,20 @@ jobs:
         with:
           path: .
 
+      # deploy-pages looks the artifact up right after it's uploaded, and
+      # sometimes GitHub doesn't list it yet ("No artifacts named
+      # github-pages"). Rerunning the job doesn't help: the rerun sees the
+      # old attempt's artifact too and fails on two. So it waits and asks
+      # again in the same run.
       - uses: actions/deploy-pages@v4
         if: steps.at.outputs.sha
         id: deploy
+        continue-on-error: true
+
+      - name: Wait for the artifact to be listed
+        if: steps.at.outputs.sha && steps.deploy.outcome == 'failure'
+        run: sleep 20
+
+      - uses: actions/deploy-pages@v4
+        if: steps.at.outputs.sha && steps.deploy.outcome == 'failure'
+        id: deploy2

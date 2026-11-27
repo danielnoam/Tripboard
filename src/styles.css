@@ -36,6 +36,8 @@
   --fs-title: 20px;
   --fs-big: 28px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.05);
+  /* A fade's curve, where a spring has nothing to move. */
+  --ease-fade: ease-out;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -402,7 +404,7 @@ body.with-tabbar .map-panel.nowhere { inset-inline-end: calc(var(--space-3) + 72
   border: 0; border-radius: 20px 20px 0 0; background: var(--surface); color: var(--text);
 }
 /* The dimming fades in as a sheet rises and out as it leaves, alongside it. */
-.sheet::backdrop { background: var(--scrim); opacity: 1; transition: opacity 240ms ease-out; }
+.sheet::backdrop { background: var(--scrim); opacity: 1; transition: opacity 240ms var(--ease-fade); }
 .sheet.leaving::backdrop { opacity: 0; transition-duration: 200ms; }
 @starting-style { .sheet[open]::backdrop { opacity: 0; } }
 .sheet-body { display: grid; gap: var(--space-3); padding: var(--space-4) var(--space-3) calc(env(safe-area-inset-bottom) + var(--space-3)); }
@@ -805,7 +807,7 @@ main.tab-leaving:not(.tab-under) { background: var(--bg); min-height: 100dvh; }
 /* With a mouse, the buttons at the top and the trips on Home grow a little
    under the pointer; pressing them bounces (views.js, pressBounce). */
 @media (hover: hover) and (pointer: fine) {
-  .bar .icon-btn, .trip-card { transition: scale 260ms var(--spring-control, ease-out), box-shadow 260ms ease-out; }
+  .bar .icon-btn, .trip-card { transition: scale 260ms var(--spring-control, var(--ease-fade)), box-shadow 260ms var(--ease-fade); }
   .bar .icon-btn:hover { scale: 1.12; }
   .trip-card:hover { scale: 1.025; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14); }
 }

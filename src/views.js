@@ -417,7 +417,7 @@
 
   // ---------- Home ----------
   function renderHome(main) {
-    $("title").textContent = "Tripboard";
+    $("title").textContent = "Tripboard"; // en-only: the app's name
     const trips = M.sortTrips(doc.trips, today());
     if (!trips.length) {
       main.append(el("div.empty", {}, el("p", { text: i18n.t("No trips yet.") }), el("p.dim", { text: i18n.t("Make one with + at the top, then add the places you want to see.") })));

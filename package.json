@@ -4,7 +4,8 @@
   "description": "Tripboard's native builds: the phone apps (Capacitor) and the desktop app (Tauri). The web app has no build step and doesn't depend on anything here.",
   "scripts": {
     "build:www": "node tools/build-www.js",
-    "android:sync": "node tools/build-www.js && npx cap sync android"
+    "android:sync": "node tools/build-www.js && npx cap sync android",
+    "test": "node test/run-all.js"
   },
   "devDependencies": {
     "@capacitor/android": "8.5.2",

@@ -13,8 +13,10 @@ and no dependencies**, started from keel's template.
 
 ## Shipping
 
+- Use the `release-checklist` skill for every change.
 - `main` takes pull requests only. Open the PR, merge it once Tests is
-  green, then check the runs.
+  green (auto-merge does it for a ready PR once `AUTOMERGE_TOKEN` is set,
+  so open work waiting on Daniel as a draft), then check the runs.
 - Lines for the changelog go in `changes/<branch>.md`, never CHANGELOG.md.
 - **Web and Android** (2026-11-27): android.yml builds every merge to
   main: a new APP_VERSION publishes app-v<version> for the in-app

@@ -61,6 +61,9 @@ test/i18n.test.js    every language table has every word the code uses, nothing 
 test/csp.test.js     the policy and the code under it (keel's check)
 test/contrast.test.js  every theme's colour pairs pass WCAG AA (keel's check)
 test/keel.test.js    keel's files weren't edited here (from keel)
+test/docs.test.js    this file names every file in src/, tools/, cli/, test/ and every workflow
+test/health.test.js  nothing left behind: CSS classes and functions nothing uses, the motion rules in styles.css, long fixed waits in tests, UI text set from an English literal (keel's checks)
+test/ui.test.js      the app in a browser (Playwright): Home, a demo trip's tabs and every Settings page at phone and desktop width, English and Hebrew, failing on any error the page logs; skipped where Playwright isn't installed, required in CI (tests.yml)
 cli/                 the CLI (tripboard.js) and MCP server (mcp.js) on the sync repo, both made from one list of commands (tools.js); core.js reads and writes the repo and does each edit and query, reusing model.js, merge.js, listimport.js, places.js and keel's github.js in Node. Each write is one commit; batch_update runs many write tools' steps on one doc in one commit, all or nothing, without the deleting ones
 cli/coverage.js      every part of the app (record fields, sheets, Settings pages, undoable actions, repo files, model.js's API) and the tool that covers it, or why a chat can't
 test/cli.test.js     cli/, against a fake GitHub
@@ -74,7 +77,7 @@ docs/                SCOPE.md (v1), SHARING.md, DRIVE.md (turning on Drive backu
 from-lifelog/        LifeLog's old Travel tab, for reference only; not loaded
 changes/             notes for the next release (changes/README.md)
 server.js            the local server: this computer only (from keel)
-tools/               release.js, keel-sync.js, keel-checks.js, android-version.js (from keel)
+tools/               release.js, keel-sync.js, keel-checks.js, android-version.js, unreleased.js (from keel)
 tools/server-copy.js copies the app files the sharing server's bundle takes in to server/app/ (test/server.test.js checks they match)
 tools/build-www.js   copies sw.js's ASSETS into www/ (phones) or www-desktop/ (desktop), with app-build.json
 tools/android-manifest.js  what the app adds to Capacitor's AndroidManifest.xml, and the MainActivity it writes for Share → Tripboard (a SEND of text becomes a tripboard-share: address the App plugin passes on; views.js takeShares → the Add to a trip sheet → Add a place, the link attached once it's saved)
@@ -86,7 +89,7 @@ package.json         the native builds' tools only (Capacitor, Tauri)
 capacitor.config.json  the phone apps: id, name, colours
 src-tauri/           the desktop app: one window on the same files, single instance, updater
 assets/logo.svg      the phone apps' icon and splash (@capacitor/assets)
-.github/workflows/   tests, Pages, android (every merge to main: a release when APP_VERSION is new, and the unreleased channel's build either way; a branch with a test label), ios, desktop, test-builds, server (deploys server/ once its secrets are set, also after a change to cli/ or the src/ files it loads)
+.github/workflows/   tests, Pages, android (every merge to main: a release when APP_VERSION is new, and the unreleased channel's build either way; a branch with a test label), ios, desktop, test-builds, server (deploys server/ once its secrets are set, also after a change to cli/ or the src/ files it loads), auto-merge (Daniel's own ready PRs merge themselves on green once AUTOMERGE_TOKEN is set)
 ```
 
 android/, ios/, www/ and www-desktop/ are made in CI, never committed.

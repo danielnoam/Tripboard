@@ -24,4 +24,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # ui.test.js skips itself without Playwright; here it must run, so
+      # Playwright and its Chromium go in a folder of their own, kept out
+      # of the app's package.json (the web app has no dependencies).
+      - name: Install Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
       - run: node test/run-all.js
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          REQUIRE_UI: "1"
