@@ -85,7 +85,7 @@ package.json         the native builds' tools only (Capacitor, Tauri)
 capacitor.config.json  the phone apps: id, name, colours
 src-tauri/           the desktop app: one window on the same files, single instance, updater
 assets/logo.svg      the phone apps' icon and splash (@capacitor/assets)
-.github/workflows/   tests, Pages, android (on its own only for a merge to main with a new APP_VERSION), ios, desktop, test-builds, server (deploys server/ once its secrets are set, also after a change to cli/ or the src/ files it loads)
+.github/workflows/   tests, Pages, android (on its own only for a merge to main with a new APP_VERSION), ios, desktop, test-builds, server, auto-merge (Daniel's own ready PRs merge themselves on green once AUTOMERGE_TOKEN is set) (deploys server/ once its secrets are set, also after a change to cli/ or the src/ files it loads)
 ```
 
 android/, ios/, www/ and www-desktop/ are made in CI, never committed.

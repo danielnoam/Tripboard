@@ -13,8 +13,10 @@ and no dependencies**, started from keel's template.
 
 ## Shipping
 
+- Use the `release-checklist` skill for every change.
 - `main` takes pull requests only. Open the PR, merge it once Tests is
-  green, then check the runs.
+  green (auto-merge does it for a ready PR once `AUTOMERGE_TOKEN` is set,
+  so open work waiting on Daniel as a draft), then check the runs.
 - Lines for the changelog go in `changes/<branch>.md`, never CHANGELOG.md.
 - **Web only for now** (2026-11-15): desktop.yml and ios.yml run only by
   hand until Daniel wants the apps; each says how to turn it back on.
