@@ -4,6 +4,30 @@ Every release of Tripboard, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [0.8.0] - 2026-11-27
+
+### Added
+- Share a place from Google Maps (or any app) to Tripboard on Android: it asks which trip, the one under way or next first, or a new one, then opens Add a place with the name filled in and searched for. The Google Maps link goes on the place's Attachments. The web app does the same once installed from Chrome on Android.
+- Settings › About › Changelog: what changed in each version, with the one you have marked. On a test build or an unreleased build, what it has beyond its version shows on top as Not released yet.
+- The first launch of a new version says so, with What's new to open the changelog.
+- Android: Settings › About › Updates chooses between releases and unreleased builds (every change once it's merged, before it's a release), on that phone only.
+- Your own sharing server (Settings › Sharing server) now works in the phone and desktop apps, not only the web app.
+- Publish a trip from its Sharing screen: a read-only link anyone can open, showing the plan by day, with or without your real dates (Day 1, Day 2…) and descriptions. Publish again updates the same link; Stop publishing ends it. Expenses, files, ratings, been there, a cover photo and who is on the trip are never published.
+- Copy to my trips on a published trip makes it your own trip, on the start date you pick. The publisher sees only how many times it was copied.
+- AI tools: publish_trip, unpublish_trip and copy_published.
+
+### Fixed
+- Tapping Save or Done twice, or pressing Back or Escape twice, on a sheet no longer adds the trip, place or expense twice. Duplicate and Edit trip with a new cover wait for the first tap too.
+- A tap on the next place right after closing a sheet opens it instead of being lost while the sheet slides away.
+- On Android, the first tap after a long press (picking places, a trip's menu) is no longer swallowed.
+- An AI's publish_trip and unpublish_trip now act on the server a trip was published on. For a trip you published on your own sharing server, unpublish used to say it had stopped while the trip stayed public there and its key was dropped, so nothing could stop it afterwards; publish made a second copy on Tripboard's server.
+- A trip published through the cloud connector on your own server gets a link that names that server, so the link opens.
+- In Hebrew, a journey's card on the Plan reads in the right direction: it showed "Zurich ← Tokyo" for a flight from Zurich to Tokyo, as if it went the other way.
+- On a phone narrower than 360 px (a small phone, or a large display size), the + beside the tabs was pushed off the screen. The tabs now get a little narrower there so it fits.
+- A shared trip opened for the first time on another of your devices no longer undoes what others changed since: it used to delete places they'd added, put back what they'd edited, and could take people who'd joined off the trip. Now each change goes by its newer copy and the list of who's on the trip is the server's.
+- Joining a trip through a link the server refuses (someone with your id is already on it), or sharing a trip the server already has, now says why instead of breaking the trip's sharing on this device.
+- GitHub sync, the CLI and the AI connector no longer overwrite a change another device or a chat committed at the same moment. Each commit now goes on exactly the version of the repo it merged with, or starts over.
+
 ## [0.7.1] - 2026-11-25
 
 ### Added
