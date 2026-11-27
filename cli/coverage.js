@@ -99,7 +99,8 @@ const settings = {
   server: "device: which sharing server this device shares through. A chat can't change it, since whoever runs a server reads the trips shared through it; get_trip says which server a shared trip is on",
   weather: "device: whether this device shows the weather, and in °C or °F; get_weather gives a chat the same forecast",
   ai: "app: whether AI tools may delete; a chat that could turn it on would make it pointless, so core.js refuses to write ai.json. The destructive tools say when it's off",
-  about: "device: version and credits",
+  about: "device: version, credits and which builds this phone's updates come from",
+  changelog: "device: the changelog bundled with this copy of the app; CHANGELOG.md is in the repo for anyone to read",
 };
 
 // What the app can undo (views.js's undoable(), by its English message).

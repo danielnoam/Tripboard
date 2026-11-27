@@ -35,6 +35,7 @@ src/keel/github.js   GitHub's API: files, trees, one-commit writes (from keel)
 src/keel/errlog.js   the errors this device hit (from keel, loaded first)
 src/keel/platform.js where it runs: browser, phone or desktop (from keel)
 src/keel/releases.js the update check and test builds (from keel)
+src/keel/changelog.js CHANGELOG.md read for Settings › About › Changelog (from keel)
 src/keel/update.js   the update bar: on Android, Update downloads the release's APK into the app's cache (Capacitor Filesystem) and opens Android's installer (FileOpener); elsewhere the browser has it (from keel)
 src/keel/motion.js   springs and moves, made in app.js (from keel)
 src/keel/sw-preview.js  the service worker's half of a test build (from keel)
@@ -88,7 +89,7 @@ package.json         the native builds' tools only (Capacitor, Tauri)
 capacitor.config.json  the phone apps: id, name, colours
 src-tauri/           the desktop app: one window on the same files, single instance, updater
 assets/logo.svg      the phone apps' icon and splash (@capacitor/assets)
-.github/workflows/   tests, Pages, android (on its own only for a merge to main with a new APP_VERSION), ios, desktop, test-builds, server, auto-merge (Daniel's own ready PRs merge themselves on green once AUTOMERGE_TOKEN is set) (deploys server/ once its secrets are set, also after a change to cli/ or the src/ files it loads)
+.github/workflows/   tests, Pages, android (every merge to main: a release when APP_VERSION is new, and the unreleased channel's build either way; a branch with a test label), ios, desktop, test-builds, server (deploys server/ once its secrets are set, also after a change to cli/ or the src/ files it loads), auto-merge (Daniel's own ready PRs merge themselves on green once AUTOMERGE_TOKEN is set)
 ```
 
 android/, ios/, www/ and www-desktop/ are made in CI, never committed.

@@ -31,9 +31,9 @@
   // A newer release on GitHub, for the apps; the web copy updates itself.
   // Its name is the one on the release's assets (Tripboard.apk) and in
   // the test build cache sw.js serves from. On the channel "unreleased"
-  // (releases.setChannel(), kept on this device; no switch until the apps
-  // are on) the newest build of main is offered too, from the site's
-  // unreleased/ (keel's tools/unreleased.js).
+  // (releases.setChannel(), kept on this device; Settings › About's
+  // Updates in the Android app) the newest build of main is offered too,
+  // from the site's unreleased/ (keel's tools/unreleased.js).
   const releases = K.releases.create({ name: "Tripboard", repo: () => (K.platform.build && K.platform.build.repo) || null });
   // The bar's Update downloads and installs it (keel's update.js). A
   // closed bar stays closed for that version until a newer one is out.
@@ -79,7 +79,11 @@
   // there is one) says which moves it uses.
   const motion = K.motion.create();
 
-  Object.assign(T, { version: APP_VERSION, releases, motion, checkUpdates });
+  // Only Android builds every merge to main (android.yml), so only it
+  // has an unreleased channel to switch to.
+  const channels = () => !!updater && kind() === "android";
+
+  Object.assign(T, { version: APP_VERSION, releases, motion, checkUpdates, channels });
 
   // Saves wait a moment, so a burst of changes is one write.
   let timer = null, latest = null;

@@ -36,7 +36,7 @@ const DEMO = {
 };
 const SCREENS = ["#/", "#/trip/t1", "#/trip/t1/today", "#/trip/t1/map", "#/trip/t1/expenses", "#/trip/t1/files",
   "#/settings", "#/settings/appearance", "#/settings/categories", "#/settings/services", "#/settings/map", "#/settings/search",
-  "#/settings/weather", "#/settings/ai", "#/settings/sharing", "#/settings/server", "#/settings/data", "#/settings/about", "#/settings/p/maptiler"];
+  "#/settings/weather", "#/settings/ai", "#/settings/sharing", "#/settings/server", "#/settings/data", "#/settings/about", "#/settings/changelog", "#/settings/p/maptiler"];
 
 (async () => {
   const pw = playwright();

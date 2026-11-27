@@ -18,13 +18,13 @@ and no dependencies**, started from keel's template.
   green (auto-merge does it for a ready PR once `AUTOMERGE_TOKEN` is set,
   so open work waiting on Daniel as a draft), then check the runs.
 - Lines for the changelog go in `changes/<branch>.md`, never CHANGELOG.md.
-- **Web only for now** (2026-11-15): desktop.yml and ios.yml run only by
-  hand until Daniel wants the apps; each says how to turn it back on.
-  android.yml runs on its own only for a release (a merge to main with a
-  new APP_VERSION), which publishes app-v<version> for the in-app updater.
-  Once on: builds are the web app, Windows and the APK by default. iOS and
-  Linux only when Daniel asks (run `ios.yml`, or `desktop.yml` with Linux ticked,
-  or label the PR `test-ios` / `test-linux`).
+- **Web and Android** (2026-11-27): android.yml builds every merge to
+  main: a new APP_VERSION publishes app-v<version> for the in-app
+  updater, and every build is the unreleased channel's (Settings › About ›
+  Updates). desktop.yml and ios.yml run only by hand until Daniel wants
+  those apps; each says how to turn it back on. iOS and Linux only when
+  Daniel asks (run `ios.yml`, or `desktop.yml` with Linux ticked, or
+  label the PR `test-ios` / `test-linux`).
 - To try a change on a phone before it merges, label its PR `test` and
   say the build is on the `test-<branch>` pre-release.
 - Shared files come from keel (danielnoam/keel): change them there, then

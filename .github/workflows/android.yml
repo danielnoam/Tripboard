@@ -4,18 +4,15 @@
 # and a bad deploy can't break the installed app.
 name: Android app
 
-# Web only for now (Daniel, 2026-11-15), except releases: a merge to main
-# that changes APP_VERSION (tools/release.js) builds and publishes that
-# release on its own, so the app's update bar has something to offer. Other
-# merges and branches build only when run by hand. To build every push
-# again, replace the push below with:
-#   push:
-#     branches: ["**"]
-#     paths-ignore: ["**.md", "test/**", ".claude/**", "docs/**"]
+# Every merge to main builds (2026-11-27): a new APP_VERSION
+# (tools/release.js) is published as a release, and every build of main
+# is the unreleased channel's, which Settings › About › Updates offers. A
+# branch builds when its open pull request is labelled test or
+# test-android, or when run by hand.
 on:
   push:
-    branches: [main]
-    paths: [src/app.js]
+    branches: ["**"]
+    paths-ignore: ["**.md", "test/**", ".claude/**", "docs/**", "cli/**", "server/**"]
   workflow_dispatch:
 
 permissions:
@@ -39,25 +36,11 @@ jobs:
       build: ${{ steps.g.outputs.build }}
       test: ${{ steps.g.outputs.test }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: src/app.js
-          sparse-checkout-cone-mode: false
       - id: g
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          # A push to main builds only a version not released yet: the
-          # release is the point, and the unreleased channel isn't on.
-          if [ "$GITHUB_EVENT_NAME" = push ]; then
-            V=$(sed -n 's/.*const APP_VERSION = "\([^"]*\)".*/\1/p' src/app.js)
-            if [ -z "$V" ] || gh release view "app-v$V" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              echo "app-v$V is already released (or no APP_VERSION), so no build"
-              echo "build=false" >> "$GITHUB_OUTPUT"; echo "test=false" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-            echo "app-v$V isn't released yet: building it"
-          fi
           if [ "$GITHUB_REF" = refs/heads/main ]; then
             # Every merge to main builds: a new APP_VERSION is a release, and
             # any other merge is the unreleased channel's next build.
