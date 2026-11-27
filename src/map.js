@@ -159,7 +159,7 @@
       full.replaceChildren(...credits());
       return;
     }
-    label.textContent = "Google";
+    label.textContent = "Google"; // en-only: the provider's name
     full.replaceChildren("Google");
     clearTimeout(attribTimer);
     attribTimer = setTimeout(async () => {
