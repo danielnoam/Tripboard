@@ -53,7 +53,8 @@
     const store = ctx.store;
     const branch = cfg().branch || "main";
     const state = (await store.meta("sync")) || { shas: {}, base: {}, cover: {} };
-    if (state.repo !== cfg().owner + "/" + cfg().repo) Object.assign(state, { repo: cfg().owner + "/" + cfg().repo, shas: {}, base: {}, cover: {}, files: {} });
+    if (state.repo !== cfg().owner + "/" + cfg().repo) Object.assign(state, { repo: cfg().owner + "/" + cfg().repo, shas: {}, base: {}, cover: {}, files: {}, ref: null });
+    if (state.ref && state.ref.branch !== branch) state.ref = null;
     state.files = state.files || {};
     const startVersion = ctx.version();
     const startText = JSON.stringify(ctx.getDoc());
@@ -61,10 +62,31 @@
     // A cover from before sync has no coverAt yet; it gets one so it travels.
     for (const t of startDoc.trips) if (t.cover && !t.coverAt) t.coverAt = t.createdAt || "2000-01-01T00:00:00.000Z";
 
-    // The repo as it is: one call for every path and its sha.
-    const head = await gh.json("GET", "git/ref/heads/" + encodeURIComponent(branch)).catch((e) => { if (e.status === 409) e.empty = true; throw e; });
-    const tree = head ? await gh.json("GET", "git/trees/" + head.object.sha + "?recursive=1") : { tree: [] };
-    const remote = new Map((tree.tree || []).filter((f) => f.type === "blob").map((f) => [f.path, f.sha]));
+    // The repo as it is: one call for every path and its sha. The head is
+    // asked for with its ETag (2026-11): while the branch hasn't moved,
+    // GitHub answers 304, which is free and not counted against the rate
+    // limit, and the tree from last time stands in for the recursive one,
+    // which grows with every cover and file. Every sync (each 5 minutes
+    // and each return to the app) used to fetch the whole tree.
+    const cfgNow = cfg();
+    const refRes = await gh.request(K.github.API + "/repos/" + cfgNow.owner + "/" + cfgNow.repo + "/git/ref/heads/" + encodeURIComponent(branch),
+      { etag: state.ref && state.ref.etag });
+    let head = null, remote;
+    if (refRes.status === 304 && state.ref) {
+      head = { object: { sha: state.ref.sha } };
+      remote = new Map(state.ref.tree);
+    } else {
+      if (refRes.status !== 404 && !refRes.ok) {
+        const e = K.github.httpError(refRes.status, await refRes.text().catch(() => ""), refRes);
+        if (e.status === 409) e.empty = true;
+        throw e;
+      }
+      if (refRes.status !== 404) head = await refRes.json();
+      const tree = head ? await gh.json("GET", "git/trees/" + head.object.sha + "?recursive=1") : { tree: [] };
+      remote = new Map((tree.tree || []).filter((f) => f.type === "blob").map((f) => [f.path, f.sha]));
+      const etag = (refRes.headers && refRes.headers.get && refRes.headers.get("ETag")) || "";
+      state.ref = head && etag && !tree.truncated ? { etag, branch, sha: head.object.sha, tree: [...remote] } : null;
+    }
 
     // Pull and merge the trips whose file changed.
     let doc = startDoc;
@@ -233,6 +255,8 @@
         // On the head this merged against, or not at all (moved: start over).
         parent: head ? head.object.sha : null,
       });
+      // The branch moved with this commit; the next sync reads the tree again.
+      state.ref = null;
     }
     for (const t of coverPulls) {
       const bytes = await gh.getRaw("covers/" + t.id + ".jpg", { as: "bytes" });

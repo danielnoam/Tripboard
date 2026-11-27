@@ -256,6 +256,29 @@ const names = (list) => J(list.map((t) => t.name));
     assert.deepStrictEqual([st.state, st.error], ["idle", null]);
   });
 
+  await test("an unmoved branch is a 304 and no tree; a commit from either side reads the tree again", async () => {
+    const g = fakeGitHub();
+    const a = device(g), b = device(g);
+    a.edit((doc) => doc.trips.push({ id: "k", name: "Kyoto" }));
+    await a.sync();
+    await b.sync();
+    let trees = g.treeReads;
+    assert.strictEqual((await b.sync()).state, "idle");
+    assert.strictEqual(g.treeReads, trees, "nothing moved: no tree");
+    assert.strictEqual(g.notModified, 1);
+    // a's own commit: its next sync reads the tree once, then 304s.
+    a.edit((doc) => { doc.trips[0].name = "Kyoto spring"; });
+    await a.sync();
+    trees = g.treeReads;
+    await a.sync();
+    assert.strictEqual(g.treeReads, trees + 1);
+    await a.sync();
+    assert.strictEqual(g.treeReads, trees + 1);
+    // b had a 304 cached; the branch moved, so b reads the tree and gets the change.
+    await b.sync();
+    assert.deepStrictEqual(b.names(), ["Kyoto spring"]);
+  });
+
   await test("not connected: off, and no call to GitHub", async () => {
     const g = fakeGitHub();
     const a = device(g, { connected: false });
