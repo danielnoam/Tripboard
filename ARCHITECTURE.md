@@ -16,7 +16,7 @@ src/model.js         trips, places (a journey is one with kind "journey": its ar
 src/store.js         IndexedDB on this device: the data ("doc"), each trip's cover photo and each file's bytes
 src/merge.js         a trip as a bundle (one file), and how two copies of it merge three ways (Node-tested)
 src/drive.js         Google Drive backups: keel's drive.js set up for Tripboard (its OAuth client IDs, docs/DRIVE.md); what a backup holds and when it runs are in views.js
-src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls)
+src/sync.js          GitHub sync: the trips in a private repo of yours, one commit per sync (keel's github.js makes the calls); the head is asked for with its ETag, and an unmoved branch (304) reuses the last tree ("meta:sync".ref)
 src/csp.js           the phone and desktop apps' CSP with this device's own sharing servers in connect-src (sw.js does it for the web app)
 src/share.js         shared trips: each device on one syncs that trip with its sharing server (server/: Tripboard's, or one the person runs), beside GitHub sync; invite links, joining, leaving; publishing a trip (Sharing › Publish: a read-only snapshot of model.publishedOf, its key in "meta:published" and published.json) and opening a published one (#/p/<id>[/<host>], views.js renderPublished; Copy to my trips is the Duplicate sheet on model.publishedDoc)
 src/settings.js      Settings on this device (your categories too, synced as categories.json): each provider's setup (key, style) and each service's main and fallback (Node-tested)
@@ -53,7 +53,7 @@ test/weather.test.js src/weather.js
 test/offline.test.js src/offline.js's tile plan, keys and style rewrite
 test/listimport.test.js  src/listimport.js
 test/settings.test.js  src/settings.js
-test/sync.test.js    src/sync.js end to end: two devices in vms syncing through the fake GitHub (merges, deletions, covers and files, a repo that moves mid-sync, errors)
+test/sync.test.js    src/sync.js end to end: two devices in vms syncing through the fake GitHub (merges, deletions, covers and files, a repo that moves mid-sync, the head's 304, errors)
 test/fakegithub.js   an in-memory GitHub for cli.test.js and sync.test.js
 test/share.test.js   src/share.js's sharing servers and invite links, and sw.js (web) and src/csp.js (phone and desktop apps) adding them to the CSP
 test/share-sync.test.js  src/share.js syncing shared trips end to end: devices in vms against server/worker.js on SQLite (a device's first sync, refused joins, two editors)
