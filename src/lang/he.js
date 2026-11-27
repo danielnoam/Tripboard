@@ -846,7 +846,6 @@ Keel.i18n.strings("he", {
   "Removed": "הוסר",
   "The changelog didn't load. It's on GitHub as CHANGELOG.md.": "יומן השינויים לא נטען. אפשר למצוא אותו ב־GitHub בשם CHANGELOG.md.",
   "Unreleased builds": "גרסאות שלא שוחררו",
-  "Unreleased builds are every change once it's merged, before it's a release. They can have bugs a release wouldn't. This device only.": "גרסאות שלא שוחררו כוללות כל שינוי מרגע שמוזג, לפני שיוצאת גרסה רשמית. ייתכנו בהן באגים שלא היו בגרסה רשמית. רק במכשיר הזה.",
   "Updated to {version}.": "עודכן לגרסה {version}.",
   "Updates": "עדכונים",
   "What changed in each version": "מה השתנה בכל גרסה",

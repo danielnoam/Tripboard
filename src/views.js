@@ -4032,8 +4032,7 @@
     return el("div.channel", {},
       el("fieldset.field", {}, el("legend", { text: i18n.t("Updates") }),
         el("div.seg", { role: "radiogroup" }, [["release", i18n.t("Releases")], ["unreleased", i18n.t("Unreleased builds")]].map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String((on ? "unreleased" : "release") === id), text: label,
-          onclick: () => { if ((id === "unreleased") === on) return; T.releases.setChannel(id); render(); } })))),
-      el("p.hint.dim", { text: i18n.t("Unreleased builds are every change once it's merged, before it's a release. They can have bugs a release wouldn't. This device only.") }));
+          onclick: () => { if ((id === "unreleased") === on) return; T.releases.setChannel(id); render(); } })))));
   }
 
   // Settings › About › Changelog: CHANGELOG.md as this copy of the app has
