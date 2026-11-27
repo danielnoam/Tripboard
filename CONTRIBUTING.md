@@ -91,9 +91,16 @@ run `node tools/server-copy.js` (`test/server.test.js` fails until then).
   CHANGELOG.md. New feature: minor; fix: patch.
 - The web copy is GitHub Pages from `main` (`pages.yml`, after the
   tests): every merge updates it.
-- A merge with a new version publishes the release `app-v<version>`:
-  the APK (`android.yml`), then the Windows app (`desktop.yml`) beside
-  it. iOS (`ios.yml`) and Linux build only when run by hand.
+- Every merge to main builds the APK (`android.yml`). With a new
+  version it publishes the release `app-v<version>`; either way it is the
+  unreleased channel's build, served from the site's `unreleased/`
+  (keel's tools/unreleased.js) and offered by Settings › About › Updates
+  on phones that picked Unreleased builds. The Windows app
+  (`desktop.yml`), iOS (`ios.yml`) and Linux build only when run by hand.
+- The apps ship CHANGELOG.md with what's in `changes/` on top as
+  `## [Unreleased]` (tools/build-www.js, keel's withPending), shown as
+  "Not released yet" in Settings › About › Changelog. The web copy shows
+  the committed file.
 - A pull request labelled `test` (or `test-android`, `test-ios`,
   `test-desktop`, `test-linux`) gets a test build on the pre-release
   `test-<branch>`; the label coming off or the PR closing removes it.

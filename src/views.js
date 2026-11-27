@@ -3699,6 +3699,8 @@
       ...(driveOn() ? [{ ico: "cloud", title: i18n.t("Google Drive"), where: i18n.t("Data"), href: "#/settings/drive", words: "drive google backup backups restore automatic cloud copy" }] : []),
       { ico: "database", title: i18n.t("Storage and backup"), where: i18n.t("Data"), href: "#/settings/data", words: "storage space used trips places photos covers persistent keep safe delete browser backup restore file export import save json" },
       { ico: "info", title: i18n.t("About"), where: i18n.t("Settings"), href: "#/settings/about", words: "version credits licences privacy" },
+      { ico: "list", title: i18n.t("Changelog"), where: i18n.t("About"), href: "#/settings/changelog", words: "changelog changes what's new whats new versions releases unreleased" },
+      ...(window.Tripboard.channels() ? [{ ico: "refresh", title: i18n.t("Updates"), where: i18n.t("About"), href: "#/settings/about", words: "updates unreleased builds channel releases newest" }] : []),
     ];
     for (const [id, P] of Object.entries(SET.PROVIDERS)) {
       const href = "#/settings/p/" + id;
@@ -3721,7 +3723,7 @@
 
   // Settings' pages, and the page each one steps back to.
   const SETTINGS_PARENT = { map: "services", search: "services", p: "services", weather: "services", ai: "services",
-    server: "sharing", drive: "data" };
+    server: "sharing", drive: "data", changelog: "about" };
   const settingsParent = (page) => SETTINGS_PARENT[String(page).split("/")[0]] || "";
 
   // On a computer Settings has two panes: its list (and search) on one side,
@@ -3748,6 +3750,7 @@
     if (page === "categories") return (renderCategories(main), true);
     if (page === "appearance" || page === "display") return (renderAppearance(main), true);
     if (page === "about") return (renderAbout(main), true);
+    if (page === "changelog") return (renderChangelog(main), true);
     if (page === "weather") return (renderWeather(main), true);
     if (page === "server") return (renderServer(main), true);
     if (page === "ai") return (renderAi(main), true);
@@ -4020,12 +4023,50 @@
     return box;
   }
 
+  // Which builds Check for updates offers, on this device: releases, or
+  // also the newest build of main (keel's unreleased channel).
+  function channelField() {
+    const T = window.Tripboard;
+    if (!T.channels()) return null;
+    const on = T.releases.channel() === "unreleased";
+    return el("div.channel", {},
+      el("fieldset.field", {}, el("legend", { text: i18n.t("Updates") }),
+        el("div.seg", { role: "radiogroup" }, [["release", i18n.t("Releases")], ["unreleased", i18n.t("Unreleased builds")]].map(([id, label]) => el("button", { type: "button", role: "radio", "aria-checked": String((on ? "unreleased" : "release") === id), text: label,
+          onclick: () => { if ((id === "unreleased") === on) return; T.releases.setChannel(id); render(); } })))),
+      el("p.hint.dim", { text: i18n.t("Unreleased builds are every change once it's merged, before it's a release. They can have bugs a release wouldn't. This device only.") }));
+  }
+
+  // Settings › About › Changelog: CHANGELOG.md as this copy of the app has
+  // it, in English only (the items say which way they read: dir="auto").
+  // A build of main or a test build has what's merged since its
+  // version on top (tools/build-www.js), shown as Not released yet.
+  function renderChangelog(main) {
+    $("title").textContent = i18n.t("Changelog");
+    const C = window.Keel.changelog, v = window.Tripboard.version;
+    const box = el("div.changelog", {}, el("p.dim", { text: i18n.t("Loading…") }));
+    main.append(box);
+    C.load("CHANGELOG.md?v=" + v).then((entries) => {
+      if (!entries || !entries.length) return box.replaceChildren(el("p.hint", { "data-tone": "warn", text: i18n.t("The changelog didn't load. It's on GitHub as CHANGELOG.md.") }));
+      const mine = C.mine(entries, v);
+      const day = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? i18n.date(new Date(d + "T12:00:00")) : d);
+      box.replaceChildren(...entries.map((e) => el("section.panel.change", { "aria-current": e === mine ? "true" : null },
+        el("h2", {}, e.version === "Unreleased" ? i18n.t("Not released yet") : e.version,
+          e === mine ? el("span.change-you", { text: i18n.t("You have this") }) : null),
+        e.date ? el("p.dim.change-date", { text: day(e.date) }) : null,
+        ...e.sections.map((sec) => el("div.change-part", {},
+          sec.title ? el("h3", { text: KINDS[sec.title] ? KINDS[sec.title]() : sec.title }) : null,
+          el("ul", {}, sec.items.map((t) => el("li", { dir: "auto", text: t }))))))));
+    });
+  }
+  const KINDS = { Added: () => i18n.t("Added"), Changed: () => i18n.t("Changed"), Fixed: () => i18n.t("Fixed"), Removed: () => i18n.t("Removed") };
+
   function renderAbout(main) {
     $("title").textContent = i18n.t("About");
     const link = (text, href) => el("a", { href, target: "_blank", rel: "noopener noreferrer", text });
     main.append(el("section.panel", {}, el("h2", { text: i18n.t("Tripboard {version}", { version: window.Tripboard.version }) }),
       el("p.dim", { text: i18n.t("Your trips stay on this device, and in your own private GitHub repo if you turn on sync. Keys and tokens you add are kept in this browser and sent only to their own service.") }),
-      updateCheck()),
+      updateCheck(), channelField()),
+    sgroup(i18n.t("Changes"), [srow("#/settings/changelog", "list", i18n.t("Changelog"), { text: i18n.t("What changed in each version") })]),
     sgroup(i18n.t("Credits"), [el("ul.credits", {},
       el("li", {}, i18n.t("Icons: "), link("Lucide", "https://lucide.dev"), " (ISC)"),
       el("li", {}, i18n.t("Map: "), link("MapLibre GL JS", "https://maplibre.org"), " (BSD-3), ", link("OpenFreeMap", "https://openfreemap.org"), ", © ", link("OpenMapTiles", "https://www.openmaptiles.org")),
@@ -4988,6 +5029,15 @@
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(maybeDriveBackup, 5000); });
     }
     SHARE.start({ getDoc: () => doc, adopt, version: () => version, store, coverChanged, filesChanged: sweepFiles, unshared });
+    updatedToast();
+  }
+
+  // The first launch of a new version says so, with the way to what changed.
+  function updatedToast() {
+    const v = window.Tripboard.version, KEY = "tripboard.seenVersion";
+    let seen = null;
+    try { seen = localStorage.getItem(KEY); localStorage.setItem(KEY, v); } catch (e) { return; }
+    if (seen && seen !== v) toast(i18n.t("Updated to {version}.", { version: v }), null, { label: i18n.t("What's new"), run: () => go("#/settings/changelog") });
   }
 
   // The bar's sync badge. Turning arrows show only for a sync that takes a

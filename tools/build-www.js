@@ -124,6 +124,10 @@ function build(out = OUT, root = ROOT, desktop = DESKTOP) {
       const html = fs.readFileSync(from, "utf8");
       fs.writeFileSync(to, bundledIndexHtml(desktop ? desktopIndexHtml(html) : appIndexHtml(html)));
     }
+    // What's merged since the last release, on top as "## [Unreleased]",
+    // so a build of main or a test build says what it has beyond its
+    // version ("Not released yet" in About › Changelog).
+    else if (rel === "CHANGELOG.md") fs.writeFileSync(to, require("./release.js").withPending(root));
     else fs.copyFileSync(from, to);
   }
   const repo = repoSlug();
